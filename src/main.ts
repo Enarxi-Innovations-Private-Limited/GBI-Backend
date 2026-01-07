@@ -1,3 +1,6 @@
+// Load environment variables first for Prisma v7
+import 'dotenv/config';
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -5,7 +8,6 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { defineDmmfProperty } from 'generated/prisma/runtime/client';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(

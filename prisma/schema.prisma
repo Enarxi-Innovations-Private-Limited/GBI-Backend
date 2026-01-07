@@ -6,11 +6,11 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -21,8 +21,10 @@ model User {
   name          String?
   organization  String?
   phone         String?
+  city          String?
   emailVerified Boolean  @default(false)
   phoneVerified Boolean  @default(false)
+  isRestricted  Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -30,6 +32,7 @@ model User {
   alerts        AlertThreshold[]
   notifications Notification[]
   eventLogs     EventLog[]
+  refreshTokens RefreshToken[]
 }
 
 model Admin {
@@ -128,4 +131,18 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
 }
