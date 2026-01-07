@@ -133,6 +133,46 @@ export class AuthService {
   }
 
   /**
+   * Change user password
+   */
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ success: true }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isOldPasswordValid = await bcrypt.compare(
+      oldPassword,
+      user.passwordHash,
+    );
+
+    if (!isOldPasswordValid) {
+      throw new BadRequestException('Invalid old password');
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    await this.prisma.refreshToken.updateMany({
+      where: { userId },
+      data: { revokedAt: new Date() },
+    });
+
+    return { success: true };
+  }
+
+  /**
    * Google OAuth login/signup
    */
   async googleLogin(profile: any): Promise<AuthResponse> {
