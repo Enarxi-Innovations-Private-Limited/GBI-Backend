@@ -6,7 +6,6 @@ import { Strategy, ExtractJwt } from 'passport-jwt';
 @Injectable()
 export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
   constructor(config: ConfigService) {
-    console.log('ADMIN SECRET:', config.get('ADMIN_JWT_SECRET'));
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: config.get('ADMIN_JWT_SECRET'),
