@@ -8,6 +8,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { UsersModule } from './module/users/users.module';
 import { AdminModule } from './module/admin/admin.module';
 import { RedisModule } from './redis/redis.module';
+import { DevicesModule } from './module/devices/devices.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RedisModule } from './redis/redis.module';
     UsersModule,
     AdminModule,
     RedisModule,
+    DevicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
