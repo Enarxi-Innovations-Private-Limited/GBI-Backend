@@ -68,8 +68,8 @@ export class AuthService {
         organization,
         phone,
         city,
-        emailVerified: true, // Auto-verified for mock
-        phoneVerified: true, // Auto-verified for mock
+        emailVerified: false, // Default: false (User must verify)
+        phoneVerified: false, // Default: false (User must verify)
       },
     });
 

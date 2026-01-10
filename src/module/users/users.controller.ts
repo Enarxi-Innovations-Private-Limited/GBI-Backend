@@ -33,9 +33,19 @@ export class UsersController {
     return this.usersService.changePassword(userId, dto);
   }
 
+  @Post('request-email-verification')
+  requestEmailVerification(@CurrentUser('id') userId: string) {
+    return this.usersService.requestEmailVerification(userId);
+  }
+
   @Post('verify-email')
   verifyEmail(@CurrentUser('id') userId: string, @Body() dto: VerifyEmailDto) {
     return this.usersService.verifyEmail(userId, dto.code);
+  }
+
+  @Post('request-phone-verification')
+  requestPhoneVerification(@CurrentUser('id') userId: string) {
+    return this.usersService.requestPhoneVerification(userId);
   }
 
   @Post('verify-phone')

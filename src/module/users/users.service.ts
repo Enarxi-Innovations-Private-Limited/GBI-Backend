@@ -4,6 +4,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import Redis from 'ioredis';
+import { randomInt } from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -53,7 +54,9 @@ export class UsersService {
     await this.redis.set(key, otp, 'EX', 300);
 
     // TODO: Replace with real email service (SendGrid/AWS SES)
-    console.log(`[MOCK EMAIL] OTP for user ${userId}: ${otp}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[MOCK EMAIL] OTP for user ${userId}: ${otp}`);
+    }
 
     return { message: 'OTP sent to email (check server logs)' };
   }
@@ -85,7 +88,9 @@ export class UsersService {
     await this.redis.set(key, otp, 'EX', 300);
 
     // TODO: Replace with real SMS service (Twilio/SNS)
-    console.log(`[MOCK SMS] OTP for user ${userId}: ${otp}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[MOCK SMS] OTP for user ${userId}: ${otp}`);
+    }
 
     return { message: 'OTP sent to phone (check server logs)' };
   }
@@ -105,6 +110,7 @@ export class UsersService {
   }
 
   private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    // Cryptographically secure random number
+    return randomInt(100000, 1000000).toString();
   }
 }
