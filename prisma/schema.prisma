@@ -45,6 +45,7 @@ model Admin {
 model Device {
   id       String   @id @default(uuid())
   deviceId String   @unique
+  type     String   @default("Air Quality Monitor")
   status   String
   addedAt  DateTime @default(now())
 

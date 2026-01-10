@@ -41,19 +41,25 @@ Registers a new IoT device in the system.
 **Request Body:**
 ```json
 {
-  "deviceId": "ESP32-001"
+  "deviceId": "ESP32-001",
+  "deviceType": "Air Quality Monitor" 
 }
 ```
+*   `deviceType` is optional. 
+*   **Allowed Values:** `Air Quality Monitor`.
+*   **Default:** `Air Quality Monitor` if not specified.
 
 **Response (201):**
 ```json
 {
   "id": "uuid",
   "deviceId": "ESP32-001",
+  "type": "Air Quality Monitor",
   "createdAt": "..."
 }
 ```
 **Errors:**
+*   `400 Bad Request`: If `deviceType` is not a valid enum value.
 *   `409 Conflict`: If Device ID already exists.
 
 ### 3. List Devices

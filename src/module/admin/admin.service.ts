@@ -42,7 +42,7 @@ export class AdminService {
     const exists = await this.repo.findDevice(dto.deviceId);
     if (exists) throw new ConflictException('Device already exists');
 
-    return this.repo.createDevice(dto.deviceId);
+    return this.repo.createDevice(dto.deviceId, dto.deviceType);
   }
 
   getDevices() {
