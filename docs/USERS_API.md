@@ -75,7 +75,7 @@ Allows a logged-in user to change their password.
 **POST** `/users/request-email-verification`
 
 Generates a cryptographically secure 6-digit OTP and attempts to send it to the user's registered email.
-*   **Security**: Rate limited (TODO).
+*   **Security**: Rate limited (1-minute cooldown, max 5 requests/hour).
 *   **Storage**: OTP is stored in Redis with a 5-minute expiration (`TTL: 300s`).
 *   **Dev Mode**: In `NODE_ENV=development`, the OTP is logged to the server console.
 
@@ -87,6 +87,9 @@ Generates a cryptographically secure 6-digit OTP and attempts to send it to the 
 ```
 **Errors:**
 *   `400 Bad Request`: If email is already verified.
+*   `429 Too Many Requests`: If rate limit is exceeded.
+    *   Example: `"Please wait 45 seconds before requesting another OTP."`
+    *   Example: `"You have reached the maximum of 5 OTP requests per hour."`
 
 ### 5. Verify Email OTP
 **POST** `/users/verify-email`
@@ -113,6 +116,7 @@ Validates the OTP entered by the user.
 
 Similar to email verification, but sends an OTP to the user's registered phone number.
 *   **Dev Mode**: Logs OTP to console.
+*   **Security**: Rate limited (1-minute cooldown, max 5 requests/hour).
 *   **Storage**: Stored in Redis (`otp_phone:<userId>`).
 
 **Response (201):**

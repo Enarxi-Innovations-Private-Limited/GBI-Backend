@@ -1,6 +1,6 @@
 import { AuthService } from 'src/auth/auth.service';
 import { UsersRepository } from './users.repository';
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import Redis from 'ioredis';
@@ -47,6 +47,9 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
     if (user.emailVerified) throw new BadRequestException('Email already verified');
 
+    // Rate Limit Check
+    await this.checkRateLimit(userId, 'email');
+
     const otp = this.generateOtp();
     const key = `otp_email:${userId}`;
 
@@ -82,6 +85,9 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
     if (user.phoneVerified) throw new BadRequestException('Phone already verified');
 
+    // Rate Limit Check
+    await this.checkRateLimit(userId, 'phone');
+
     const otp = this.generateOtp();
     const key = `otp_phone:${userId}`;
 
@@ -107,6 +113,41 @@ export class UsersService {
     await this.redis.del(key);
 
     return { success: true, message: 'Phone verified successfully' };
+  }
+
+  private async checkRateLimit(userId: string, type: 'email' | 'phone') {
+    const cooldownKey = `rate_limit:otp_cooldown:${type}:${userId}`;
+    const countKey = `rate_limit:otp_count:${type}:${userId}`;
+
+    // 1. Check Cooldown (1 minute)
+    const inCooldown = await this.redis.get(cooldownKey);
+    if (inCooldown) {
+      const ttl = await this.redis.ttl(cooldownKey);
+      throw new HttpException(
+        `Please wait ${ttl} seconds before requesting another OTP.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // 2. Check Hourly Limit (5 requests per hour)
+    const requestCount = await this.redis.get(countKey);
+    if (requestCount && parseInt(requestCount) >= 5) {
+      throw new HttpException(
+        'You have reached the maximum of 5 OTP requests per hour. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // 3. Set/Update Limits
+    // Set 1-minute cooldown
+    await this.redis.set(cooldownKey, '1', 'EX', 60);
+
+    // Increment hourly counter
+    await this.redis.incr(countKey);
+    // If this is the first request (or key expired), set expiration to 1 hour
+    if (!requestCount) {
+      await this.redis.expire(countKey, 3600);
+    }
   }
 
   private generateOtp(): string {
