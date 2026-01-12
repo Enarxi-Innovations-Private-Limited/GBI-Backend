@@ -64,6 +64,13 @@ export class AdminRepository {
     });
   }
 
+  async updateUserRestriction(userId: string, value: boolean) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { isRestricted: value },
+    });
+  }
+
   revokeUserSessions(userId: string) {
     return this.prisma.refreshToken.deleteMany({
       where: { userId },

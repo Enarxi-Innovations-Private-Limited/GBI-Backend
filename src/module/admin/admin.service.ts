@@ -73,4 +73,8 @@ export class AdminService {
     await this.repo.revokeUserSessions(userId);
     return { success: true };
   }
+
+  async unrestrictUser(userId: string) {
+    return this.repo.updateUserRestriction(userId, false);
+  }
 }
