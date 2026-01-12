@@ -275,6 +275,7 @@ GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 5. **Database-backed Sessions**: Refresh tokens stored in DB, can be revoked
 6. **Input Validation**: All inputs validated using class-validator
 7. **SQL Injection Protection**: Prisma ORM with parameterized queries
+8. **Rate Limiting**: Redis-backed limits on sensitive endpoints (e.g., OTP generation)
 
 ---
 

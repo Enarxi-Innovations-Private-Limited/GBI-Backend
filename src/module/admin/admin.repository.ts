@@ -13,10 +13,11 @@ export class AdminRepository {
     return this.prisma.device.findUnique({ where: { deviceId } });
   }
 
-  createDevice(deviceId: string) {
+  createDevice(deviceId: string, type?: string) {
     return this.prisma.device.create({
       data: {
         deviceId,
+        type: type, // Optional: if undefined, Prisma uses @default("Air Quality Monitor")
         status: 'active',
       },
     });

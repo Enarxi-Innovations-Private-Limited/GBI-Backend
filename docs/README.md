@@ -469,8 +469,13 @@ pnpm prisma migrate dev
 ### Related Files
 - `README.md` - Project overview
 - `SETUP_GUIDE.md` - Initial setup
-- `docs/AUTH_API.md` - Authentication API reference
-- `docs/MOCK_NOTIFICATIONS.md` - Notification system
+- **API Documentation**:
+  - [Authentication API](./docs/AUTH_API.md)
+  - [Users API](./docs/USERS_API.md) (Profile, Password, OTP Verification)
+  - [Devices API](./docs/DEVICES_API.md) (Claim & Manage Devices)
+  - [Admin API](./docs/ADMIN_API.md) (Device Management, User Control)
+  - [Telemetry Schema](./docs/TELEMETRY_SCHEMA.md) (MQTT Data Format)
+  - [Notifications](./docs/MOCK_NOTIFICATIONS.md)
 
 ---
 
