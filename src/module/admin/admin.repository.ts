@@ -58,7 +58,7 @@ export class AdminRepository {
     });
   }
 
-  restricUser(userId: string) {
+  restrictUser(userId: string) {
     return this.prisma.user.update({
       where: { id: userId },
       data: { isRestricted: true },

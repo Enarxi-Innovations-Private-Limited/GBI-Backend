@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
-import { CreateDeviceto } from './dto/create-device.dto';
+import { CreateDeviceDto } from './dto/create-device.dto';
 import { AdminGuard } from 'src/auth/guards/admin.guard';
 
 @Controller('admin')
@@ -23,7 +23,7 @@ export class AdminController {
 
   @UseGuards(AdminGuard)
   @Post('devices')
-  createDevice(@Body() dto: CreateDeviceto) {
+  createDevice(@Body() dto: CreateDeviceDto) {
     return this.adminService.createDevice(dto);
   }
 

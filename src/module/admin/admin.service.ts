@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import * as bcrypt from 'bcrypt';
-import { CreateDeviceto } from './dto/create-device.dto';
+import { CreateDeviceDto } from './dto/create-device.dto';
 
 @Injectable()
 export class AdminService {
@@ -38,7 +38,7 @@ export class AdminService {
     return { accessToken: token };
   }
 
-  async createDevice(dto: CreateDeviceto) {
+  async createDevice(dto: CreateDeviceDto) {
     const exists = await this.repo.findDevice(dto.deviceId);
     if (exists) throw new ConflictException('Device already exists');
 
@@ -69,7 +69,7 @@ export class AdminService {
   }
 
   async restrictUser(userId: string) {
-    await this.repo.restricUser(userId);
+    await this.repo.restrictUser(userId);
     await this.repo.revokeUserSessions(userId);
     return { success: true };
   }

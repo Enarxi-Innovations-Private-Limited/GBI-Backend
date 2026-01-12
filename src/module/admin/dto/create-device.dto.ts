@@ -5,7 +5,7 @@ export enum DeviceType {
   // FUTURE_DEVICE = 'Future Device'
 }
 
-export class CreateDeviceto {
+export class CreateDeviceDto {
   @IsString()
   deviceId: string;
 

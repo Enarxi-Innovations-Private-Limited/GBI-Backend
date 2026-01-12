@@ -9,6 +9,7 @@ import { UsersModule } from './module/users/users.module';
 import { AdminModule } from './module/admin/admin.module';
 import { RedisModule } from './redis/redis.module';
 import { DevicesModule } from './module/devices/devices.module';
+import { MqttModule } from './mqtt/mqtt.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DevicesModule } from './module/devices/devices.module';
     AdminModule,
     RedisModule,
     DevicesModule,
+    MqttModule,
   ],
   controllers: [AppController],
   providers: [AppService],
