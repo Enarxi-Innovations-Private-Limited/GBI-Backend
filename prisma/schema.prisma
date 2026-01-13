@@ -127,11 +127,16 @@ model Notification {
   userId    String
   deviceId  String?
   message   String
+
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([userId, isRead])
 }
 
 model RefreshToken {

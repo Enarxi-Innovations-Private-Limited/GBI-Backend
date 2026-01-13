@@ -10,6 +10,8 @@ import { AdminModule } from './module/admin/admin.module';
 import { RedisModule } from './redis/redis.module';
 import { DevicesModule } from './module/devices/devices.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { AlertsModule } from './alerts/alerts.module';
+import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { MqttModule } from './mqtt/mqtt.module';
     RedisModule,
     DevicesModule,
     MqttModule,
+    AlertsModule,
+    InAppNotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

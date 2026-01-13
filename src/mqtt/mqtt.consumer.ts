@@ -4,12 +4,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
 import { TelemetryPayloadDto } from './dto/telemetry-payload.dto';
 import { validate } from 'class-validator';
+import { AlertsService } from 'src/alerts/alerts.service';
 
 @Injectable()
 export class MqttConsumer implements OnModuleInit {
   constructor(
     private readonly mqttService: MqttService,
     private readonly prisma: PrismaService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   onModuleInit() {
@@ -56,7 +58,7 @@ export class MqttConsumer implements OnModuleInit {
 
     await this.prisma.deviceTelemetry.create({
       data: {
-        deviceId,
+        deviceId: device.id,
         pm25: dto.pm25,
         pm10: dto.pm10,
         tvoc: dto.tvoc,
@@ -66,6 +68,8 @@ export class MqttConsumer implements OnModuleInit {
         noise: dto.noise,
       },
     });
+
+    await this.alertsService.evaluate(device.id, dto);
   }
 
   private async handleHeartbeat(deviceId: string) {
