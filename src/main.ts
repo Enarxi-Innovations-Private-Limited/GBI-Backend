@@ -8,6 +8,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -21,6 +22,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useGlobalInterceptors(new BigIntInterceptor());
   const port = process.env.PORT ?? 3000;
   await app.listen({ port: Number(process.env.PORT) || 3000, host: '0.0.0.0' });
   Logger.log(`Server running on http://localhost:${port}`);

@@ -5,16 +5,40 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class AlertsRepository {
   constructor(private prisma: PrismaService) {}
 
-  getAssignedUsers(deviceId: string) {
+  getAssignedUsersWithThresholds(deviceId: string) {
     return this.prisma.deviceAssignment.findMany({
       where: { deviceId, unassignedAt: null },
-      select: { userId: true },
+      select: {
+        userId: true,
+        user: {
+          select: {
+            alerts: true, // Fetch thresholds immediately
+          },
+        },
+      },
     });
   }
 
-  getThresholds(userId: string) {
-    return this.prisma.alertThreshold.findMany({
-      where: { userId },
+  // Optimized batch check to see if we should alert
+  async getRecentAlerts(
+    deviceId: string,
+    userIds: string[],
+    parameters: string[],
+    minutes: number,
+  ) {
+    const since = new Date(Date.now() - minutes * 60 * 1000);
+    return this.prisma.eventLog.findMany({
+      where: {
+        deviceId,
+        userId: { in: userIds },
+        parameter: { in: parameters },
+        eventType: 'Alert_Triggered',
+        createdAt: { gte: since },
+      },
+      select: {
+         userId: true,
+         parameter: true,
+      }
     });
   }
 

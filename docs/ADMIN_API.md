@@ -122,3 +122,30 @@ Bans a user from the system.
   "success": true
 }
 ```
+
+### 7. Unrestrict User
+**PATCH** `/admin/users/:id/unrestrict`
+
+Restores access for a banned user.
+*   Sets `isRestricted = false`.
+*   Note: The user will need to log in again if their session has verified the restriction status.
+
+**Response (200):**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+## User Restriction Logic
+When an admin restricts a user, the following happens immediately:
+
+1.  **Database Flag**: The user's `isRestricted` column is set to `true`.
+2.  **Session Revocation**: All active Refresh Tokens for that user are deleted (`revokedAt`).
+3.  **Access Block**:
+    *   Any new login attempts will fail.
+    *   Any attempt to refresh an access token will fail.
+    *   Currently active Access Tokens (short-lived, e.g., 15m) will continue to work until they expire, after which the user will be forced to re-login and fail. This ensures near-immediate lockout without requiring a centralized blacklist for access tokens.
+

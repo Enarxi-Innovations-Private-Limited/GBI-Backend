@@ -54,6 +54,6 @@ export class AdminController {
   @UseGuards(AdminGuard)
   @Patch('users/:id/unrestrict')
   unrestrictUser(@Param('id') id: string) {
-    return this.adminService.restrictUser(id);
+    return this.adminService.unrestrictUser(id);
   }
 }
