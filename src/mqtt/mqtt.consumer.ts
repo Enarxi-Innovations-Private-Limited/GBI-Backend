@@ -81,7 +81,7 @@ export class MqttConsumer implements OnModuleInit {
 
     await this.prisma.device.update({
       where: { deviceId },
-      data: { status: 'active' },
+      data: { status: 'active', lastHeartbeatAt: new Date() },
     });
   }
 }

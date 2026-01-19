@@ -36,9 +36,9 @@ export class AlertsRepository {
         createdAt: { gte: since },
       },
       select: {
-         userId: true,
-         parameter: true,
-      }
+        userId: true,
+        parameter: true,
+      },
     });
   }
 
@@ -87,6 +87,45 @@ export class AlertsRepository {
   }) {
     return this.prisma.notification.create({
       data,
+    });
+  }
+
+  async getAlertStates(deviceId: string, userIds: string[], params: string[]) {
+    return this.prisma.alertState.findMany({
+      where: {
+        deviceId,
+        userId: { in: userIds },
+        parameter: { in: params },
+      },
+    });
+  }
+
+  async upsertAlertState(data: {
+    deviceId: string;
+    userId: string;
+    parameter: string;
+    state: 'NORMAL' | 'ALERTING';
+    lastTriggeredAt?: Date;
+  }) {
+    return this.prisma.alertState.upsert({
+      where: {
+        userId_deviceId_parameter: {
+          userId: data.userId,
+          deviceId: data.deviceId,
+          parameter: data.parameter,
+        },
+      },
+      update: {
+        state: data.state,
+        lastTriggeredAt: data.lastTriggeredAt,
+      },
+      create: {
+        deviceId: data.deviceId,
+        userId: data.userId,
+        parameter: data.parameter,
+        state: data.state,
+        lastTriggeredAt: data.lastTriggeredAt,
+      },
     });
   }
 }
