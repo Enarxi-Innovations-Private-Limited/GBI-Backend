@@ -25,6 +25,7 @@ export interface AuthResponse {
     id: string;
     email: string;
     name: string | null;
+    organization?: string | null;
     emailVerified: boolean;
     phoneVerified: boolean;
   };
@@ -176,8 +177,11 @@ export class AuthService {
    * Google OAuth login/signup
    */
   async googleLogin(profile: any): Promise<AuthResponse> {
-    const { id: googleId, emails, displayName } = profile;
+    const { id: googleId, emails, displayName, _json } = profile;
     const email = emails[0].value;
+    // Extract organization from Hosted Domain (hd) only.
+    // We do NOT default to email domain (like gmail.com) as that is not a real organization.
+    const organization = _json?.hd;
 
     // Check if user exists
     let user = await this.prisma.user.findUnique({
@@ -185,12 +189,17 @@ export class AuthService {
     });
 
     if (user) {
-      // Update googleId if not set
-      if (!user.googleId) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: { googleId, emailVerified: true }, // Google accounts are email verified
-        });
+      // Update googleId if not set, and ensure organization is set if missing
+      const updateData: any = { emailVerified: true };
+      if (!user.googleId) updateData.googleId = googleId;
+      if (!user.organization && organization) updateData.organization = organization;
+      
+      // Perform update if we have new data
+      if (Object.keys(updateData).length > 1 || updateData.googleId) {
+         user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: updateData,
+         });
       }
 
       // Check if user is restricted
@@ -206,6 +215,7 @@ export class AuthService {
           email,
           googleId,
           name: displayName,
+          organization: organization, // Save organization on create
           emailVerified: true, // Google accounts are email verified
           phoneVerified: false,
         },
@@ -221,6 +231,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
+        organization: user.organization, // Return organization
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
       },

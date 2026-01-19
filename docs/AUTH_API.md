@@ -135,6 +135,7 @@ Google OAuth callback endpoint (handled automatically by Passport).
 **Notes:**
 - If user exists with same email, links Google account
 - If new user, creates account with `emailVerified: true`
+- **Organization**: Automatically extracted from GSuite/Workspace domains (e.g., `enarxi.com`). Public domains (e.g., `gmail.com`) result in `organization: null`.
 - In production, should redirect to frontend with tokens in URL params
 
 ---

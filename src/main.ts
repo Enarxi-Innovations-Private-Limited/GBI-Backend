@@ -11,10 +11,23 @@ import {
 import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
 
 async function bootstrap() {
+  /*
+  const adapter = new FastifyAdapter();
+  await adapter.getInstance().register(import('@fastify/express'));
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    adapter,
+  );
+  */
+  // Reverting to standard to avoid "use already added" conflict
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
   );
+
+  await app.register(import('@fastify/cookie'), {
+    secret: process.env.COOKIE_SECRET || 'my-secret', // for signed cookies
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
