@@ -59,6 +59,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.alertThreshold;
   }
 
+  get alertState() {
+    return this.prisma.alertState;
+  }
+
   get eventLog() {
     return this.prisma.eventLog;
   }

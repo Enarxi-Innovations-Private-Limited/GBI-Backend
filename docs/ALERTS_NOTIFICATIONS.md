@@ -18,11 +18,24 @@ When `MqttConsumer` receives a telemetry packet:
 2.  The service fetches **all assigned users** for that device + their **thresholds**.
 3.  It compares the incoming value against the limit: `CurrentValue > LimitValue`.
 
-### 3. Cooldown Mechanism
-To prevent spamming the user (e.g., sending 60 emails a minute if value is 1001), a **Cooldown** is applied.
-*   **Default Cooldown**: 5 Minutes.
-*   **Logic**: Before sending an alert, the system checks if an `Alert_Triggered` event was already logged for this (User, Device, Parameter) tuple in the last 5 minutes.
-*   If found, the alert is suppressed.
+### 3. Stateful Alerting (Hysteresis)
+To prevent "alert fatigue" (flapping), the system uses a **Stateful** approach with Hysteresis, rather than a simple cooldown timer.
+
+*   **States**: Each (User, Device, Parameter) tuple tracks a state: `NORMAL` or `ALERTING`.
+*   **Hysteresis Buffer**: A 2% buffer is applied to prevent rapid toggling when values hover near the limit.
+
+#### Logic:
+1.  **Triggering (NORMAL -> ALERTING)**:
+    *   Occurs when `Value > Threshold`.
+    *   System sends an "Exceeded limit" notification.
+    *   Records state as `ALERTING`.
+
+2.  **Recovery (ALERTING -> NORMAL)**:
+    *   Occurs only when `Value < (Threshold - 2%)`.
+    *   *Example*: If limit is 1000, recovery happens only when value drops below 980.
+    *   System sends a "Back to normal" notification.
+    *   Records state as `NORMAL`.
+
 
 ---
 

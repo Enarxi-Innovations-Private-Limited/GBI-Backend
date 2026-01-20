@@ -12,7 +12,7 @@ import { DevicesModule } from './module/devices/devices.module';
 import { MqttModule } from './mqtt/mqtt.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module';
-
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -29,6 +29,7 @@ import { InAppNotificationsModule } from './in-app-notifications/in-app-notifica
     MqttModule,
     AlertsModule,
     InAppNotificationsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

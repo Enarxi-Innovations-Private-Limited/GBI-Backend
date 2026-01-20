@@ -60,10 +60,18 @@ Returns a list of all devices currently assigned to the user, including their cu
     "status": "active",
     "name": "Living Room Monitor",
     "location": "Home",
+    "lastHeartbeatAt": "2024-01-20T10:00:00.000Z",
     "claimedAt": "..."
   }
 ]
 ```
+
+### Device Health Monitoring
+The system monitors device connectivity via the `.../heartbeat` MQTT topic:
+*   **Active Status**: Sending a heartbeat sets status to `active` and updates the timestamp.
+*   **Offline Detection**: Devices are marked `inactive` if no heartbeat is received for **7 minutes**.
+*   **Implication**: Inactive devices **cannot** submit telemetry. Ensure your device sends heartbeats every 1-5 minutes.
+*   **Notifications**: Users are notified when their device goes offline.
 
 ### 3. Update Device Details
 **PATCH** `/devices/:id`

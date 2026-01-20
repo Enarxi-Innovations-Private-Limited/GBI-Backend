@@ -48,6 +48,7 @@ model Device {
   type     String   @default("Air Quality Monitor")
   status   String
   addedAt  DateTime @default(now())
+  lastHeartbeatAt DateTime?
 
   assignments DeviceAssignment[]
   telemetry   DeviceTelemetry[]
@@ -104,6 +105,18 @@ model AlertThreshold {
   user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, parameter])
+}
+
+model AlertState {
+  id              String   @id @default(uuid())
+  userId          String
+  deviceId        String
+  parameter       String
+  state           String
+  lastTriggeredAt DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, deviceId, parameter])
 }
 
 model EventLog {

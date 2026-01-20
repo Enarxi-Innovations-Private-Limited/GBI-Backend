@@ -46,7 +46,8 @@ Devices send a periodic "I'm alive" signal.
 *   **Payload**: Empty or any JSON.
 *   **Effect**:
     *   Sets the device's status to **'active'** in the database.
-    *   Used to detect online/offline status.
+    *   Updates `lastHeartbeatAt` timestamp.
+    *   **Note**: If no heartbeat is received for **7 minutes**, the system marks the device as `inactive` and sends an "Offline" notification. Inactive devices cannot send telemetry.
 
 ---
 
