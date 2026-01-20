@@ -28,6 +28,12 @@ async function bootstrap() {
   await app.register(import('@fastify/cookie'), {
     secret: process.env.COOKIE_SECRET || 'my-secret', // for signed cookies
   });
+  
+  app.enableCors({
+    origin: true, // Allow all origins for dev, or specify frontend URL
+    credentials: true,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

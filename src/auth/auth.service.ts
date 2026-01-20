@@ -3,13 +3,16 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  Inject,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
+import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignupDto, LoginDto } from './dto';
+import { SignupDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
 
 export interface JwtPayload {
   sub: string; // user id
@@ -37,6 +40,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
   /**
@@ -171,6 +175,71 @@ export class AuthService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Request password reset OTP
+   */
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal user existence
+      return { message: 'If email exists, an OTP has been sent.' };
+    }
+
+    // Generate 6-digit OTP
+    const otp = randomInt(100000, 999999).toString();
+
+    // Store in Redis (expires in 10 minutes)
+    await this.redis.set(`reset_otp:${email}`, otp, 'EX', 600);
+
+    // TODO: Send via Email/SMS Provider
+    // For now, log to console
+    console.log(`[AUTH] Password Reset OTP for ${email}: ${otp}`);
+
+    return { message: 'OTP sent successfully' };
+  }
+
+  /**
+   * Reset password with OTP
+   */
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const { email, otp, newPassword } = resetPasswordDto;
+
+    // Verify OTP
+    const storedOtp = await this.redis.get(`reset_otp:${email}`);
+
+    if (!storedOtp || storedOtp !== otp) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    // Update user password
+    await this.prisma.user.update({
+      where: { email },
+      data: { passwordHash },
+    });
+
+    // Delete OTP
+    await this.redis.del(`reset_otp:${email}`);
+
+    // Revoke all sessions for security
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user) {
+        await this.prisma.refreshToken.updateMany({
+            where: { userId: user.id },
+            data: { revokedAt: new Date() },
+        });
+    }
+
+    return { message: 'Password reset successfully' };
   }
 
   /**
