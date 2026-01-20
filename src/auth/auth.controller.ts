@@ -10,7 +10,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignupDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
+import { SignupDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, RequestPhoneOtpDto, CompleteProfileDto, VerifyEmailOtpDto } from './dto';
 import { GoogleAuthGuard, JwtAuthGuard } from './guards';
 import { CurrentUser } from './decorators';
 
@@ -107,6 +107,36 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  /**
+   * POST /auth/request-phone-otp
+   * Request OTP for phone verification
+   */
+  @Post('request-phone-otp')
+  @HttpCode(HttpStatus.OK)
+  async requestPhoneOtp(@Body() requestPhoneOtpDto: RequestPhoneOtpDto) {
+    return this.authService.requestPhoneOtp(requestPhoneOtpDto);
+  }
+
+  /**
+   * POST /auth/complete-profile
+   * Complete user profile with phone verification
+   */
+  @Post('complete-profile')
+  @HttpCode(HttpStatus.OK)
+  async completeProfile(@Body() completeProfileDto: CompleteProfileDto) {
+    return this.authService.completeProfile(completeProfileDto);
+  }
+
+  /**
+   * POST /auth/verify-email-otp
+   * Verify email OTP and login
+   */
+  @Post('verify-email-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmailOtp(@Body() verifyEmailOtpDto: VerifyEmailOtpDto) {
+    return this.authService.verifyEmailOtp(verifyEmailOtpDto);
   }
 
   /**
