@@ -165,6 +165,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if email is verified
+    if (!user.emailVerified) {
+      // Generate EMAIL OTP
+      const otp = randomInt(100000, 999999).toString();
+      await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
+      console.log(`[AUTH] Email Verification OTP for ${email} (Login Attempt): ${otp}`);
+
+      throw new ConflictException('Email not verified. OTP sent.'); // Using Conflict (409) or Forbidden (403) to distinguish
+    }
+
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
 
