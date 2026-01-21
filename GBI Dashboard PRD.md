@@ -84,8 +84,8 @@ Theme Toggle (Dark / Light)
 Profile Menu
 
 6.2 Profile Menu Options
-Limit Settings
- Users can set threshold limits for individual parameters (not per device). Alerts and event logs are triggered based on these configured threshold values.
+Alert Groups
+ Users can create device groups and configure threshold limits for each group. All devices added to a group will inherit the group's alert thresholds.
 Edit Profile
  Users can edit their personal details, including name, email (only if signed up using the email/password method), mobile number, organization, and city.
 Changing the email or mobile number requires OTP verification to the registered mobile number.
@@ -144,6 +144,16 @@ Edit (Device Name, Location Tag only)
 Deactivate Device (with confirmation)
 Delete Device (with confirmation and data loss warning)
 
+Device Groups
+Users can organize their devices into groups to manage alert thresholds efficiently.
+Group Actions:
+Create Group (Name, Description)
+Add/Remove Devices to/from Group
+Set Alert Thresholds for the Group (applies to all devices in the group)
+Delete Group (Devices become ungrouped)
+Validation:
+A device can be part of only one group at a time (to avoid conflicting thresholds).
+
 8. Air Quality Data Dashboard
 Parameters Displayed
 PM2.5
@@ -173,7 +183,10 @@ Graph shows multiple lines for easy comparison
 
 10. Alerts & Notifications
 Alert Configuration
-Users can set threshold limits for air quality parameters
+Alerts are configured at the **Device Group** level.
+Users define threshold limits for parameters (e.g., CO2 > 1000) within a Group.
+These thresholds apply automatically to all devices belonging to that Group.
+Ungrouped devices rely on default system thresholds (or no alerts).
 Alert Behavior
 Alert triggered only when crossing threshold
 No repeated alerts while value stays beyond limit

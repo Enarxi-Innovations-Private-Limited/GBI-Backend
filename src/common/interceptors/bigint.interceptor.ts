@@ -11,6 +11,7 @@ export class BigIntInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler) {
     return next.handle().pipe(
       map((data) => {
+        if (data === undefined) return data;
         return JSON.parse(
           JSON.stringify(data, (key, value) =>
             typeof value === 'bigint' ? value.toString() : value,
