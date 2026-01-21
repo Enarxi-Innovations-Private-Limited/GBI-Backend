@@ -1,0 +1,15 @@
+dist
+node_modules
+.git
+.github
+.env
+.env.*
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+coverage
+test
+docs
+generated
+README.md
+LICENSE
