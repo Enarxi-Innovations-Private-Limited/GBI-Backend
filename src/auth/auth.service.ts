@@ -3,13 +3,16 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  Inject,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
+import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignupDto, LoginDto } from './dto';
+import { SignupDto, LoginDto, ForgotPasswordDto, ResetPasswordDto, CompleteProfileDto, RequestPhoneOtpDto, VerifyEmailOtpDto } from './dto';
 
 export interface JwtPayload {
   sub: string; // user id
@@ -28,6 +31,7 @@ export interface AuthResponse {
     organization?: string | null;
     emailVerified: boolean;
     phoneVerified: boolean;
+    isProfileComplete: boolean;
   };
 }
 
@@ -37,12 +41,13 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
   /**
    * Register a new user with email and password
    */
-  async signup(signupDto: SignupDto): Promise<AuthResponse> {
+  async signup(signupDto: SignupDto): Promise<{ message: string; email: string }> {
     const { email, password, name, organization, phone, city } = signupDto;
 
     // Check if user already exists
@@ -74,17 +79,59 @@ export class AuthService {
       },
     });
 
+    // Generate EMAIL OTP
+    const otp = randomInt(100000, 999999).toString();
+    await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
+    console.log(`[AUTH] Email Verification OTP for ${email}: ${otp}`);
+
+    return {
+      message: 'User registered successfully. Please verify your email.',
+      email: user.email,
+    };
+  }
+
+  /**
+   * Verify Email OTP and Login
+   */
+  async verifyEmailOtp(verifyEmailOtpDto: VerifyEmailOtpDto): Promise<AuthResponse> {
+    const { email, otp } = verifyEmailOtpDto;
+
+    // Verify OTP
+    const storedOtp = await this.redis.get(`email_otp:${email}`);
+    if (!storedOtp || storedOtp !== otp) {
+      throw new BadRequestException('Invalid or expired Email OTP');
+    }
+
+    // Find User
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Mark email as verified
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true },
+    });
+
+    // Delete OTP
+    await this.redis.del(`email_otp:${email}`);
+
     // Generate tokens
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
 
     return {
       ...tokens,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        emailVerified: updatedUser.emailVerified,
+        phoneVerified: updatedUser.phoneVerified,
+        isProfileComplete: updatedUser.isProfileComplete,
       },
     };
   }
@@ -118,6 +165,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if email is verified
+    if (!user.emailVerified) {
+      // Generate EMAIL OTP
+      const otp = randomInt(100000, 999999).toString();
+      await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
+      console.log(`[AUTH] Email Verification OTP for ${email} (Login Attempt): ${otp}`);
+
+      throw new ConflictException('Email not verified. OTP sent.'); // Using Conflict (409) or Forbidden (403) to distinguish
+    }
+
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
 
@@ -129,6 +186,7 @@ export class AuthService {
         name: user.name,
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
+        isProfileComplete: user.isProfileComplete,
       },
     };
   }
@@ -171,6 +229,145 @@ export class AuthService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Request password reset OTP
+   */
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal user existence
+      return { message: 'If email exists, an OTP has been sent.' };
+    }
+
+    // Generate 6-digit OTP
+    const otp = randomInt(100000, 999999).toString();
+
+    // Store in Redis (expires in 10 minutes)
+    await this.redis.set(`reset_otp:${email}`, otp, 'EX', 600);
+
+    // TODO: Send via Email/SMS Provider
+    // For now, log to console
+    console.log(`[AUTH] Password Reset OTP for ${email}: ${otp}`);
+
+    return { message: 'OTP sent successfully' };
+  }
+
+  /**
+   * Reset password with OTP
+   */
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const { email, otp, newPassword } = resetPasswordDto;
+
+    // Verify OTP
+    const storedOtp = await this.redis.get(`reset_otp:${email}`);
+
+    if (!storedOtp || storedOtp !== otp) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    // Update user password
+    await this.prisma.user.update({
+      where: { email },
+      data: { passwordHash },
+    });
+
+    // Delete OTP
+    await this.redis.del(`reset_otp:${email}`);
+
+    // Revoke all sessions for security
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user) {
+        await this.prisma.refreshToken.updateMany({
+            where: { userId: user.id },
+            data: { revokedAt: new Date() },
+        });
+    }
+
+    return { message: 'Password reset successfully' };
+  }
+
+  /**
+   * Request OTP for Phone Verification
+   */
+  async requestPhoneOtp(requestPhoneOtpDto: RequestPhoneOtpDto): Promise<{ message: string }> {
+    const { phone } = requestPhoneOtpDto;
+
+    // Generate 6-digit OTP
+    const otp = randomInt(100000, 999999).toString();
+
+    // Store in Redis (expires in 5 minutes)
+    await this.redis.set(`phone_otp:${phone}`, otp, 'EX', 300);
+
+    // TODO: Send via SMS Provider
+    // For now, log to console
+    console.log(`[AUTH] Phone Verification OTP for ${phone}: ${otp}`);
+
+    return { message: 'OTP sent to mobile number' };
+  }
+
+
+  /**
+   * Complete Profile with Phone Verification
+   */
+  async completeProfile(completeProfileDto: CompleteProfileDto): Promise<AuthResponse> {
+    const { email, name, organization, city, phone, otp } = completeProfileDto;
+
+    // 1. Verify Phone OTP
+    const storedOtp = await this.redis.get(`phone_otp:${phone}`);
+    if (!storedOtp || storedOtp !== otp) {
+      throw new BadRequestException('Invalid or expired Phone OTP');
+    }
+
+    // 2. Find User
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // 3. Update User Profile
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name,
+        organization,
+        city,
+        phone,
+        phoneVerified: true,
+        isProfileComplete: true,
+      },
+    });
+
+    // 4. Delete OTP
+    await this.redis.del(`phone_otp:${phone}`);
+
+    // 5. Generate New Tokens (refresh claims)
+    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
+
+    return {
+      ...tokens,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        organization: updatedUser.organization,
+        emailVerified: updatedUser.emailVerified,
+        phoneVerified: updatedUser.phoneVerified,
+        isProfileComplete: updatedUser.isProfileComplete,
+      },
+    };
   }
 
   /**
@@ -234,6 +431,7 @@ export class AuthService {
         organization: user.organization, // Return organization
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
+        isProfileComplete: user.isProfileComplete,
       },
     };
   }
@@ -293,6 +491,7 @@ export class AuthService {
         name: storedToken.user.name,
         emailVerified: storedToken.user.emailVerified,
         phoneVerified: storedToken.user.phoneVerified,
+        isProfileComplete: storedToken.user.isProfileComplete,
       },
     };
   }

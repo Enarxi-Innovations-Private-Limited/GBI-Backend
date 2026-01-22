@@ -25,6 +25,7 @@ model User {
   emailVerified Boolean  @default(false)
   phoneVerified Boolean  @default(false)
   isRestricted  Boolean  @default(false)
+  isProfileComplete Boolean @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
