@@ -28,6 +28,11 @@ export class MqttService implements OnModuleInit {
         options.password = process.env.MQTT_PASSWORD;
       }
 
+      // For mqtts:// connections, enable TLS
+      if (process.env.MQTT_BROKER_URL?.startsWith('mqtts://')) {
+        options.rejectUnauthorized = true; // Verify server certificate
+      }
+
       this.client = mqtt.connect(process.env.MQTT_BROKER_URL, options);
 
       this.client.on('connect', () => {
