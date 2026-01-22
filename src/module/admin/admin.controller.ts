@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
@@ -25,12 +27,6 @@ export class AdminController {
   @Post('devices')
   createDevice(@Body() dto: CreateDeviceDto) {
     return this.adminService.createDevice(dto);
-  }
-
-  @UseGuards(AdminGuard)
-  @Get('devices')
-  getDevices() {
-    return this.adminService.getDevices();
   }
 
   @UseGuards(AdminGuard)
@@ -55,5 +51,16 @@ export class AdminController {
   @Patch('users/:id/unrestrict')
   unrestrictUser(@Param('id') id: string) {
     return this.adminService.unrestrictUser(id);
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('devices')
+  getDevices(@Query('search') search?: string) {
+    return this.adminService.getDevices(search);
+  }
+
+  @Delete('users/:id')
+  deleteUser(@Param('id') id: string) {
+    return this.adminService.deleteUser(id);
   }
 }

@@ -23,13 +23,22 @@ export class AdminRepository {
     });
   }
 
-  getDevices() {
+  async getDevices(search?: string) {
     return this.prisma.device.findMany({
-      include: {
-        assignments: {
-          where: { unassignedAt: null },
-          include: { user: true },
-        },
+      where: search
+        ? {
+            deviceId: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
+        : undefined,
+      orderBy: { addedAt: 'desc' },
+      select: {
+        id: true,
+        deviceId: true,
+        status: true,
+        addedAt: true,
       },
     });
   }
@@ -76,5 +85,43 @@ export class AdminRepository {
     return this.prisma.refreshToken.deleteMany({
       where: { userId },
     });
+  }
+
+  async deleteUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return { message: 'User not found' };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.deviceAssignment.deleteMany({
+        where: { userId },
+      });
+
+      await tx.alertThreshold.deleteMany({
+        where: { userId },
+      });
+
+      await tx.notification.deleteMany({
+        where: { userId },
+      });
+
+      await tx.eventLog.deleteMany({
+        where: { userId },
+      });
+
+      await tx.refreshToken.deleteMany({
+        where: { userId },
+      });
+
+      await tx.user.delete({
+        where: { id: userId },
+      });
+    });
+
+    return { message: 'User deleted successfully' };
   }
 }
