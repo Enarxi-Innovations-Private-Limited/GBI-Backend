@@ -46,7 +46,7 @@ export class MqttConsumer implements OnModuleInit {
       where: { deviceId },
     });
 
-    if (!device || device.status !== 'active') {
+    if (!device || device.status !== 'active' || device.isDeleted) {
       return;
     }
 
@@ -90,7 +90,7 @@ export class MqttConsumer implements OnModuleInit {
       where: { deviceId },
     });
 
-    if (!device) return;
+    if (!device || device.isDeleted) return;
 
     const wasInactive = device.status !== 'active';
 

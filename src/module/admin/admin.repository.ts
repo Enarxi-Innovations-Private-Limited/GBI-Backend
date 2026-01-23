@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -25,14 +25,17 @@ export class AdminRepository {
 
   async getDevices(search?: string) {
     return this.prisma.device.findMany({
-      where: search
-        ? {
-            deviceId: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          }
-        : undefined,
+      where: {
+        isDeleted: false,
+        ...(search
+          ? {
+              deviceId: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            }
+          : {}),
+      },
       orderBy: { addedAt: 'desc' },
       select: {
         id: true,
@@ -109,8 +112,9 @@ export class AdminRepository {
         where: { userId },
       });
 
-      await tx.eventLog.deleteMany({
+      await tx.eventLog.updateMany({
         where: { userId },
+        data: { userId: null },
       });
 
       await tx.refreshToken.deleteMany({
@@ -123,5 +127,24 @@ export class AdminRepository {
     });
 
     return { message: 'User deleted successfully' };
+  }
+
+  async softDeleteDevice(deviceId: string) {
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId },
+    });
+
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
+
+    return this.prisma.device.update({
+      where: { deviceId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        status: 'inactive',
+      },
+    });
   }
 }

@@ -63,4 +63,9 @@ export class AdminController {
   deleteUser(@Param('id') id: string) {
     return this.adminService.deleteUser(id);
   }
+
+  @Patch('devices/:deviceId/delete')
+  deleteDevice(@Param('deviceId') deviceId: string) {
+    return this.adminService.deleteDevice(deviceId);
+  }
 }

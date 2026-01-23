@@ -50,6 +50,8 @@ model Device {
   status   String
   addedAt  DateTime @default(now())
   lastHeartbeatAt DateTime?
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
 
   assignments DeviceAssignment[]
   telemetry   DeviceTelemetry[]

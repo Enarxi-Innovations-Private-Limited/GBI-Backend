@@ -81,4 +81,8 @@ export class AdminService {
   async deleteUser(userId: string) {
     return this.repo.deleteUser(userId);
   }
+
+  async deleteDevice(deviceId: string) {
+    return this.repo.softDeleteDevice(deviceId);
+  }
 }
