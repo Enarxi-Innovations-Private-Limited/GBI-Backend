@@ -1,11 +1,15 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { RealtimeService } from 'src/realtime/realtime.service';
 
 @Injectable()
 export class DeviceMonitorService implements OnModuleInit {
   private readonly logger = new Logger(DeviceMonitorService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeService: RealtimeService,
+  ) {}
 
   onModuleInit() {
     // run every 60 seconds
@@ -29,6 +33,7 @@ export class DeviceMonitorService implements OnModuleInit {
         where: { id: device.id },
         data: { status: 'inactive' },
       });
+      this.realtimeService.emitDeviceStatus(device.deviceId, 'offline');
 
       const assignments = await this.prisma.deviceAssignment.findMany({
         where: { deviceId: device.id, unassignedAt: null },

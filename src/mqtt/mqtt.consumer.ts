@@ -5,6 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import { TelemetryPayloadDto } from './dto/telemetry-payload.dto';
 import { validate } from 'class-validator';
 import { AlertsService } from 'src/alerts/alerts.service';
+import { RealtimeService } from 'src/realtime/realtime.service';
 
 @Injectable()
 export class MqttConsumer implements OnModuleInit {
@@ -12,6 +13,7 @@ export class MqttConsumer implements OnModuleInit {
     private readonly mqttService: MqttService,
     private readonly prisma: PrismaService,
     private readonly alertsService: AlertsService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -44,7 +46,7 @@ export class MqttConsumer implements OnModuleInit {
       where: { deviceId },
     });
 
-    if (!device || device.status !== 'active') {
+    if (!device || device.status !== 'active' || device.isDeleted) {
       return;
     }
 
@@ -56,7 +58,7 @@ export class MqttConsumer implements OnModuleInit {
       return;
     }
 
-    await this.prisma.deviceTelemetry.create({
+    const saved = await this.prisma.deviceTelemetry.create({
       data: {
         deviceId: device.id,
         pm25: dto.pm25,
@@ -69,6 +71,17 @@ export class MqttConsumer implements OnModuleInit {
       },
     });
 
+    this.realtimeService.emitTelemetry(device.deviceId, {
+      timestamp: saved.timestamp,
+      pm25: saved.pm25,
+      pm10: saved.pm10,
+      tvoc: saved.tvoc,
+      co2: saved.co2,
+      temperature: saved.temperature,
+      humidity: saved.humidity,
+      noise: saved.noise,
+    });
+
     await this.alertsService.evaluate(device.id, dto);
   }
 
@@ -77,11 +90,17 @@ export class MqttConsumer implements OnModuleInit {
       where: { deviceId },
     });
 
-    if (!device) return;
+    if (!device || device.isDeleted) return;
+
+    const wasInactive = device.status !== 'active';
 
     await this.prisma.device.update({
       where: { deviceId },
       data: { status: 'active', lastHeartbeatAt: new Date() },
     });
+
+    if (wasInactive) {
+      this.realtimeService.emitDeviceStatus(device.deviceId, 'active');
+    }
   }
 }
