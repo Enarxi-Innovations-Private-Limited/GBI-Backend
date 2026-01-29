@@ -11,9 +11,17 @@ docs/
 │   └── README.md                  # Database & ORM documentation
 ├── auth/
 │   └── README.md                  # Authentication implementation
-└── test/
-    └── auth/
-        └── README.md              # Authentication testing guide
+├── test/
+│   └── auth/
+│       └── README.md              # Authentication testing guide
+├── mqtt/
+│   ├── MQTT_INTEGRATION_STATUS.md # MQTT pipeline & testing
+│   └── MQTT_ERROR_LOGGING.md      # Error logging system
+├── monitoring/
+│   └── DEVICE_STATUS_MONITORING.md # Device monitoring system
+└── database/
+    ├── MIGRATION_DRIFT_FIX.md     # Migration troubleshooting
+    └── DATA_TYPE_CONVERSION_SUMMARY.md # Data type handling
 ```
 
 ---
@@ -130,6 +138,128 @@ Server runs on: `http://localhost:4000`
 - Write automated tests
 - Debug authentication issues
 - Verify your implementation
+
+---
+
+### 4. **MQTT Integration Documentation**
+📁 [`docs/mqtt/MQTT_INTEGRATION_STATUS.md`](mqtt/MQTT_INTEGRATION_STATUS.md)
+
+**Learn about:**
+- Complete MQTT pipeline and data flow
+- Device registration and telemetry handling
+- Data validation and transformation
+- Testing MQTT connections
+- Troubleshooting MQTT issues
+
+**Key Topics:**
+- MQTT broker configuration
+- Topic structure (`gbi/devices/{DEVICE_ID}/telemetry`)
+- Payload validation and DTOs
+- Data type conversion (integers, floats)
+- Error handling and retry logic
+- Production deployment checklist
+
+**Read this if you want to understand:**
+- How devices send data
+- How telemetry is processed
+- How to test MQTT integration
+- Common MQTT issues and solutions
+
+---
+
+### 5. **MQTT Error Logging**
+📁 [`docs/mqtt/MQTT_ERROR_LOGGING.md`](mqtt/MQTT_ERROR_LOGGING.md)
+
+**Learn about:**
+- Error logging system for MQTT messages
+- Log file format and location
+- Debugging malformed JSON
+- Common error patterns
+
+**Key Topics:**
+- File logging to `mqtt-errors.log`
+- Error types (invalid JSON, validation errors)
+- Viewing and analyzing logs
+- Identifying problematic devices
+- Log rotation strategies
+
+**Read this if you want to:**
+- Debug MQTT message issues
+- Find devices sending bad data
+- Understand error patterns
+- Set up log monitoring
+
+---
+
+### 6. **Device Status Monitoring**
+📁 [`docs/monitoring/DEVICE_STATUS_MONITORING.md`](monitoring/DEVICE_STATUS_MONITORING.md)
+
+**Learn about:**
+- Counter-based device monitoring system
+- Online/offline detection
+- Configuration via environment variables
+- Automatic device recovery
+
+**Key Topics:**
+- 5-second check intervals (configurable)
+- Miss counter threshold (5 consecutive misses = offline)
+- In-memory tracking for scalability
+- Status transitions (active ↔ inactive)
+- Notifications and event logging
+
+**Read this if you want to understand:**
+- How device status is tracked
+- How offline detection works
+- How to configure monitoring thresholds
+- Performance and scalability
+
+---
+
+### 7. **Database Migration Guide**
+📁 [`docs/database/MIGRATION_DRIFT_FIX.md`](database/MIGRATION_DRIFT_FIX.md)
+
+**Learn about:**
+- Resolving Prisma migration drift issues
+- Manual SQL migrations
+- Database reset strategies
+- Migration troubleshooting
+
+**Key Topics:**
+- What is migration drift
+- Multiple resolution options
+- Manual SQL scripts
+- Production migration safety
+- Verification queries
+
+**Read this if you encounter:**
+- Migration drift errors
+- Schema sync issues
+- "Migrations applied but missing" errors
+- Need to migrate without data loss
+
+---
+
+### 8. **Data Type Conversion**
+📁 [`docs/database/DATA_TYPE_CONVERSION_SUMMARY.md`](database/DATA_TYPE_CONVERSION_SUMMARY.md)
+
+**Learn about:**
+- Telemetry data type conversion system
+- Transform decorators for DTOs
+- Integer and float conversion logic
+- Schema changes for telemetry data
+
+**Key Topics:**
+- Automatic type conversion (string → number)
+- Rounding strategies (integers vs floats)
+- Database schema updates
+- Testing data conversion
+- Example payloads
+
+**Read this if you want to understand:**
+- How sensor data is converted
+- Why some fields are integers vs floats
+- How to handle different input formats
+- Testing type conversion
 
 ---
 
