@@ -50,6 +50,8 @@ model Device {
   status   String
   addedAt  DateTime @default(now())
   lastHeartbeatAt DateTime?
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
 
   assignments DeviceAssignment[]
   telemetry   DeviceTelemetry[]
@@ -84,13 +86,13 @@ model DeviceTelemetry {
   id          BigInt   @id @default(autoincrement())
   deviceId    String
   timestamp   DateTime @default(now())
-  pm25        Float?
-  pm10        Float?
-  tvoc        Float?
-  co2         Float?
+  pm25        Int?
+  pm10        Int?
+  tvoc        Int?
+  co2         Int?
   temperature Float?
   humidity    Float?
-  noise       Float?
+  noise       Int?
 
   device Device @relation(fields: [deviceId], references: [id])
 
