@@ -1,5 +1,10 @@
 # MQTT Integration Status ✅
 
+## Quick Links
+
+📘 **[MQTT Commands Reference](MQTT_COMMANDS_REFERENCE.md)** - Complete guide for PowerShell commands  
+🔧 **[Quick Test Script](../../scripts/mqtt-quick-test.ps1)** - Interactive menu for testing  
+
 ## Summary
 
 **YES, your backend is FULLY READY** to receive MQTT data and store it in the database! 🎉
