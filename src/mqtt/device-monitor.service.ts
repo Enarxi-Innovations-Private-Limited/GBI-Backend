@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { RealtimeService } from 'src/realtime/realtime.service';
 
 @Injectable()
 export class DeviceMonitorService implements OnModuleInit {
@@ -19,6 +20,7 @@ export class DeviceMonitorService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly realtimeService: RealtimeService,
   ) {
     // Read from .env with defaults
     this.checkIntervalSeconds = parseInt(
@@ -122,6 +124,7 @@ export class DeviceMonitorService implements OnModuleInit {
           eventType: 'ONLINE',
         },
       });
+      this.realtimeService.emitDeviceStatus(device.deviceId, 'offline');
 
       await this.prisma.notification.create({
         data: {

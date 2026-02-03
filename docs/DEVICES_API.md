@@ -99,7 +99,12 @@ Updates the friendly name or location of a device.
 ### 4. Unclaim Device
 **DELETE** `/devices/:id`
 
-Removes ownership of the device. The device becomes available for efficient claiming by others (or re-claiming).
+### 4. Unclaim / Remove Device
+**DELETE** `/devices/:id`
+
+Removes ownership of the device.
+*   **Soft Delete**: The device is marked as "deleted" (`isDeleted=true`) rather than being removed from the database.
+*   **Effect**: Deleted devices are ignored by the MQTT consumer (no new telemetry) and hidden from lists.
 *   `:id` is the **Device ID String** (e.g., `GBI-001`).
 
 **Response (200):**

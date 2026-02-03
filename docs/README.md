@@ -604,6 +604,7 @@ pnpm prisma migrate dev
   - [Users API](./docs/USERS_API.md) (Profile, Password, OTP Verification)
   - [Devices API](./docs/DEVICES_API.md) (Claim & Manage Devices)
   - [Admin API](./docs/ADMIN_API.md) (Device Management, User Control)
+  - [Real-time API](./docs/REALTIME_API.md) (WebSocket Streaming)
   - [Telemetry Schema](./docs/TELEMETRY_SCHEMA.md) (MQTT Data Format)
   - [Notifications](./docs/MOCK_NOTIFICATIONS.md)
 

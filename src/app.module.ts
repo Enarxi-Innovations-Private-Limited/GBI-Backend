@@ -13,6 +13,7 @@ import { MqttModule } from './mqtt/mqtt.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ReportsModule } from './reports/reports.module';
     AlertsModule,
     InAppNotificationsModule,
     ReportsModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

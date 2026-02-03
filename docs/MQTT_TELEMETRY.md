@@ -58,6 +58,10 @@ Devices send a periodic "I'm alive" signal.
 *   Handles reconnection logic automatically.
 *   Subscribes to wildcards: `gbi/devices/+/telemetry`.
 
+### Real-time Broadcasting
+*   When a valid telemetry message is received, it is **automatically broadcast** to connected WebSocket clients via the `RealtimeService`.
+*   See [Real-time API](../REALTIME_API.md) for details on subscribing to these updates.
+
 ### MqttConsumer (`src/mqtt/mqtt.consumer.ts`)
 *   **Routes Messages**: extracts `deviceId` from the topic.
 *   **Validates Data**: Uses `class-validator` and `TelemetryPayloadDto` to ensure data integrity.

@@ -45,8 +45,8 @@ export class AdminService {
     return this.repo.createDevice(dto.deviceId, dto.deviceType);
   }
 
-  getDevices() {
-    return this.repo.getDevices();
+  async getDevices(search?: string) {
+    return this.repo.getDevices(search);
   }
 
   async forceUnassign(deviceId: string) {
@@ -76,5 +76,13 @@ export class AdminService {
 
   async unrestrictUser(userId: string) {
     return this.repo.updateUserRestriction(userId, false);
+  }
+
+  async deleteUser(userId: string) {
+    return this.repo.deleteUser(userId);
+  }
+
+  async deleteDevice(deviceId: string) {
+    return this.repo.softDeleteDevice(deviceId);
   }
 }
