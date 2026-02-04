@@ -280,29 +280,33 @@ export class MqttConsumer implements OnModuleInit {
       
       this.logError({
         level: 'WARN',
-        event: errorMsg,
+        event: 'telemetry_partial_validation_failed', // Updated event name
         deviceId,
+        message: 'Saving valid fields, invalid fields set to null',
         invalidFields,
-        rawErrors: errors // Keep original for full context
+        rawErrors: errors
       });
-      return;
+      // Do NOT return here, proceed to save valid data
+    } else {
+      console.log('✅ Validation passed. Saving to database...');
     }
 
-    console.log('✅ Validation passed. Saving to database...');
+    // Helper to sanitize numeric values (NaN or undefined becomes null)
+    const sanitize = (val: number | undefined) => (typeof val === 'number' && !isNaN(val)) ? val : null;
 
     try {
       // Save telemetry data (even if device is inactive)
       const saved = await this.prisma.deviceTelemetry.create({
         data: {
           deviceId: device.id,
-          pm25: dto.pm25,
-          pm10: dto.pm10,
-          tvoc: dto.tvoc,
-          co2: dto.co2,
-          temperature: dto.temperature,
-          humidity: dto.humidity,
-          noise: dto.noise,
-          aqi: dto.aqi, // Added AQI field
+          pm25: sanitize(dto.pm25),
+          pm10: sanitize(dto.pm10),
+          tvoc: sanitize(dto.tvoc),
+          co2: sanitize(dto.co2),
+          temperature: sanitize(dto.temperature),
+          humidity: sanitize(dto.humidity),
+          noise: sanitize(dto.noise),
+          aqi: sanitize(dto.aqi), // Added AQI field
         },
       });
 
