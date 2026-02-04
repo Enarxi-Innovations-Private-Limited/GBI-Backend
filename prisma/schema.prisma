@@ -93,6 +93,7 @@ model DeviceTelemetry {
   temperature Float?
   humidity    Float?
   noise       Int?
+  aqi         Int?
 
   device Device @relation(fields: [deviceId], references: [id])
 
