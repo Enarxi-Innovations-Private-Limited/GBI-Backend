@@ -34,6 +34,7 @@ model User {
   notifications Notification[]
   eventLogs     EventLog[]
   refreshTokens RefreshToken[]
+  deviceGroups DeviceGroup[]
 }
 
 model Admin {
@@ -52,10 +53,28 @@ model Device {
   lastHeartbeatAt DateTime?
   isDeleted Boolean  @default(false)
   deletedAt DateTime?
+  groupId   String?
+  group     DeviceGroup? @relation(fields: [groupId], references: [id])
+
+  deviceThreshold DeviceThreshold?
 
   assignments DeviceAssignment[]
   telemetry   DeviceTelemetry[]
   logs        EventLog[]
+}
+
+model DeviceGroup {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  devices Device[]
+
+  threshold GroupThreshold?
+
+  @@index([userId])
 }
 
 model DeviceAssignment {
@@ -99,6 +118,26 @@ model DeviceTelemetry {
 
   @@index([deviceId, timestamp])
 }
+
+model GroupThreshold {
+  id        String   @id @default(uuid())
+  groupId   String   @unique
+  thresholds Json
+  createdAt DateTime @default(now())
+
+  group DeviceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+
+model DeviceThreshold {
+  id        String   @id @default(uuid())
+  deviceId  String   @unique
+  thresholds Json
+  createdAt DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}
+
 
 model AlertThreshold {
   id         String @id @default(uuid())

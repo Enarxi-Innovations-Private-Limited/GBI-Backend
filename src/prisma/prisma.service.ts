@@ -75,6 +75,18 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.refreshToken;
   }
 
+  get deviceGroup() {
+    return this.prisma.deviceGroup;
+  }
+
+  get deviceThreshold() {
+    return this.prisma.deviceThreshold;
+  }
+
+  get groupThreshold() {
+    return this.prisma.groupThreshold;
+  }
+
   // Expose transaction and other Prisma methods
   get $transaction() {
     return this.prisma.$transaction.bind(this.prisma);
