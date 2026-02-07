@@ -74,4 +74,81 @@ export class GroupsService {
       data: { groupId: null },
     });
   }
+
+  async setGroupThreshold(
+    userId: string,
+    groupId: string,
+    thresholds: Record<string, number>,
+  ) {
+    const group = await this.prisma.deviceGroup.findFirst({
+      where: { id: groupId, userId },
+      include: { devices: true },
+    });
+
+    if (!group) {
+      throw new ForbiddenException('Group not found or access denied');
+    }
+
+    const conflictingDevice = await this.prisma.deviceThreshold.findFirst({
+      where: {
+        device: { groupId },
+      },
+    });
+
+    if (conflictingDevice) {
+      throw new BadRequestException(
+        'Remove individual device thresholds before setting group threshold',
+      );
+    }
+
+    return this.prisma.groupThreshold.upsert({
+      where: { groupId },
+      update: { thresholds },
+      create: { groupId, thresholds },
+    });
+  }
+
+  async removeGroupThreshold(userId: string, groupId: string) {
+    const group = await this.prisma.deviceGroup.findFirst({
+      where: { id: groupId, userId },
+    });
+
+    if (!group) {
+      throw new ForbiddenException();
+    }
+
+    await this.prisma.groupThreshold.delete({
+      where: { groupId },
+    });
+
+    return { message: 'Group threshold removed' };
+  }
+
+  async deleteGroup(userId: string, groupId: string) {
+    const group = await this.prisma.deviceGroup.findFirst({
+      where: { id: groupId, userId },
+      include: { devices: true },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found or access denied');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.groupThreshold.deleteMany({
+        where: { groupId },
+      });
+
+      await tx.device.updateMany({
+        where: { groupId },
+        data: { groupId: null },
+      });
+
+      await tx.deviceGroup.delete({
+        where: { id: groupId },
+      });
+    });
+
+    return { message: 'Group deleted successfully' };
+  }
 }

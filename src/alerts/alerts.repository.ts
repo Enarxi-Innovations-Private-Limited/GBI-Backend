@@ -3,30 +3,56 @@ import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class AlertsRepository {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  getAssignedUsersWithThresholds(deviceId: string) {
+  // USERS ASSIGNED TO DEVICE
+  getAssignedUsers(deviceId: string) {
     return this.prisma.deviceAssignment.findMany({
       where: { deviceId, unassignedAt: null },
-      select: {
-        userId: true,
-        user: {
-          select: {
-            alerts: true, // Fetch thresholds immediately
+      select: { userId: true },
+    });
+  }
+
+  // DEVICE THRESHOLD
+  getDeviceThreshold(deviceId: string) {
+    return this.prisma.deviceThreshold.findUnique({
+      where: { deviceId },
+    });
+  }
+
+  // GROUP THRESHOLD (via device)
+  getGroupThresholdByDevice(deviceId: string) {
+    return this.prisma.groupThreshold.findFirst({
+      where: {
+        group: {
+          devices: {
+            some: { id: deviceId },
           },
         },
       },
     });
   }
 
-  // Optimized batch check to see if we should alert
-  async getRecentAlerts(
+  // ALERT STATES
+  getAlertStates(deviceId: string, userIds: string[], params: string[]) {
+    return this.prisma.alertState.findMany({
+      where: {
+        deviceId,
+        userId: { in: userIds },
+        parameter: { in: params },
+      },
+    });
+  }
+
+  // COOLDOWN CHECK
+  getRecentAlerts(
     deviceId: string,
     userIds: string[],
     parameters: string[],
     minutes: number,
   ) {
     const since = new Date(Date.now() - minutes * 60 * 1000);
+
     return this.prisma.eventLog.findMany({
       where: {
         deviceId,
@@ -42,27 +68,7 @@ export class AlertsRepository {
     });
   }
 
-  async hasRecentAlert(
-    deviceId: string,
-    userId: string,
-    parameter: string,
-    minutes: number,
-  ) {
-    const since = new Date(Date.now() - minutes * 60 * 1000);
-
-    const existing = await this.prisma.eventLog.findFirst({
-      where: {
-        deviceId,
-        userId,
-        parameter,
-        eventType: 'Alert_Triggered',
-        createdAt: { gte: since },
-      },
-    });
-
-    return !!existing;
-  }
-
+  // EVENT LOG
   createEventLog(data: {
     deviceId: string;
     userId: string;
@@ -80,6 +86,7 @@ export class AlertsRepository {
     });
   }
 
+  // NOTIFICATION
   createNotification(data: {
     userId: string;
     deviceId: string;
@@ -90,17 +97,8 @@ export class AlertsRepository {
     });
   }
 
-  async getAlertStates(deviceId: string, userIds: string[], params: string[]) {
-    return this.prisma.alertState.findMany({
-      where: {
-        deviceId,
-        userId: { in: userIds },
-        parameter: { in: params },
-      },
-    });
-  }
-
-  async upsertAlertState(data: {
+  // ALERT STATE UPSERT
+  upsertAlertState(data: {
     deviceId: string;
     userId: string;
     parameter: string;

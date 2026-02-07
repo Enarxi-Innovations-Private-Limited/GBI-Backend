@@ -14,6 +14,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { GroupsModule } from './groups/groups.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     InAppNotificationsModule,
     ReportsModule,
     RealtimeModule,
+    GroupsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

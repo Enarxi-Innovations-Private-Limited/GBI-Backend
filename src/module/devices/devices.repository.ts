@@ -28,7 +28,7 @@ export class DevicesRepository {
 
   // Strictly check if assigned by specific internal ID
   async isDeviceAssignedById(id: string): Promise<boolean> {
-     const count = await this.prisma.deviceAssignment.count({
+    const count = await this.prisma.deviceAssignment.count({
       where: {
         deviceId: id,
         unassignedAt: null,
@@ -37,7 +37,13 @@ export class DevicesRepository {
     return count > 0;
   }
 
-  async claimDevice(userId: string, deviceInternalId: string, deviceDisplayId: string, name?: string, location?: string) {
+  async claimDevice(
+    userId: string,
+    deviceInternalId: string,
+    deviceDisplayId: string,
+    name?: string,
+    location?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Create Assignment
       const assignment = await tx.deviceAssignment.create({
@@ -83,12 +89,12 @@ export class DevicesRepository {
           location,
         },
         update: {
-           // If re-claiming (unlikely path if we block claim), but handle basics
-           name: name || deviceDisplayId,
-           location,
-        }
+          // If re-claiming (unlikely path if we block claim), but handle basics
+          name: name || deviceDisplayId,
+          location,
+        },
       });
-      
+
       return { assignment, meta };
     });
   }
@@ -106,11 +112,11 @@ export class DevicesRepository {
       },
     });
   }
-  
+
   // Get metadata for a list of device IDs (strings)
   getUserDeviceMeta(userId: string) {
     return this.prisma.userDevice.findMany({
-      where: { userId }
+      where: { userId },
     });
   }
 
@@ -132,24 +138,43 @@ export class DevicesRepository {
     // I think keeping metadata is fine, but breaking the link is key.
   }
 
-  async updateDeviceMeta(userId: string, deviceDisplayId: string, name?: string, location?: string) {
+  async updateDeviceMeta(
+    userId: string,
+    deviceDisplayId: string,
+    name?: string,
+    location?: string,
+  ) {
     return this.prisma.userDevice.upsert({
-        where: { deviceId_userId: { userId, deviceId: deviceDisplayId } },
-        create: {
-          userId,
-          deviceId: deviceDisplayId,
-          name: name || deviceDisplayId,
-          location,
-        },
-        update: {
-           name,
-           location
-        }
-      });
+      where: { deviceId_userId: { userId, deviceId: deviceDisplayId } },
+      create: {
+        userId,
+        deviceId: deviceDisplayId,
+        name: name || deviceDisplayId,
+        location,
+      },
+      update: {
+        name,
+        location,
+      },
+    });
   }
-  
+
   // Helper to find UUID from String ID
   async getDeviceByStringId(deviceId: string) {
     return this.prisma.device.findUnique({ where: { deviceId } });
+  }
+
+  setDeviceThreshold(deviceId: string, thresholds: Record<string, number>) {
+    return this.prisma.deviceThreshold.upsert({
+      where: { deviceId },
+      update: { thresholds },
+      create: { deviceId, thresholds },
+    });
+  }
+
+  removeDeviceThreshold(deviceId: string) {
+    return this.prisma.deviceThreshold.delete({
+      where: { deviceId },
+    });
   }
 }

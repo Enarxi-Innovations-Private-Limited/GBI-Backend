@@ -10,6 +10,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { GroupsService } from './groups.service';
+import { SetGroupThresholdDto } from './dto/set-group-threshold.dto';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('groups')
@@ -37,5 +38,24 @@ export class GroupsController {
     @Param('deviceId') deviceId: string,
   ) {
     return this.service.removeDeviceFromGroup(req.user.id, groupId, deviceId);
+  }
+
+  @Post(':groupId/threshold')
+  setGroupThreshold(
+    @Req() req,
+    @Param('groupId') groupId: string,
+    @Body() dto: SetGroupThresholdDto,
+  ) {
+    return this.service.setGroupThreshold(req.user.id, groupId, dto.thresholds);
+  }
+
+  @Delete(':groupId/threshold')
+  removeGroupThreshold(@Req() req, @Param('groupId') groupId: string) {
+    return this.service.removeGroupThreshold(req.user.id, groupId);
+  }
+
+  @Delete(':groupId')
+  deleteGroup(@Req() req, @Param('groupId') groupId: string) {
+    return this.service.deleteGroup(req.user.id, groupId);
   }
 }
