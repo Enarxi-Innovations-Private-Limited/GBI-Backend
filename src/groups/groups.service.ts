@@ -37,6 +37,22 @@ export class GroupsService {
       throw new NotFoundException('Device not found');
     }
 
+    // 1. Verify User Owns the Device (Security Fix)
+    const assignment = await this.prisma.deviceAssignment.findFirst({
+      where: {
+        userId,
+        deviceId: { equals: device.id }, // Internal UUID
+        unassignedAt: null,
+      },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not own this device or it is not assigned to you',
+      );
+    }
+    
+    // 2. Check Mutex: Ensure no individual threshold exists
     const individualThreshold = await this.prisma.deviceThreshold.findUnique({
       where: { deviceId: device.id },
     });

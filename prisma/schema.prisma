@@ -30,7 +30,7 @@ model User {
   updatedAt     DateTime @updatedAt
 
   assignments   DeviceAssignment[]
-  alerts        AlertThreshold[]
+
   notifications Notification[]
   eventLogs     EventLog[]
   refreshTokens RefreshToken[]
@@ -139,16 +139,7 @@ model DeviceThreshold {
 }
 
 
-model AlertThreshold {
-  id         String @id @default(uuid())
-  userId     String
-  parameter  String
-  limitValue Float
 
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([userId, parameter])
-}
 
 model AlertState {
   id              String   @id @default(uuid())
