@@ -14,7 +14,7 @@ export class MqttService implements OnModuleInit {
 
     try {
       const options: any = {
-        clientId: process.env.MQTT_CLIENT_ID || 'gbi-backend',
+        clientId: (process.env.MQTT_CLIENT_ID || 'gbi-backend') + '-' + Math.random().toString(16).substr(2, 8),
         clean: true,
         reconnectPeriod: 5000,
         connectTimeout: 30000,

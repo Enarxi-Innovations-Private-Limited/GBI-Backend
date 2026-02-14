@@ -80,7 +80,7 @@ export class TelemetryPayloadDto {
   noise?: number;
 
   @IsOptional()
-  @Expose({ name: 'AQI' })
+
   @Transform(({ value }) => {
     if (value === null || value === undefined) return undefined;
     const num = typeof value === 'string' ? parseFloat(value) : Number(value);

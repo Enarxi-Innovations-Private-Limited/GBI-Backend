@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { MqttService } from './mqtt.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
@@ -14,7 +14,7 @@ import * as path from 'path';
  * Handles telemetry data and device heartbeat updates.
  */
 @Injectable()
-export class MqttConsumer implements OnModuleInit {
+export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
   private logFilePath: string;
 
   constructor(
@@ -86,6 +86,16 @@ export class MqttConsumer implements OnModuleInit {
         });
       }
     });
+  }
+
+  onModuleDestroy() {
+    console.log(`🛑 [PID: ${process.pid}] MQTT Consumer shutting down...`);
+    const client = this.mqttService.getClient();
+    if (client) {
+      client.end(true, () => {
+        console.log(`🛑 [PID: ${process.pid}] MQTT Client disconnected.`);
+      });
+    }
   }
 
   private getISTTimestamp(): string {
@@ -235,7 +245,7 @@ export class MqttConsumer implements OnModuleInit {
       // Retrieve strict validation invalid fields
       const invalidFields = errors.map(err => {
         // Handle mapped property name for AQI (which comes as 'AQI' in payload but is 'aqi' in DTO)
-        const receivedValue = err.property === 'aqi' && payload['AQI'] !== undefined ? payload['AQI'] : payload[err.property];
+        const receivedValue = payload[err.property];
 
         // Determine the error code based on the constraints
         let code = 'UNKNOWN';
