@@ -1,28 +1,37 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AlertsRepository } from './alerts.repository';
-
-const COOLDOWN_MINUTES = 5;
-const BUFFER_PERCENT = 0.02;
+import { SseService } from '../realtime/sse.service';
 
 @Injectable()
 export class AlertsService {
-  constructor(private readonly repo: AlertsRepository) {}
+  private readonly logger = new Logger(AlertsService.name);
+  private readonly HYSTERESIS_PERCENT = 0.05; // 5% buffer
 
+  constructor(
+    private readonly repo: AlertsRepository,
+    private readonly sseService: SseService,
+  ) {}
+
+  /**
+   * Evaluate telemetry against thresholds.
+   * Hierarchy: Device Specific -> Group Default.
+   */
   async evaluate(deviceId: string, telemetry: any) {
+    // 1. Check for Device Specific Threshold
     const deviceThreshold = await this.repo.getDeviceThreshold(deviceId);
-
     if (deviceThreshold?.thresholds) {
-      return this.evaluateWithThresholds(
+      await this.evaluateWithThresholds(
         deviceId,
         deviceThreshold.thresholds as Record<string, number>,
         telemetry,
       );
+      return;
     }
 
+    // 2. Check for Group Default Threshold
     const groupThreshold = await this.repo.getGroupThresholdByDevice(deviceId);
-
     if (groupThreshold?.thresholds) {
-      return this.evaluateWithThresholds(
+      await this.evaluateWithThresholds(
         deviceId,
         groupThreshold.thresholds as Record<string, number>,
         telemetry,
@@ -40,82 +49,110 @@ export class AlertsService {
 
     const userIds = assignments.map((a) => a.userId);
     const params = Object.keys(thresholds);
-    if (!params.length) return;
-
+    
+    // Fetch current alert states for continuity (Anti-Flicker)
     const states = await this.repo.getAlertStates(deviceId, userIds, params);
     const stateMap = new Map(
       states.map((s) => [`${s.userId}:${s.parameter}`, s]),
     );
 
-    const recentAlerts = await this.repo.getRecentAlerts(
-      deviceId,
-      userIds,
-      params,
-      COOLDOWN_MINUTES,
-    );
-
-    const recentLookup = new Set(
-      recentAlerts.map((r) => `${r.userId}:${r.parameter}`),
-    );
-
     for (const assignment of assignments) {
       for (const param of params) {
-        const limit = thresholds[param];
+        const threshold = thresholds[param];
         const value = telemetry[param];
+        
         if (value == null) continue;
 
         const key = `${assignment.userId}:${param}`;
-        const existing = stateMap.get(key);
-        const buffer = limit * BUFFER_PERCENT;
-        const state = existing?.state ?? 'NORMAL';
+        const existingState = stateMap.get(key);
+        const currentState = existingState?.state ?? 'NORMAL';
 
-        if (state === 'NORMAL' && value > limit) {
-          if (recentLookup.has(key)) continue;
+        // Calculate Hysteresis Buffer (Min 1 unit or 5%)
+        const hysteresis = Math.max(1, threshold * this.HYSTERESIS_PERCENT);
+        const resolveLimit = threshold - hysteresis;
 
-          await this.repo.createEventLog({
-            deviceId,
-            userId: assignment.userId,
-            parameter: param,
-            value,
-          });
-
-          await this.repo.createNotification({
-            userId: assignment.userId,
-            deviceId,
-            message: `${param.toUpperCase()} exceeded (${value} > ${limit})`,
-          });
-
-          await this.repo.upsertAlertState({
-            deviceId,
-            userId: assignment.userId,
-            parameter: param,
-            state: 'ALERTING',
-            lastTriggeredAt: new Date(),
-          });
+        // LOGIC: NORMAL -> ALERTING
+        if (currentState === 'NORMAL' && value > threshold) {
+          this.logger.warn(`🚨 Alert: ${param} ${value} > ${threshold} (User: ${assignment.userId})`);
+          
+          await this.triggerAlert(deviceId, assignment.userId, param, value, threshold);
         }
 
-        if (state === 'ALERTING' && value < limit - buffer) {
-          await this.repo.createEventLog({
-            deviceId,
-            userId: assignment.userId,
-            parameter: param,
-            value,
-          });
-
-          await this.repo.createNotification({
-            userId: assignment.userId,
-            deviceId,
-            message: `${param.toUpperCase()} back to normal`,
-          });
-
-          await this.repo.upsertAlertState({
-            deviceId,
-            userId: assignment.userId,
-            parameter: param,
-            state: 'NORMAL',
-          });
+        // LOGIC: ALERTING -> NORMAL (with Hysteresis)
+        else if (currentState === 'ALERTING' && value < resolveLimit) {
+          this.logger.log(`✅ Resolve: ${param} ${value} < ${resolveLimit} (User: ${assignment.userId})`);
+          
+          await this.resolveAlert(deviceId, assignment.userId, param, value);
         }
       }
     }
+  }
+
+  private async triggerAlert(deviceId: string, userId: string, param: string, value: number, limit: number) {
+    const message = `${param.toUpperCase()} exceeded limit (${value} > ${limit})`;
+
+    // 1. DB: Create Event Log & Notification
+    await this.repo.createEventLog({
+      deviceId,
+      userId,
+      parameter: param,
+      value,
+      eventType: 'ALERT_TRIGGERED', // Explicit Event Type
+    });
+
+    const notification = await this.repo.createNotification({
+      userId,
+      deviceId,
+      message,
+    });
+
+    // 2. DB: Update State
+    await this.repo.upsertAlertState({
+      deviceId,
+      userId,
+      parameter: param,
+      state: 'ALERTING',
+      lastTriggeredAt: new Date(),
+    });
+
+    // 3. Realtime: Emit SSE
+    this.sseService.sendEvent(userId, {
+      type: 'NOTIFICATION',
+      data: notification,
+    });
+  }
+
+  private async resolveAlert(deviceId: string, userId: string, param: string, value: number) {
+    const message = `${param.toUpperCase()} returned to normal (${value})`;
+
+    // 1. DB: Create Event Log & Notification
+    await this.repo.createEventLog({
+      deviceId,
+      userId,
+      parameter: param,
+      value,
+      eventType: 'ALERT_RESOLVED', // Explicit Event Type
+    });
+
+    const notification = await this.repo.createNotification({
+      userId,
+      deviceId,
+      message,
+    });
+
+    // 2. DB: Update State
+    await this.repo.upsertAlertState({
+      deviceId,
+      userId,
+      parameter: param,
+      state: 'NORMAL',
+      lastTriggeredAt: new Date(),
+    });
+
+    // 3. Realtime: Emit SSE
+    this.sseService.sendEvent(userId, {
+      type: 'NOTIFICATION',
+      data: notification,
+    });
   }
 }

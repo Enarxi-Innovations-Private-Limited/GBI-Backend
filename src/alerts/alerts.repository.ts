@@ -69,17 +69,21 @@ export class AlertsRepository {
   }
 
   // EVENT LOG
+  // EVENT LOG
   createEventLog(data: {
     deviceId: string;
     userId: string;
     parameter: string;
     value: number;
+    eventType?: string; // Optional for backward compatibility, but Stage 2 uses it
   }) {
     return this.prisma.eventLog.create({
       data: {
         deviceId: data.deviceId,
         userId: data.userId,
-        eventType: 'Alert_Triggered',
+        // Default to 'Alert_Triggered' if not provided (legacy behavior), 
+        // or use the specific type passed called 'ALERT_TRIGGERED' / 'ALERT_RESOLVED'
+        eventType: data.eventType || 'Alert_Triggered',
         parameter: data.parameter,
         value: data.value,
       },
