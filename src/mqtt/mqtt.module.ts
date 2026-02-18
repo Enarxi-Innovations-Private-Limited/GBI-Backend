@@ -9,5 +9,6 @@ import { RealtimeModule } from 'src/realtime/realtime.module';
 @Module({
   imports: [PrismaModule, AlertsModule, RealtimeModule],
   providers: [MqttService, MqttConsumer, DeviceMonitorService],
+  exports: [MqttService],
 })
 export class MqttModule {}
