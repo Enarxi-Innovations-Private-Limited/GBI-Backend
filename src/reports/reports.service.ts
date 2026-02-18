@@ -62,48 +62,62 @@ export class ReportsService {
     end: Date,
     interval: number,
   ) {
-    const results: any[] = [];
+    if (!devices.length || !params.length) return [];
 
-    for (const device of devices) {
-      const selectAgg = params.map((p) => `AVG("${p}") as "${p}"`).join(', ');
+    const uuidList = devices.map((d) => d.id);
 
-      const query = `
-        SELECT
-          (
-            date_trunc('minute', "timestamp")
-            - (extract(minute from "timestamp")::int % ${interval}) * interval '1 minute'
-          ) as "timestamp",
-          '${device.deviceId}' as "deviceId",
-          ${selectAgg}
-        FROM "DeviceTelemetry"
-        WHERE "deviceId" = '${device.id}'
-          AND "timestamp" BETWEEN '${start.toISOString()}' AND '${end.toISOString()}'
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `;
+    const deviceIdMap = new Map(devices.map((d) => [d.id, d.deviceId]));
 
-      const data: any[] = await this.prisma.$queryRaw(
-        Prisma.sql`
-    SELECT
-      (
-        date_trunc('minute', "timestamp")
-        - (extract(minute from "timestamp")::int % ${interval}) * interval '1 minute'
-      ) as "timestamp",
-      ${device.deviceId} as "deviceId",
-      ${Prisma.raw(selectAgg)}
-    FROM "DeviceTelemetry"
-    WHERE "deviceId" = ${device.id}
+    const allowedParams = [
+      'pm25',
+      'pm10',
+      'temperature',
+      'humidity',
+      'co2',
+      'tvoc',
+      'noise',
+      'aqi',
+    ];
+
+    const safeParams = params.filter((p) => allowedParams.includes(p));
+
+    if (!safeParams.length) return [];
+
+    const selectAgg = Prisma.join(
+      safeParams.map(
+        (param) =>
+          Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+      ),
+      ', ',
+    );
+
+    const rows: any[] = await this.prisma.$queryRaw(
+      Prisma.sql`
+      SELECT
+        (
+          date_trunc('minute', "timestamp")
+          - (extract(minute from "timestamp")::int % ${interval})
+            * interval '1 minute'
+        ) as "timestamp",
+
+        "deviceId",
+
+        ${selectAgg}
+
+      FROM "DeviceTelemetry"
+
+      WHERE "deviceId" IN (${Prisma.join(uuidList)})
       AND "timestamp" BETWEEN ${start} AND ${end}
-    GROUP BY 1
-    ORDER BY 1 ASC
-  `,
-      );
 
-      for (const row of data) {
-        results.push(row);
-      }
-    }
+      GROUP BY 1, "deviceId"
 
-    return results;
+      ORDER BY 1 ASC, "deviceId" ASC
+    `,
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      deviceId: deviceIdMap.get(row.deviceId),
+    }));
   }
 }
