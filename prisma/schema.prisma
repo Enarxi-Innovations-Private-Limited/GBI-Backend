@@ -97,6 +97,8 @@ model UserDevice {
   userId   String
   name     String?
   location String?
+  city     String?
+  pincode  String?
 
   @@unique([deviceId, userId])
 }

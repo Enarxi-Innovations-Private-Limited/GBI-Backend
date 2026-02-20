@@ -25,6 +25,8 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
+    // app.setGlobalPrefix('api');
+
   await app.register(import('@fastify/cookie'), {
     secret: process.env.COOKIE_SECRET || 'my-secret', // for signed cookies
   });

@@ -85,4 +85,8 @@ export class AdminService {
   async deleteDevice(deviceId: string) {
     return this.repo.softDeleteDevice(deviceId);
   }
+
+  async getStats() {
+    return this.repo.getStats();
+  }
 }

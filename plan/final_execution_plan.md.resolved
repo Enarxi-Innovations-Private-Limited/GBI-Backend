@@ -1,0 +1,142 @@
+# GBI Final Execution & Deployment Plan (15-Day Timeline)
+
+**Goal:** Deliver a fully functional, production-ready GBI Air Quality Monitoring platform.
+**Timeline:** 15 Days (12 Days Dev + 3 Days Buffer/Deploy)
+**Infrastructure:**
+
+- **Compute:** Digital Ocean $12 Droplet (Shared CPU, 2GB RAM).
+  - _Hosts:_ Backend (NestJS), Frontend (Next.js), Redis, MQTT Broker (Mosquitto).
+- **Database:** Digital Ocean Managed PostgreSQL ($15/mo).
+- **Payments:** PhonePe Gateway.
+
+---
+
+## 🏗️ Phase 1: Core Hardening & Admin Tools (Days 1-3)
+
+_Focus: Validation, Admin capabilities, and preparing for "Business" logic._
+
+### Day 1: Strict Validation & Admin Stats (COMPLETED)
+*   **[COMPLETED] Backend**: Update [ClaimDeviceDto](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/module/devices/dto/claim-device.dto.ts#3-26) to enforce exactly 6-digit numeric Pincode (Regex: `^[0-9]{6}$`).
+    *   *Implementation*: Added `pincode` field with `@Matches(/^[0-9]{6}$/)` and `city` field to [UserDevice](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/module/devices/devices.repository.ts#82-95) schema.
+*   **[COMPLETED] Backend**: Create `GET /admin/stats` endpoint.
+    *   *Implementation*: Logic implemented to query DB for Total Users, Total Devices, Active vs Inactive Devices (based on status), and Warnings.
+*   **Backend**: Create `GET /admin/devices` with search/pagination.
+
+### Day 2: Bulk Operations
+
+- **Backend**: Implement `POST /admin/devices/bulk`.
+  - _Lib:_ Use `exceljs`.
+  - _Logic:_ Parse uploaded Excel, validate duplicates, insert active Device IDs into DB. Return success/failure count.
+
+### Day 3: Architecture Alignment (Remove WS, Verify SSE)
+
+- **Cleanup**: Remove [TelemetryGateway](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/realtime/telemetry.gateway.ts#13-92) and `socket.io` dependencies, as you are using **HTTP Polling** for Telemetry.
+- **Realtime Service**: Refactor [RealtimeService](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/realtime/realtime.service.ts#4-16) to remove WebSocket calls. Access telemetry only via API Polling (as implemented).
+- **Notifications**: Verify [AlertsService](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/alerts/alerts.service.ts#5-159) is correctly using [SseService](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/realtime/sse.service.ts#9-70) to push critical alerts (Threshold breaches).
+
+---
+
+## 💰 Phase 2: Business Logic & Revenue (Days 4-8)
+
+_Focus: Making the platform monetizable via PhonePe and Subscriptions._
+
+### Day 4: Subscription Schema & Logic
+
+- **Database**: Add `Subscription` model and update [User](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/module/admin/admin.repository.ts#56-72) table (fields: `subscriptionType`, `premiumExpiresAt`).
+- **Backend**: Create `Guards` (`@PremiumOnly`) to protect specific endpoints (History > 7 days, PDF Reports).
+- **Backend**: Create Cron Job (`node-cron`) to auto-downgrade expired users to BASIC.
+
+### Day 5: Reports Engine (PDF)
+
+- **Backend**: Implement `ReportsService.generatePdf`.
+- **Lib**: Use `pdfkit`.
+- **Design**: Create a professional layout with the **Enarxi/GBI Logo**, Header (Device/Date), and a clean Data Table.
+
+### Day 6: PhonePe Integration (Part 1 - API)
+
+- **Backend**: Create `Payment` module.
+- **Integration**: Implement PhonePe Standard Checkout API (`/pay`, `/callback`).
+- **Logic**:
+  1.  User requests Plan -> Backend calls PhonePe -> Returns Redirect URL.
+  2.  User pays on PhonePe.
+  3.  PhonePe calls Webhook -> Backend validates Checksum -> Updates `User.subscriptionType = PREMIUM`.
+
+### Day 7: PhonePe Integration (Part 2 - Frontend)
+
+- **Frontend**: Create "Upgrade to Premium" page.
+- **Frontend**: Handle the redirect flow and "Payment Success" confirmation screen.
+
+### Day 8: Buffer / Catch-up
+
+- _Use this day to finish PhonePe integration or debugging PDF layout issues._
+
+---
+
+## 🚀 Phase 3: Deployment & Infrastructure (Days 9-12)
+
+_Focus: Moving from Localhost to Digital Ocean Production._
+
+### Day 9: Server Setup (The $12 Droplet)
+
+- **OS**: Ubuntu 22.04 LTS.
+- **Install**: Node.js 20, PM2, Docker (optional, but PM2 is lighter for 2GB RAM), Mosquitto (MQTT), Redis.
+- **Security**: Configure UFW (Firewall). Open ports 80, 443. _Close_ 5432, 6379, 1883 to outside world (localhost only).
+
+### Day 10: Application Deployment
+
+- **Backend**: Build NestJS (`npm run build`). Start with PM2 (`pm2 start dist/main.js --name gbi-backend`).
+- **Frontend**: Build Next.js (`npm run build`). Start with PM2 (`pm2 start npm --name gbi-web -- start`).
+- **Reverse Proxy**: Install **Nginx**.
+  - Route `api.enarxi.com` -> `localhost:3000` (Backend).
+  - Route `enarxi.com` -> `localhost:3001` (Frontend).
+- **SSL**: Run `certbot --nginx` for free HTTPS.
+
+### Day 11: Production Verification
+
+- **Connectivity**: Verify MQTT Broker is receiving data from actual devices (or simulator) on the live IP.
+- **Real-time**: Verify independent Websocket connection through Nginx (requires sticky sessions or websocket support in Nginx config).
+- **Payments**: Perform a real transaction ( ₹1) on PhonePe Live mode.
+
+### Day 12: Final Handover
+
+- **Docs**: Write "Emergency Restart Guide" (Command cheat sheet).
+- **Backups**: Cron script to dump Postgres DB to Digital Ocean Spaces (or local disk).
+
+---
+
+## 🛡️ Phase 4: Final Buffer (Days 13-15)
+
+- **Day 13-15**: Reserved strictly for critical bug fixes, UI polish, and handling unforeseen deployment issues (e.g., DNS propagation, Nginx websocket timeouts).
+
+## ⚠️ Key Constraints & Risks
+
+1.  **Memory (RAM)**: The $12 Droplet has 2GB RAM. Running NestJS + Next.js + Redis + Mosquitto is tight.
+    - _Mitigation_: Configure Node.js memory limits (`--max-old-space-size`). If Next.js build fails, build locally and upload `.next` folder.
+2.  **Websockets**: Nginx requires specific configuration to proxy Websockets (`Upgrade` header).
+3.  **PhonePe**: Approval for "Live" credentials can sometimes take time. Ensure you have them applied _now_.
+
+## ✅ Next Immediate Step
+Shall I proceed with **Phase 1, Day 1** tasks?
+1.  **[DONE]** Strict Pincode Validation.
+2.  **[DONE]** Admin Stats Endpoint.
+3.  **Next**: `GET /admin/devices` (Search/Pagination).
+
+---
+
+## 5. Architecture FAQ (Why these choices?)
+
+### Q: Why do we have WebSockets if we use MQTT? (Update: We don't!)
+
+- **Correction**: You are right. The current codebase _has_ WebSocket code ([TelemetryGateway](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/realtime/telemetry.gateway.ts#13-92)), but since your architecture is **HTTP Polling (Telemetry) + SSE (Notifications)**, the WebSocket code is "zombie code".
+- **Action**: We will **delete** [TelemetryGateway](file:///d:/Users/chellakkumar/D-Documents/Enarxi/GBI/Air%20Quality%20Monitor/gbi-backend/src/realtime/telemetry.gateway.ts#13-92) to save RAM and avoid confusion.
+- **New Flow**:
+  - **Telemetry**: Device -> MQTT -> DB. Frontend -> Polls API every 1 min.
+  - **Alerts**: Backend -> SSE -> Frontend (Immediate push).
+
+### Q: Why Mosquitto instead of EMQX?
+
+- **Resource Constraint**: You have a **$12 Droplet (2GB RAM)**.
+  - **EMQX**: Requires ~200MB+ RAM just to start and spikes higher under load. It runs on the Erlang VM, which is heavy for a small shared instance.
+  - **Mosquitto**: Ultra-lightweight (C-based). Uses ~5MB RAM.
+- **Compatibility**: Your code uses standard MQTT via the `mqtt.js` library. It does **not** use any proprietary EMQX features (like Rule Engine or Shared Subscriptions).
+- **Upgrade Path**: If you upgrade the server to 4GB+ RAM later, you can swap Mosquitto for EMQX without changing a single line of code.

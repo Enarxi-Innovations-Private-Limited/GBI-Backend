@@ -147,4 +147,30 @@ export class AdminRepository {
       },
     });
   }
+
+  async getStats() {
+    const [totalUsers, totalDevices, onlineDevices, warningDevices] =
+      await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.device.count({ where: { isDeleted: false } }),
+        this.prisma.device.count({
+          where: { isDeleted: false, status: 'active' },
+        }),
+        this.prisma.device.count({
+          where: { isDeleted: false, status: 'warning' },
+        }),
+      ]);
+
+    const offlineDevices = await this.prisma.device.count({
+      where: { isDeleted: false, status: 'offline' },
+    });
+
+    return {
+      totalUsers,
+      totalDevices,
+      onlineDevices,
+      offlineDevices,
+      warningDevices,
+    };
+  }
 }

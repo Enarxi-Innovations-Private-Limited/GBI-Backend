@@ -43,6 +43,8 @@ export class DevicesRepository {
     deviceDisplayId: string,
     name?: string,
     location?: string,
+    city?: string,
+    pincode?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Create Assignment
@@ -54,32 +56,6 @@ export class DevicesRepository {
       });
 
       // 2. Create User Metadata
-      // Upsert just in case there's distinct old data, but create is safer for clean slate
-      // Schema: UserDevice @@unique([deviceId, userId]) where deviceId is the STRING ID?
-      // checking schema...
-      // model UserDevice { deviceId String ... }
-      // Is UserDevice.deviceId the UUID or the "GBI-001"?
-      // Let's check schema provided earlier.
-      // model UserDevice { deviceId String ... } -> It has no relation defined.
-      // It is likely the "GBI-001" string based on naming convention, BUT it should ideally be relation.
-      // Checking Schema provided in View File output Step 263.
-      // model UserDevice { id String @id... deviceId String ... }
-      // It has NO @relation. This implies it holds the "GBI-001" string to match the physical label.
-      // HOWEVER, `DeviceAssignment` uses the UUID.
-      // Let's assume UserDevice uses the "GBI-001" string ID for now to be loosely coupled,
-      // OR it uses uuid. Given `@@unique([deviceId, userId])`, if `deviceId` is UUID it works too.
-      // Let's stick to using the same ID type as `Device.deviceId` (the unique string).
-      // Wait, `DeviceAssignment` links to `Device.id` (UUID).
-      // `UserDevice` has no relation.
-      // To be safe and consistent, we should probably store the UUID if it's internal, or the String if it's external.
-      // Given `Device.deviceId` is the external unique ID, and `UserDevice` seems metadata for THAT...
-      // I will store the *External String ID* ("GBI-001") in UserDevice so it's queryable by the user's input.
-      // Or better: The UserDevice model in schema.prisma 263 shows:
-      // deviceId String
-      // userId String
-      // @@unique([deviceId, userId])
-      // It is ambiguous. I will assume it stores the **External Device ID** (String) because it has no foreign key constraint to Device(UUID).
-
       const meta = await tx.userDevice.upsert({
         where: { deviceId_userId: { userId, deviceId: deviceDisplayId } },
         create: {
@@ -87,11 +63,15 @@ export class DevicesRepository {
           deviceId: deviceDisplayId,
           name: name || deviceDisplayId,
           location,
+          city,
+          pincode,
         },
         update: {
           // If re-claiming (unlikely path if we block claim), but handle basics
           name: name || deviceDisplayId,
           location,
+          city,
+          pincode,
         },
       });
 
@@ -143,6 +123,8 @@ export class DevicesRepository {
     deviceDisplayId: string,
     name?: string,
     location?: string,
+    city?: string,
+    pincode?: string,
   ) {
     return this.prisma.userDevice.upsert({
       where: { deviceId_userId: { userId, deviceId: deviceDisplayId } },

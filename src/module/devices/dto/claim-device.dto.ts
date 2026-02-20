@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class ClaimDeviceDto {
   @IsString()
@@ -14,4 +14,12 @@ export class ClaimDeviceDto {
   @IsString()
   @Length(1, 100)
   location?: string;
+
+  @IsString()
+  @Matches(/^[0-9]{6}$/, { message: 'Pincode must be exactly 6 digits' })
+  pincode: string;
+
+  @IsString()
+  @Length(1, 100)
+  city: string;
 }

@@ -68,4 +68,10 @@ export class AdminController {
   deleteDevice(@Param('deviceId') deviceId: string) {
     return this.adminService.deleteDevice(deviceId);
   }
+
+  @UseGuards(AdminGuard)
+  @Get('stats')
+  getStats() {
+    return this.adminService.getStats();
+  }
 }
