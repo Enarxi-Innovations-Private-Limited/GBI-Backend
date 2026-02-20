@@ -18,32 +18,72 @@ export class AdminRepository {
       data: {
         deviceId,
         type: type, // Optional: if undefined, Prisma uses @default("Air Quality Monitor")
-        status: 'active',
+        status: 'inactive',
       },
     });
   }
 
-  async getDevices(search?: string) {
-    return this.prisma.device.findMany({
-      where: {
-        isDeleted: false,
-        ...(search
-          ? {
-              deviceId: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {}),
-      },
-      orderBy: { addedAt: 'desc' },
-      select: {
-        id: true,
-        deviceId: true,
-        status: true,
-        addedAt: true,
-      },
+  async getDevices(search?: string, page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+
+    const where = {
+      isDeleted: false,
+      ...(search
+        ? {
+            deviceId: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          }
+        : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.device.findMany({
+        where,
+        orderBy: { addedAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          deviceId: true,
+          status: true,
+          addedAt: true,
+        },
+      }),
+      this.prisma.device.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async findExistingDeviceIds(deviceIds: string[]) {
+    const devices = await this.prisma.device.findMany({
+      where: { deviceId: { in: deviceIds } },
+      select: { deviceId: true },
     });
+    return devices.map((d) => d.deviceId);
+  }
+
+  async bulkCreateDevices(devices: { deviceId: string; type?: string }[]) {
+    const result = await this.prisma.device.createMany({
+      data: devices.map((d) => ({
+        deviceId: d.deviceId,
+        type: d.type || 'Air Quality Monitor',
+        status: 'inactive',
+      })),
+      skipDuplicates: true,
+    });
+
+    return {
+      successCount: result.count,
+    };
   }
 
   forceUnassign(deviceId: string) {

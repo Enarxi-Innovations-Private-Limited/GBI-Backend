@@ -25,12 +25,18 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
-    // app.setGlobalPrefix('api');
+  // app.setGlobalPrefix('api');
 
   await app.register(import('@fastify/cookie'), {
     secret: process.env.COOKIE_SECRET || 'my-secret', // for signed cookies
   });
-  
+
+  await app.register(import('@fastify/multipart'), {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+  });
+
   app.enableCors({
     origin: true, // Allow all origins for dev, or specify frontend URL
     credentials: true,
@@ -47,6 +53,6 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3000;
   await app.listen({ port: Number(process.env.PORT) || 3000, host: '0.0.0.0' });
   Logger.log(`Server running on http://localhost:${port}`);
-  Logger.log("Application Adapter: "+app.getHttpAdapter().getType());
+  Logger.log('Application Adapter: ' + app.getHttpAdapter().getType());
 }
 bootstrap();

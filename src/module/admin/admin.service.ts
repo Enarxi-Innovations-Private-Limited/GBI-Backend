@@ -2,13 +2,16 @@ import { JwtService } from '@nestjs/jwt';
 import { AdminRepository } from './admin.repository';
 import { ConfigService } from '@nestjs/config';
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import * as bcrypt from 'bcrypt';
-import { CreateDeviceDto } from './dto/create-device.dto';
+import { CreateDeviceDto, DeviceType } from './dto/create-device.dto';
+import * as ExcelJS from 'exceljs';
+import { Readable } from 'stream';
 
 @Injectable()
 export class AdminService {
@@ -45,8 +48,103 @@ export class AdminService {
     return this.repo.createDevice(dto.deviceId, dto.deviceType);
   }
 
-  async getDevices(search?: string) {
-    return this.repo.getDevices(search);
+  async bulkCreateDevices(fileBuffer: Buffer, filename: string) {
+    const workbook = new ExcelJS.Workbook();
+
+    try {
+      if (filename.toLowerCase().endsWith('.csv')) {
+        const stream = new Readable();
+        stream.push(fileBuffer);
+        stream.push(null);
+        await workbook.csv.read(stream);
+      } else {
+        await workbook.xlsx.load(Buffer.from(fileBuffer) as any);
+      }
+    } catch (error) {
+      throw new BadRequestException(
+        'Failed to parse file. Ensure it is a valid Excel or CSV file.',
+      );
+    }
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      throw new BadRequestException('Worksheet not found in the file.');
+    }
+
+    const devicesToCreate: { deviceId: string; type?: string; row: number }[] =
+      [];
+    const errors: { row: number; deviceId?: string; reason: string }[] = [];
+    const allowedTypes = Object.values(DeviceType) as string[];
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // Skip header row
+
+      const deviceIdCol = row.getCell(1).value?.toString()?.trim();
+      if (!deviceIdCol) {
+        errors.push({ row: rowNumber, reason: 'Empty Device ID' });
+        return;
+      }
+
+      const deviceTypeCol =
+        row.getCell(2).value?.toString()?.trim() ||
+        DeviceType.AIR_QUALITY_MONITOR;
+
+      // Strict Enum Validation
+      if (!allowedTypes.includes(deviceTypeCol)) {
+        errors.push({
+          row: rowNumber,
+          deviceId: deviceIdCol,
+          reason: `Invalid Type: ${deviceTypeCol}. Expected: 'Air Quality Monitor'`,
+        });
+        return;
+      }
+
+      devicesToCreate.push({
+        deviceId: deviceIdCol,
+        type: deviceTypeCol,
+        row: rowNumber,
+      });
+    });
+
+    if (devicesToCreate.length === 0 && errors.length === 0) {
+      throw new BadRequestException(
+        'No valid device records found in the file.',
+      );
+    }
+
+    // Check for duplicates in the database
+    const deviceIds = devicesToCreate.map((d) => d.deviceId);
+    const existingDevices = await this.repo.findExistingDeviceIds(deviceIds);
+    const existingSet = new Set(existingDevices);
+
+    const uniqueDevicesToCreate = devicesToCreate.filter((d) => {
+      if (existingSet.has(d.deviceId)) {
+        errors.push({
+          row: d.row,
+          deviceId: d.deviceId,
+          reason: 'Device ID already registered',
+        });
+        return false;
+      }
+      return true;
+    });
+
+    let successCount = 0;
+    if (uniqueDevicesToCreate.length > 0) {
+      const result = await this.repo.bulkCreateDevices(uniqueDevicesToCreate);
+      successCount = result.successCount;
+    }
+
+    return {
+      successCount,
+      failureCount: errors.length,
+      totalProcessed: uniqueDevicesToCreate.length + errors.length,
+      errors: errors.sort((a, b) => a.row - b.row),
+    };
+  }
+
+  async getDevices(search?: string, page: number = 1, limit: number = 10) {
+    return this.repo.getDevices(search, page, limit);
   }
 
   async forceUnassign(deviceId: string) {

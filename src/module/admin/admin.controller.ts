@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,8 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import { AdminService } from './admin.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { CreateDeviceDto } from './dto/create-device.dto';
@@ -27,6 +30,28 @@ export class AdminController {
   @Post('devices')
   createDevice(@Body() dto: CreateDeviceDto) {
     return this.adminService.createDevice(dto);
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('devices/bulk')
+  async uploadBulkDevices(@Req() req: FastifyRequest) {
+    if (!req.isMultipart || !req.isMultipart()) {
+      throw new BadRequestException('Request must be multipart/form-data');
+    }
+
+    let file;
+    try {
+      file = await req.file();
+    } catch (e) {
+      throw new BadRequestException('Failed to process file upload');
+    }
+
+    if (!file) {
+      throw new BadRequestException('Missing file in upload');
+    }
+
+    const buffer = await file.toBuffer();
+    return this.adminService.bulkCreateDevices(buffer, file.filename);
   }
 
   @UseGuards(AdminGuard)
@@ -55,8 +80,14 @@ export class AdminController {
 
   @UseGuards(AdminGuard)
   @Get('devices')
-  getDevices(@Query('search') search?: string) {
-    return this.adminService.getDevices(search);
+  getDevices(
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const limitNumber = limit ? parseInt(limit, 10) : 10;
+    return this.adminService.getDevices(search, pageNumber, limitNumber);
   }
 
   @Delete('users/:id')
