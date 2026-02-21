@@ -319,12 +319,15 @@ export class AuthService {
    */
   async requestPhoneOtp(
     requestPhoneOtpDto: RequestPhoneOtpDto,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; isOtpRequired: boolean }> {
     const { phone } = requestPhoneOtpDto;
 
     // Skip OTP generation if verification is not required
     if (this.configService.get('REQUIRE_PHONE_VERIFICATION') !== 'true') {
-      return { message: 'OTP sent to mobile number' }; // Mock success to satisfy frontend
+      return {
+        message: 'OTP verification disabled by server.',
+        isOtpRequired: false,
+      }; // Mock success with flag to bypass frontend screen
     }
 
     // Generate 6-digit OTP
@@ -337,7 +340,10 @@ export class AuthService {
     // For now, log to console
     console.log(`[AUTH] Phone Verification OTP for ${phone}: ${otp}`);
 
-    return { message: 'OTP sent to mobile number' };
+    return {
+      message: 'OTP sent to mobile number',
+      isOtpRequired: true,
+    };
   }
 
   /**
