@@ -1,15 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { TelemetryGateway } from './telemetry.gateway';
 
 @Injectable()
 export class RealtimeService {
-  constructor(private readonly gateway: TelemetryGateway) {}
-
   emitTelemetry(deviceId: string, telemetry: any) {
-    this.gateway.broadcastTelemetry(deviceId, telemetry);
+    // Deprecated: Telemetry is now accessed via HTTP Polling on the frontend.
   }
 
   emitDeviceStatus(deviceId: string, status: 'active' | 'offline') {
-    this.gateway.broadcastDeviceStatus(deviceId, status);
+    // Deprecated: Device status is accessed via HTTP Polling on the frontend.
   }
 }
