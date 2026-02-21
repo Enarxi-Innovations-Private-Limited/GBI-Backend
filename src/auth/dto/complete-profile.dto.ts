@@ -21,11 +21,15 @@ export class CompleteProfileDto {
   @IsNotEmpty()
   phone: string;
 
+  // SMS OTP validation removed for now, but keeping the field optional in DTO
+  // in case the frontend still sends it or for future re-integration without breaking changes.
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  otp: string;
+  otp?: string;
 }
 
+// RequestPhoneOtpDto is kept for backward compatibility if the frontend still calls it,
+// though the service method will be simplified.
 export class RequestPhoneOtpDto {
   @IsString()
   @IsNotEmpty()

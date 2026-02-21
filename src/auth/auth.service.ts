@@ -12,7 +12,15 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes, randomInt } from 'crypto';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignupDto, LoginDto, ForgotPasswordDto, ResetPasswordDto, CompleteProfileDto, RequestPhoneOtpDto, VerifyEmailOtpDto } from './dto';
+import {
+  SignupDto,
+  LoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  CompleteProfileDto,
+  RequestPhoneOtpDto,
+  VerifyEmailOtpDto,
+} from './dto';
 
 export interface JwtPayload {
   sub: string; // user id
@@ -47,7 +55,9 @@ export class AuthService {
   /**
    * Register a new user with email and password
    */
-  async signup(signupDto: SignupDto): Promise<{ message: string; email: string }> {
+  async signup(
+    signupDto: SignupDto,
+  ): Promise<{ message: string; email: string }> {
     const { email, password, name, organization, phone, city } = signupDto;
 
     // Check if user already exists
@@ -93,7 +103,9 @@ export class AuthService {
   /**
    * Verify Email OTP and Login
    */
-  async verifyEmailOtp(verifyEmailOtpDto: VerifyEmailOtpDto): Promise<AuthResponse> {
+  async verifyEmailOtp(
+    verifyEmailOtpDto: VerifyEmailOtpDto,
+  ): Promise<AuthResponse> {
     const { email, otp } = verifyEmailOtpDto;
 
     // Verify OTP
@@ -170,7 +182,9 @@ export class AuthService {
       // Generate EMAIL OTP
       const otp = randomInt(100000, 999999).toString();
       await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
-      console.log(`[AUTH] Email Verification OTP for ${email} (Login Attempt): ${otp}`);
+      console.log(
+        `[AUTH] Email Verification OTP for ${email} (Login Attempt): ${otp}`,
+      );
 
       throw new ConflictException('Email not verified. OTP sent.'); // Using Conflict (409) or Forbidden (403) to distinguish
     }
@@ -234,7 +248,9 @@ export class AuthService {
   /**
    * Request password reset OTP
    */
-  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+  async forgotPassword(
+    forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
     const { email } = forgotPasswordDto;
 
     const user = await this.prisma.user.findUnique({
@@ -262,7 +278,9 @@ export class AuthService {
   /**
    * Reset password with OTP
    */
-  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
     const { email, otp, newPassword } = resetPasswordDto;
 
     // Verify OTP
@@ -287,10 +305,10 @@ export class AuthService {
     // Revoke all sessions for security
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user) {
-        await this.prisma.refreshToken.updateMany({
-            where: { userId: user.id },
-            data: { revokedAt: new Date() },
-        });
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: user.id },
+        data: { revokedAt: new Date() },
+      });
     }
 
     return { message: 'Password reset successfully' };
@@ -299,8 +317,15 @@ export class AuthService {
   /**
    * Request OTP for Phone Verification
    */
-  async requestPhoneOtp(requestPhoneOtpDto: RequestPhoneOtpDto): Promise<{ message: string }> {
+  async requestPhoneOtp(
+    requestPhoneOtpDto: RequestPhoneOtpDto,
+  ): Promise<{ message: string }> {
     const { phone } = requestPhoneOtpDto;
+
+    // Skip OTP generation if verification is not required
+    if (this.configService.get('REQUIRE_PHONE_VERIFICATION') !== 'true') {
+      return { message: 'OTP sent to mobile number' }; // Mock success to satisfy frontend
+    }
 
     // Generate 6-digit OTP
     const otp = randomInt(100000, 999999).toString();
@@ -315,17 +340,28 @@ export class AuthService {
     return { message: 'OTP sent to mobile number' };
   }
 
-
   /**
    * Complete Profile with Phone Verification
    */
-  async completeProfile(completeProfileDto: CompleteProfileDto): Promise<AuthResponse> {
+  async completeProfile(
+    completeProfileDto: CompleteProfileDto,
+  ): Promise<AuthResponse> {
     const { email, name, organization, city, phone, otp } = completeProfileDto;
 
-    // 1. Verify Phone OTP
-    const storedOtp = await this.redis.get(`phone_otp:${phone}`);
-    if (!storedOtp || storedOtp !== otp) {
-      throw new BadRequestException('Invalid or expired Phone OTP');
+    const requirePhoneVerif =
+      this.configService.get('REQUIRE_PHONE_VERIFICATION') === 'true';
+
+    // 1. Verify Phone OTP (Only if required)
+    if (requirePhoneVerif) {
+      if (!otp) {
+        throw new BadRequestException(
+          'OTP is required for phone verification.',
+        );
+      }
+      const storedOtp = await this.redis.get(`phone_otp:${phone}`);
+      if (!storedOtp || storedOtp !== otp) {
+        throw new BadRequestException('Invalid or expired Phone OTP');
+      }
     }
 
     // 2. Find User
@@ -345,13 +381,15 @@ export class AuthService {
         organization,
         city,
         phone,
-        phoneVerified: true,
+        phoneVerified: requirePhoneVerif ? true : false,
         isProfileComplete: true,
       },
     });
 
-    // 4. Delete OTP
-    await this.redis.del(`phone_otp:${phone}`);
+    // 4. Delete OTP (Only if generated)
+    if (requirePhoneVerif) {
+      await this.redis.del(`phone_otp:${phone}`);
+    }
 
     // 5. Generate New Tokens (refresh claims)
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
@@ -389,14 +427,15 @@ export class AuthService {
       // Update googleId if not set, and ensure organization is set if missing
       const updateData: any = { emailVerified: true };
       if (!user.googleId) updateData.googleId = googleId;
-      if (!user.organization && organization) updateData.organization = organization;
-      
+      if (!user.organization && organization)
+        updateData.organization = organization;
+
       // Perform update if we have new data
       if (Object.keys(updateData).length > 1 || updateData.googleId) {
-         user = await this.prisma.user.update({
-            where: { id: user.id },
-            data: updateData,
-         });
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: updateData,
+        });
       }
 
       // Check if user is restricted
