@@ -40,7 +40,7 @@ export class ReportsService {
     }
 
     // 2) Query telemetry using bucketing (raw SQL)
-    const rows: any[] = await this.queryBucketedTelemetry(
+    const rawRows: any[] = await this.queryBucketedTelemetry(
       devices,
       dto.parameters,
       start,
@@ -48,11 +48,129 @@ export class ReportsService {
       interval,
     );
 
-    // 3) Convert to CSV
-    const fields = ['timestamp', 'deviceId', ...dto.parameters];
-    const parser = new Parser({ fields });
+    // 3) Process rows: Date/Time formatting (IST) & Rounding
+    const rows = rawRows.map((row) => {
+      const processedRow: any = { deviceId: row.deviceId };
 
-    return parser.parse(rows);
+      // Convert timestamp to IST and split into Date (DD:MM:YYYY) and Time
+      if (row.timestamp) {
+        const istDate = new Date(
+          new Date(row.timestamp).toLocaleString('en-US', {
+            timeZone: 'Asia/Kolkata',
+          }),
+        );
+
+        const dd = String(istDate.getDate()).padStart(2, '0');
+        const mm = String(istDate.getMonth() + 1).padStart(2, '0'); // January is 0!
+        const yyyy = istDate.getFullYear();
+
+        const hours = String(istDate.getHours()).padStart(2, '0');
+        const minutes = String(istDate.getMinutes()).padStart(2, '0');
+        const seconds = String(istDate.getSeconds()).padStart(2, '0');
+
+        processedRow.Date = `${dd}-${mm}-${yyyy}`;
+        processedRow.Time = `${hours}:${minutes}:${seconds}`;
+      }
+
+      // Round parameters
+      dto.parameters.forEach((param) => {
+        if (row[param] !== null && row[param] !== undefined) {
+          if (param === 'temperature') {
+            // Keep 1 decimal place for temperature
+            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
+          } else {
+            // Drop to 0 decimal places for all others
+            processedRow[param] = Math.round(Number(row[param]));
+          }
+        } else {
+          processedRow[param] = null;
+        }
+      });
+
+      return processedRow;
+    });
+
+    // 4) Build Custom CSV String
+    const columns = ['Date', 'Time', 'deviceId', ...dto.parameters];
+    const totalCols = columns.length;
+
+    // Helper to center text by padding with commas
+    const centerText = (text: string) => {
+      const leftCommas = Math.floor((totalCols - 1) / 2);
+      const rightCommas = totalCols - 1 - leftCommas;
+      return `${','.repeat(leftCommas)}${text}${','.repeat(rightCommas)}`;
+    };
+
+    // Format start/end strings for the header manually to avoid commas
+    const formatHeaderDate = (d: Date) => {
+      const istDate = new Date(
+        new Date(d).toLocaleString('en-US', {
+          timeZone: 'Asia/Kolkata',
+        }),
+      );
+
+      const dd = String(istDate.getDate()).padStart(2, '0');
+      const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+      const yyyy = istDate.getFullYear();
+
+      let hoursStr = istDate.getHours();
+      const ampm = hoursStr >= 12 ? 'PM' : 'AM';
+      hoursStr = hoursStr % 12;
+      hoursStr = hoursStr ? hoursStr : 12; // the hour '0' should be '12'
+      const hours = String(hoursStr).padStart(2, '0');
+      const minutes = String(istDate.getMinutes()).padStart(2, '0');
+
+      return `${dd}-${mm}-${yyyy} ${hours}:${minutes} ${ampm}`;
+    };
+    const dateRangeText = `${formatHeaderDate(start)} - ${formatHeaderDate(end)}`;
+
+    let csvContent = '';
+
+    // Row 1: Main Title
+    csvContent += `${centerText('GBI Air Quality Monitor - Report')}\n`;
+    // Row 2: Empty
+    csvContent += `${','.repeat(totalCols - 1)}\n`;
+    // Row 3: Date Range
+    csvContent += `${centerText(dateRangeText)}\n`;
+    // Row 4: Empty
+    csvContent += `${','.repeat(totalCols - 1)}\n`;
+
+    // Group rows by deviceId to add spacing and device headers
+    const rowsByDevice: Record<string, any[]> = {};
+    for (const row of rows) {
+      if (!rowsByDevice[row.deviceId]) {
+        rowsByDevice[row.deviceId] = [];
+      }
+      rowsByDevice[row.deviceId].push(row);
+    }
+
+    const deviceIds = Object.keys(rowsByDevice);
+
+    deviceIds.forEach((deviceId, index) => {
+      // Row 5 (or dynamically placed): Device Name Title
+      csvContent += `${centerText(`Device - ${deviceId}`)}\n`;
+      // Row 6: Empty
+      csvContent += `${','.repeat(totalCols - 1)}\n`;
+      // Row 7: Column Headers
+      csvContent += `${columns.join(',')}\n`;
+
+      // Data Rows
+      for (const row of rowsByDevice[deviceId]) {
+        const rowData = columns.map((col) => {
+          const val = row[col];
+          return val === null || val === undefined ? '' : String(val);
+        });
+        csvContent += `${rowData.join(',')}\n`;
+      }
+
+      // Add two empty rows between devices (if not the last device)
+      if (index < deviceIds.length - 1) {
+        csvContent += `${','.repeat(totalCols - 1)}\n`;
+        csvContent += `${','.repeat(totalCols - 1)}\n`;
+      }
+    });
+
+    return csvContent;
   }
 
   private async queryBucketedTelemetry(
