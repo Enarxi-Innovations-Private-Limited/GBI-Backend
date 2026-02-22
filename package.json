@@ -37,6 +37,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-fastify": "^11.1.11",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.19.1",
     "@sendgrid/mail": "^8.1.6",
     "axios": "^1.13.2",

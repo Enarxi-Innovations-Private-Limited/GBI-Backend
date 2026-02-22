@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Inject,
   NotFoundException,
+  HttpException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -58,7 +59,17 @@ export class AuthService {
   async signup(
     signupDto: SignupDto,
   ): Promise<{ message: string; email: string }> {
-    const { email, password, name, organization, phone, city } = signupDto;
+    let { email, password, name, organization, phone, city } = signupDto;
+
+    // Normalize identifiers
+    email = email.trim().toLowerCase();
+    if (phone) phone = phone.trim().replace(/[^\d+]/g, '');
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(email);
+
+    // 2. Account level rate limit (Signup: max 3 per hour)
+    await this.checkAccountRateLimit('signup_attempts', email, 3, 3600);
 
     // Check if user already exists
     const existingUser = await this.prisma.user.findUnique({
@@ -106,13 +117,23 @@ export class AuthService {
   async verifyEmailOtp(
     verifyEmailOtpDto: VerifyEmailOtpDto,
   ): Promise<AuthResponse> {
-    const { email, otp } = verifyEmailOtpDto;
+    let { email, otp } = verifyEmailOtpDto;
 
-    // Verify OTP
+    // Normalize identifiers
+    email = email.trim().toLowerCase();
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(email);
+
+    // 2. Verify OTP
     const storedOtp = await this.redis.get(`email_otp:${email}`);
     if (!storedOtp || storedOtp !== otp) {
+      await this.recordFailure(email);
       throw new BadRequestException('Invalid or expired Email OTP');
     }
+
+    // On Success: Clear failure counters
+    await this.clearFailures(email);
 
     // Find User
     const user = await this.prisma.user.findUnique({
@@ -152,7 +173,13 @@ export class AuthService {
    * Login user with email and password
    */
   async login(loginDto: LoginDto): Promise<AuthResponse> {
-    const { email, password } = loginDto;
+    let { email, password } = loginDto;
+
+    // Normalize
+    email = email.trim().toLowerCase();
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(email);
 
     // Find user
     const user = await this.prisma.user.findUnique({
@@ -160,6 +187,7 @@ export class AuthService {
     });
 
     if (!user || !user.passwordHash) {
+      await this.recordFailure(email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -174,11 +202,14 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
+      await this.recordFailure(email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Check if email is verified
     if (!user.emailVerified) {
+      await this.clearFailures(email); // Successful identity verification, clear failures
+
       // Generate EMAIL OTP
       const otp = randomInt(100000, 999999).toString();
       await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
@@ -188,6 +219,9 @@ export class AuthService {
 
       throw new ConflictException('Email not verified. OTP sent.'); // Using Conflict (409) or Forbidden (403) to distinguish
     }
+
+    // On Success: Clear failure counters
+    await this.clearFailures(email);
 
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
@@ -251,7 +285,16 @@ export class AuthService {
   async forgotPassword(
     forgotPasswordDto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
-    const { email } = forgotPasswordDto;
+    let { email } = forgotPasswordDto;
+
+    // Normalize
+    email = email.trim().toLowerCase();
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(email);
+
+    // 2. Account level rate limit (Forgot PW: max 3 per hour)
+    await this.checkAccountRateLimit('forgot_pw', email, 3, 3600);
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -281,14 +324,24 @@ export class AuthService {
   async resetPassword(
     resetPasswordDto: ResetPasswordDto,
   ): Promise<{ message: string }> {
-    const { email, otp, newPassword } = resetPasswordDto;
+    let { email, otp, newPassword } = resetPasswordDto;
+
+    // Normalize
+    email = email.trim().toLowerCase();
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(email);
 
     // Verify OTP
     const storedOtp = await this.redis.get(`reset_otp:${email}`);
 
     if (!storedOtp || storedOtp !== otp) {
+      await this.recordFailure(email);
       throw new BadRequestException('Invalid or expired OTP');
     }
+
+    // On Success: Clear failures
+    await this.clearFailures(email);
 
     // Hash new password
     const passwordHash = await bcrypt.hash(newPassword, 12);
@@ -320,7 +373,10 @@ export class AuthService {
   async requestPhoneOtp(
     requestPhoneOtpDto: RequestPhoneOtpDto,
   ): Promise<{ message: string; isOtpRequired: boolean }> {
-    const { phone } = requestPhoneOtpDto;
+    let { phone } = requestPhoneOtpDto;
+
+    // Normalize
+    if (phone) phone = phone.trim().replace(/[^\d+]/g, '');
 
     // Skip OTP generation if verification is not required
     if (this.configService.get('REQUIRE_PHONE_VERIFICATION') !== 'true') {
@@ -329,6 +385,12 @@ export class AuthService {
         isOtpRequired: false,
       }; // Mock success with flag to bypass frontend screen
     }
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(phone);
+
+    // 2. Account level rate limit (OTP Requests: max 3 per 15 minutes)
+    await this.checkAccountRateLimit('otp_requests', phone, 3, 900);
 
     // Generate 6-digit OTP
     const otp = randomInt(100000, 999999).toString();
@@ -352,12 +414,23 @@ export class AuthService {
   async completeProfile(
     completeProfileDto: CompleteProfileDto,
   ): Promise<AuthResponse> {
-    const { email, name, organization, city, phone, otp } = completeProfileDto;
+    let { email, name, organization, city, phone, otp } = completeProfileDto;
+
+    // Normalize
+    email = email.trim().toLowerCase();
+    if (phone) phone = phone.trim().replace(/[^\d+]/g, '');
 
     const requirePhoneVerif =
       this.configService.get('REQUIRE_PHONE_VERIFICATION') === 'true';
 
-    // 1. Verify Phone OTP (Only if required)
+    // 1. Fail-fast lock check
+    if (requirePhoneVerif && phone) {
+      await this.checkLockout(phone);
+    } else {
+      await this.checkLockout(email);
+    }
+
+    // 2. Verify Phone OTP (Only if required)
     if (requirePhoneVerif) {
       if (!otp) {
         throw new BadRequestException(
@@ -366,8 +439,12 @@ export class AuthService {
       }
       const storedOtp = await this.redis.get(`phone_otp:${phone}`);
       if (!storedOtp || storedOtp !== otp) {
+        if (phone) await this.recordFailure(phone);
         throw new BadRequestException('Invalid or expired Phone OTP');
       }
+
+      // On Success: Clear failures
+      if (phone) await this.clearFailures(phone);
     }
 
     // 2. Find User
@@ -636,5 +713,64 @@ export class AuthService {
     });
 
     return result.count;
+  }
+
+  /**
+   * Fail-fast check for account lockout
+   */
+  private async checkLockout(identifier: string) {
+    const isLocked = await this.redis.exists(`lockout:${identifier}`);
+    if (isLocked) {
+      throw new HttpException(
+        'Account temporarily locked due to multiple failed attempts.',
+        423,
+      );
+    }
+  }
+
+  /**
+   * Record a failed authentication or OTP attempt
+   */
+  private async recordFailure(identifier: string) {
+    const key = `otp_failures:${identifier}`;
+    const failures = await this.redis.incr(key);
+    if (failures === 1) {
+      await this.redis.expire(key, 900); // 15 mins
+    }
+    if (failures >= 5) {
+      // Set lockout first to prevent race conditions during concurrent hits
+      await this.redis.set(`lockout:${identifier}`, 'true', 'EX', 900);
+      await this.redis.del(key);
+    }
+  }
+
+  /**
+   * Clear failures and lockouts on successful authentication
+   */
+  private async clearFailures(identifier: string) {
+    await this.redis.del(`otp_failures:${identifier}`);
+    await this.redis.del(`lockout:${identifier}`);
+  }
+
+  /**
+   * Account-level rate limiting using fixed window
+   */
+  private async checkAccountRateLimit(
+    prefix: string,
+    identifier: string,
+    limit: number,
+    ttlSeconds: number,
+  ) {
+    const key = `${prefix}:${identifier}`;
+    const current = await this.redis.incr(key);
+    if (current === 1) {
+      await this.redis.expire(key, ttlSeconds);
+    }
+    if (current > limit) {
+      throw new HttpException(
+        'Too many requests. Please try again later.',
+        429,
+      );
+    }
   }
 }

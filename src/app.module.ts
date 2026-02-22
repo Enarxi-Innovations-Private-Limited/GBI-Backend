@@ -15,6 +15,8 @@ import { InAppNotificationsModule } from './in-app-notifications/in-app-notifica
 import { ReportsModule } from './reports/reports.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { GroupsModule } from './groups/groups.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -34,8 +36,20 @@ import { GroupsModule } from './groups/groups.module';
     ReportsModule,
     RealtimeModule,
     GroupsModule,
+    ThrottlerModule.forRoot([
+      {
+        ttl: 15 * 60 * 1000, // 15 minutes
+        limit: 100,
+      },
+    ]),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

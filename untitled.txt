@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "id": "...",
+      "deviceId": "GBIAIR1000",
+      "status": "inactive",
+      "addedAt": "2026-02-14T08:50:44.030Z"
+    }
+  ],
+  "total": 4,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}

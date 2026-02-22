@@ -10,9 +10,19 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignupDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, RequestPhoneOtpDto, CompleteProfileDto, VerifyEmailOtpDto } from './dto';
+import {
+  SignupDto,
+  LoginDto,
+  RefreshTokenDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  RequestPhoneOtpDto,
+  CompleteProfileDto,
+  VerifyEmailOtpDto,
+} from './dto';
 import { GoogleAuthGuard, JwtAuthGuard } from './guards';
 import { CurrentUser } from './decorators';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -24,6 +34,7 @@ export class AuthController {
    */
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 5, ttl: 3600000 } }) // 5 requests per hour per IP
   async signup(@Body() signupDto: SignupDto) {
     return this.authService.signup(signupDto);
   }
@@ -61,21 +72,23 @@ export class AuthController {
 
       // Redirect to frontend with tokens
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      
+
       // Encode data to safe query params
       const accessToken = encodeURIComponent(result.accessToken);
       const refreshToken = encodeURIComponent(result.refreshToken);
       const user = encodeURIComponent(JSON.stringify(result.user));
-      
+
       const callbackUrl = `${frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${user}`;
-      
+
       // Fastify redirect: reply.redirect(url) or reply.code(302).redirect(url)
       // The error "Called reply with an invalid status code: http..." suggests the arguments were swapped or misunderstood by the underlying framework.
       // Let's preserve the standard Fastify signature: code, url
       return res.status(302).redirect(callbackUrl);
     } catch (error) {
       console.error('Google OAuth Error:', error);
-      return res.status(500).send({ message: 'Authentication failed', error: error.message });
+      return res
+        .status(500)
+        .send({ message: 'Authentication failed', error: error.message });
     }
   }
 
@@ -95,6 +108,7 @@ export class AuthController {
    */
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 requests per hour per IP
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
