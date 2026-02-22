@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsString, IsIn } from 'class-validator';
 
 export class GenerateReportDto {
   @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
@@ -14,11 +14,11 @@ export class GenerateReportDto {
   @IsString()
   end: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
-  intervalMinutes?: number;
+  @IsIn([1, 3, 5, 10], { message: 'Interval must be one of: 1, 3, 5, 10' })
+  intervalMinutes: number;
 
   @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
   @IsArray()

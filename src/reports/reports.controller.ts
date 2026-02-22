@@ -23,7 +23,7 @@ export class ReportsController {
       .header('Content-Type', 'text/csv')
       .header(
         'Content-Disposition',
-        `attachment; filename="telemetry-report.csv"`,
+        `attachment; filename="GBI-Air-Quality-Monitor-report.csv"`,
       )
       .send(csv);
   }
