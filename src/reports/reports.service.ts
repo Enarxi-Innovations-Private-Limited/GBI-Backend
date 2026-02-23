@@ -144,7 +144,8 @@ export class ReportsService {
       rowsByDevice[row.deviceId].push(row);
     }
 
-    const deviceIds = Object.keys(rowsByDevice);
+    // Use the exact array of IDs the user provided in the request query to guarantee order
+    const deviceIds = dto.deviceIds;
 
     deviceIds.forEach((deviceId, index) => {
       // Row 5 (or dynamically placed): Device Name Title
@@ -155,12 +156,19 @@ export class ReportsService {
       csvContent += `${columns.join(',')}\n`;
 
       // Data Rows
-      for (const row of rowsByDevice[deviceId]) {
-        const rowData = columns.map((col) => {
-          const val = row[col];
-          return val === null || val === undefined ? '' : String(val);
-        });
-        csvContent += `${rowData.join(',')}\n`;
+      const deviceRows = rowsByDevice[deviceId] || [];
+
+      if (deviceRows.length === 0) {
+        // Print empty row to show column headers but no data
+        csvContent += `${','.repeat(totalCols - 1)}\n`;
+      } else {
+        for (const row of deviceRows) {
+          const rowData = columns.map((col) => {
+            const val = row[col];
+            return val === null || val === undefined ? '' : String(val);
+          });
+          csvContent += `${rowData.join(',')}\n`;
+        }
       }
 
       // Add two empty rows between devices (if not the last device)
