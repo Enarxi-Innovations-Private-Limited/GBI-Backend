@@ -1,17 +1,29 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
 import { Parser } from 'json2csv';
 import { Prisma } from '@prisma/client';
+import { PdfService } from './pdf.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pdfService: PdfService,
+  ) {}
 
   async generateCsv(userId: string, dto: GenerateReportDto): Promise<string> {
     const interval = Number(dto.intervalMinutes ?? 5);
-    const start = new Date(dto.start);
-    const end = new Date(dto.end);
+    const start = new Date((dto.start || '').trim());
+    const end = new Date((dto.end || '').trim());
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid start or end timestamp format');
+    }
 
     // 1) Validate ownership
     const devices = await this.prisma.device.findMany({
@@ -181,6 +193,103 @@ export class ReportsService {
     return csvContent;
   }
 
+  async generatePdf(userId: string, dto: GenerateReportDto): Promise<Buffer> {
+    const interval = Number(dto.intervalMinutes ?? 5);
+    const start = new Date((dto.start || '').trim());
+    const end = new Date((dto.end || '').trim());
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid start or end timestamp format');
+    }
+
+    // 1) Validate ownership
+    const devices = await this.prisma.device.findMany({
+      where: { deviceId: { in: dto.deviceIds } },
+      select: { id: true, deviceId: true },
+    });
+
+    if (devices.length === 0) {
+      throw new ForbiddenException('No valid devices found');
+    }
+
+    const deviceIdsUuid = devices.map((d) => d.id);
+
+    const assignments = await this.prisma.deviceAssignment.findMany({
+      where: {
+        userId,
+        deviceId: { in: deviceIdsUuid },
+        unassignedAt: null,
+      },
+    });
+
+    if (assignments.length !== deviceIdsUuid.length) {
+      throw new ForbiddenException(
+        'One or more devices are not assigned to you',
+      );
+    }
+
+    // 2) Query telemetry using bucketing (raw SQL)
+    const rawRows: any[] = await this.queryBucketedTelemetry(
+      devices,
+      dto.parameters,
+      start,
+      end,
+      interval,
+    );
+
+    // 3) Process rows: Date/Time formatting (IST) & Rounding
+    const rows = rawRows.map((row) => {
+      const processedRow: any = { deviceId: row.deviceId };
+
+      if (row.timestamp) {
+        const istDate = new Date(
+          new Date(row.timestamp).toLocaleString('en-US', {
+            timeZone: 'Asia/Kolkata',
+          }),
+        );
+        const dd = String(istDate.getDate()).padStart(2, '0');
+        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+        const yyyy = istDate.getFullYear();
+        const hours = String(istDate.getHours()).padStart(2, '0');
+        const minutes = String(istDate.getMinutes()).padStart(2, '0');
+        const seconds = String(istDate.getSeconds()).padStart(2, '0');
+
+        processedRow.Date = `${dd}-${mm}-${yyyy}`;
+        processedRow.Time = `${hours}:${minutes}:${seconds}`;
+      }
+
+      dto.parameters.forEach((param) => {
+        if (row[param] !== null && row[param] !== undefined) {
+          if (param === 'temperature') {
+            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
+          } else {
+            processedRow[param] = Math.round(Number(row[param]));
+          }
+        } else {
+          processedRow[param] = null;
+        }
+      });
+      return processedRow;
+    });
+
+    // 4) Group rows by deviceId for the PDF Service
+    const rowsByDevice: Record<string, any[]> = {};
+    for (const row of rows) {
+      if (!rowsByDevice[row.deviceId]) {
+        rowsByDevice[row.deviceId] = [];
+      }
+      rowsByDevice[row.deviceId].push(row);
+    }
+
+    return this.pdfService.generateReport({
+      deviceIds: dto.deviceIds,
+      start,
+      end,
+      columns: ['Date', 'Time', 'deviceId', ...dto.parameters],
+      rowsByDevice,
+    });
+  }
+
   private async queryBucketedTelemetry(
     devices: { id: string; deviceId: string }[],
     params: string[],
@@ -233,7 +342,7 @@ export class ReportsService {
       FROM "DeviceTelemetry"
 
       WHERE "deviceId" IN (${Prisma.join(uuidList)})
-      AND "timestamp" BETWEEN ${start} AND ${end}
+      AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
 
       GROUP BY 1, "deviceId"
 

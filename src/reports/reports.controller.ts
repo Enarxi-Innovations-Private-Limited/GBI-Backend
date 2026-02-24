@@ -27,4 +27,23 @@ export class ReportsController {
       )
       .send(csv);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('pdf')
+  async downloadPdf(
+    @Req() req: any,
+    @Query() dto: GenerateReportDto,
+    @Res() reply: FastifyReply,
+  ) {
+    const userId = req.user.id;
+    const pdfBuffer = await this.reportsService.generatePdf(userId, dto);
+
+    reply
+      .header('Content-Type', 'application/pdf')
+      .header(
+        'Content-Disposition',
+        `attachment; filename="GBI-Air-Quality-Monitor-report.pdf"`,
+      )
+      .send(pdfBuffer);
+  }
 }
