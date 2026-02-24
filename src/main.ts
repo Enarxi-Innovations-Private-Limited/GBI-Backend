@@ -37,10 +37,14 @@ async function bootstrap() {
     },
   });
 
+  // Explicitly allow the frontend URL with all required methods and headers
   app.enableCors({
-    origin: true, // Allow all origins for dev, or specify frontend URL
+    origin: ['http://localhost:3000'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
     credentials: true,
   });
+
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -414,7 +414,7 @@ export class AuthService {
   async completeProfile(
     completeProfileDto: CompleteProfileDto,
   ): Promise<AuthResponse> {
-    let { email, name, organization, city, phone, otp } = completeProfileDto;
+    let { email, name, organization, city, phone, otp, password } = completeProfileDto;
 
     // Normalize
     email = email.trim().toLowerCase();
@@ -456,7 +456,13 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    // 3. Update User Profile
+    // 3. Hash password if provided (first-time setup or update)
+    let passwordHash: string | undefined;
+    if (password) {
+      passwordHash = await bcrypt.hash(password, 12);
+    }
+
+    // 4. Update User Profile
     const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -464,6 +470,7 @@ export class AuthService {
         organization,
         city,
         phone,
+        ...(passwordHash && { passwordHash }),
         phoneVerified: requirePhoneVerif ? true : false,
         isProfileComplete: true,
       },

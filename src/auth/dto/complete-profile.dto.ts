@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CompleteProfileDto {
   @IsEmail()
@@ -26,6 +26,11 @@ export class CompleteProfileDto {
   @IsOptional()
   @IsString()
   otp?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  password?: string;
 }
 
 // RequestPhoneOtpDto is kept for backward compatibility if the frontend still calls it,
