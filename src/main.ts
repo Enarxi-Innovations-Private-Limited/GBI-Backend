@@ -38,10 +38,11 @@ async function bootstrap() {
   });
 
   // Explicitly allow the frontend URL with all required methods and headers
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   app.enableCors({
-    origin: ['http://localhost:3000'],
+    origin: [frontendUrl],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
     credentials: true,
   });
 
