@@ -1,4 +1,5 @@
 import { Module, RequestMethod } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
@@ -36,6 +37,7 @@ import { APP_GUARD } from '@nestjs/core';
     ReportsModule,
     RealtimeModule,
     GroupsModule,
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         ttl: 15 * 60 * 1000, // 15 minutes

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DeviceStatus } from '@prisma/client';
 
 @Injectable()
 export class AdminRepository {
@@ -18,7 +19,7 @@ export class AdminRepository {
       data: {
         deviceId,
         type: type, // Optional: if undefined, Prisma uses @default("Air Quality Monitor")
-        status: 'inactive',
+        status: DeviceStatus.OFFLINE,
       },
     });
   }
@@ -76,7 +77,7 @@ export class AdminRepository {
       data: devices.map((d) => ({
         deviceId: d.deviceId,
         type: d.type || 'Air Quality Monitor',
-        status: 'inactive',
+        status: DeviceStatus.OFFLINE,
       })),
       skipDuplicates: true,
     });
@@ -144,7 +145,7 @@ export class AdminRepository {
         where: { userId },
       });
 
-      await tx.alertThreshold.deleteMany({
+      await tx.alertState.deleteMany({
         where: { userId },
       });
 
@@ -183,7 +184,7 @@ export class AdminRepository {
       data: {
         isDeleted: true,
         deletedAt: new Date(),
-        status: 'inactive',
+        status: DeviceStatus.OFFLINE,
       },
     });
   }
@@ -194,15 +195,15 @@ export class AdminRepository {
         this.prisma.user.count(),
         this.prisma.device.count({ where: { isDeleted: false } }),
         this.prisma.device.count({
-          where: { isDeleted: false, status: 'active' },
+          where: { isDeleted: false, status: DeviceStatus.ACTIVE },
         }),
         this.prisma.device.count({
-          where: { isDeleted: false, status: 'warning' },
+          where: { isDeleted: false, status: DeviceStatus.WARNING },
         }),
       ]);
 
     const offlineDevices = await this.prisma.device.count({
-      where: { isDeleted: false, status: 'offline' },
+      where: { isDeleted: false, status: DeviceStatus.OFFLINE },
     });
 
     return {

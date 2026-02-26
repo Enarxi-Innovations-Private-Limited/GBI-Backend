@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,28 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum DeviceStatus {
+  ACTIVE
+  WARNING
+  OFFLINE
+}
+
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String?
-  googleId      String?  @unique
-  name          String?
-  organization  String?
-  phone         String?
-  city          String?
-  emailVerified Boolean  @default(false)
-  phoneVerified Boolean  @default(false)
-  isRestricted  Boolean  @default(false)
-  isProfileComplete Boolean @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  assignments   DeviceAssignment[]
-
-  notifications Notification[]
-  eventLogs     EventLog[]
-  refreshTokens RefreshToken[]
-  deviceGroups DeviceGroup[]
+  id                String             @id @default(uuid())
+  email             String             @unique
+  passwordHash      String?
+  googleId          String?            @unique
+  name              String?
+  organization      String?
+  phone             String?
+  emailVerified     Boolean            @default(false)
+  phoneVerified     Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  city              String?
+  isRestricted      Boolean            @default(false)
+  isProfileComplete Boolean            @default(false)
+  assignments       DeviceAssignment[]
+  deviceGroups      DeviceGroup[]
+  eventLogs         EventLog[]
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
 }
 
 model Admin {
@@ -45,33 +43,29 @@ model Admin {
 }
 
 model Device {
-  id       String   @id @default(uuid())
-  deviceId String   @unique
-  type     String   @default("Air Quality Monitor")
-  status   String
-  addedAt  DateTime @default(now())
+  id              String             @id @default(uuid())
+  deviceId        String             @unique
+  status          DeviceStatus       @default(OFFLINE)
+  addedAt         DateTime           @default(now())
+  type            String             @default("Air Quality Monitor")
   lastHeartbeatAt DateTime?
-  isDeleted Boolean  @default(false)
-  deletedAt DateTime?
-  groupId   String?
-  group     DeviceGroup? @relation(fields: [groupId], references: [id])
-
+  deletedAt       DateTime?
+  isDeleted       Boolean            @default(false)
+  groupId         String?
+  group           DeviceGroup?       @relation(fields: [groupId], references: [id])
+  assignments     DeviceAssignment[]
+  telemetry       DeviceTelemetry[]
   deviceThreshold DeviceThreshold?
-
-  assignments DeviceAssignment[]
-  telemetry   DeviceTelemetry[]
-  logs        EventLog[]
+  logs            EventLog[]
 }
 
 model DeviceGroup {
-  id        String   @id @default(uuid())
+  id        String          @id @default(uuid())
   name      String
   userId    String
-  createdAt DateTime @default(now())
-
-  user    User     @relation(fields: [userId], references: [id])
-  devices Device[]
-
+  createdAt DateTime        @default(now())
+  devices   Device[]
+  user      User            @relation(fields: [userId], references: [id])
   threshold GroupThreshold?
 
   @@index([userId])
@@ -83,9 +77,8 @@ model DeviceAssignment {
   userId       String
   assignedAt   DateTime  @default(now())
   unassignedAt DateTime?
-
-  user   User   @relation(fields: [userId], references: [id])
-  device Device @relation(fields: [deviceId], references: [id])
+  device       Device    @relation(fields: [deviceId], references: [id])
+  user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([deviceId])
@@ -115,42 +108,35 @@ model DeviceTelemetry {
   humidity    Float?
   noise       Int?
   aqi         Int?
-
-  device Device @relation(fields: [deviceId], references: [id])
+  device      Device   @relation(fields: [deviceId], references: [id])
 
   @@index([deviceId, timestamp])
 }
 
 model GroupThreshold {
-  id        String   @id @default(uuid())
-  groupId   String   @unique
+  id         String      @id @default(uuid())
+  groupId    String      @unique
   thresholds Json
-  createdAt DateTime @default(now())
-
-  group DeviceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+  group      DeviceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
-
 
 model DeviceThreshold {
-  id        String   @id @default(uuid())
-  deviceId  String   @unique
+  id         String   @id @default(uuid())
+  deviceId   String   @unique
   thresholds Json
-  createdAt DateTime @default(now())
-
-  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 }
 
-
-
-
 model AlertState {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   userId          String
   deviceId        String
   parameter       String
   state           String
   lastTriggeredAt DateTime?
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime  @updatedAt
 
   @@unique([userId, deviceId, parameter])
 }
@@ -163,41 +149,35 @@ model EventLog {
   parameter String?
   value     Float?
   createdAt DateTime @default(now())
-
-  device Device @relation(fields: [deviceId], references: [id])
-  user   User?  @relation(fields: [userId], references: [id])
+  device    Device   @relation(fields: [deviceId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
 
   @@index([deviceId])
   @@index([userId])
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   deviceId  String?
   message   String
-  isRead    Boolean  @default(false)
+  createdAt DateTime  @default(now())
+  isRead    Boolean   @default(false)
   readAt    DateTime?
-
-
-
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([userId, isRead])
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   revokedAt DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])

@@ -8,6 +8,9 @@ import { AlertsService } from 'src/alerts/alerts.service';
 import { RealtimeService } from 'src/realtime/realtime.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Inject } from '@nestjs/common';
+import Redis from 'ioredis';
+import { DeviceStatus } from '@prisma/client';
 
 /**
  * Service responsible for consuming MQTT messages from the broker.
@@ -22,6 +25,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly alertsService: AlertsService,
     private readonly realtimeService: RealtimeService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
   onModuleInit() {
@@ -319,63 +323,160 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       console.log('✅ Validation passed. Saving to database...');
     }
 
+    // 1) Enforce strict messageId presence
+    if (!payload.messageId) {
+      const msg = 'Missing messageId in payload';
+      console.warn('❌ ' + msg, deviceId);
+      this.logError({
+        level: 'WARN',
+        event: 'telemetry_rejected_missing_messageId',
+        deviceId,
+        message: msg,
+        payload: payload,
+      });
+      return;
+    }
+
     // Helper to sanitize numeric values (NaN or undefined becomes null)
     const sanitize = (val: number | undefined) =>
       typeof val === 'number' && !isNaN(val) ? val : null;
 
+    const pm25 = sanitize(dto.pm25);
+    const pm10 = sanitize(dto.pm10);
+    const tvoc = sanitize(dto.tvoc);
+    const co2 = sanitize(dto.co2);
+    const temperature = sanitize(dto.temperature);
+    const humidity = sanitize(dto.humidity);
+    const noise = sanitize(dto.noise);
+    const aqi = sanitize(dto.aqi);
+
+    // 2) Determine new status dynamically
+    const allMetricsPresent =
+      pm25 !== null &&
+      pm10 !== null &&
+      tvoc !== null &&
+      co2 !== null &&
+      temperature !== null &&
+      humidity !== null &&
+      noise !== null &&
+      aqi !== null;
+
+    const newStatus = allMetricsPresent
+      ? DeviceStatus.ACTIVE
+      : DeviceStatus.WARNING;
+
     try {
-      // Save telemetry data (even if device is inactive)
-      const saved = await this.prisma.deviceTelemetry.create({
-        data: {
-          deviceId: device.id,
-          pm25: sanitize(dto.pm25),
-          pm10: sanitize(dto.pm10),
-          tvoc: sanitize(dto.tvoc),
-          co2: sanitize(dto.co2),
-          temperature: sanitize(dto.temperature),
-          humidity: sanitize(dto.humidity),
-          noise: sanitize(dto.noise),
-          aqi: sanitize(dto.aqi), // Added AQI field
+      // 3) Transactional execution protecting the uniqueness constraint
+      const { savedTelemetry, updatedDevice } = await this.prisma.$transaction(
+        async (tx) => {
+          const telemetryInsert = await tx.deviceTelemetry.create({
+            data: {
+              deviceId: device.id,
+              messageId: payload.messageId,
+              pm25,
+              pm10,
+              tvoc,
+              co2,
+              temperature,
+              humidity,
+              noise,
+              aqi,
+            },
+          });
+
+          // Only update device state if telemetry insert succeeded
+          const deviceUpdate = await tx.device.update({
+            where: { id: device.id },
+            data: {
+              lastHeartbeatAt: new Date(),
+              status: newStatus,
+            },
+          });
+
+          return {
+            savedTelemetry: telemetryInsert,
+            updatedDevice: deviceUpdate,
+          };
         },
-      });
+      );
 
       this.logToFile({
         type: 'SUCCESS',
         message: 'Telemetry saved to database',
         deviceId,
-        telemetryId: saved.id.toString(),
+        telemetryId: savedTelemetry.id.toString(),
       });
 
-      // Update heartbeat timestamp
-      await this.prisma.device.update({
-        where: { id: device.id },
-        data: {
-          lastHeartbeatAt: new Date(),
-          // If device was offline, mark it active again
-          ...(device.status === 'inactive' && { status: 'active' }),
-        },
-      });
-
-      if (device.status === 'inactive') {
-        console.log('✅ Device was OFFLINE - marked as ACTIVE and data saved!');
+      if (device.status !== newStatus) {
+        console.log(
+          `✅ Device status updated: ${device.status} -> ${newStatus}`,
+        );
       } else {
         console.log('✅ Telemetry data saved successfully!');
       }
 
       // Emit real-time update
       this.realtimeService.emitTelemetry(device.deviceId, {
-        timestamp: saved.timestamp,
-        pm25: saved.pm25,
-        pm10: saved.pm10,
-        tvoc: saved.tvoc,
-        co2: saved.co2,
-        temperature: saved.temperature,
-        humidity: saved.humidity,
-        noise: saved.noise,
-        aqi: saved.aqi, // Include AQI in realtime update
+        timestamp: savedTelemetry.timestamp,
+        pm25: savedTelemetry.pm25,
+        pm10: savedTelemetry.pm10,
+        tvoc: savedTelemetry.tvoc,
+        co2: savedTelemetry.co2,
+        temperature: savedTelemetry.temperature,
+        humidity: savedTelemetry.humidity,
+        noise: savedTelemetry.noise,
+        aqi: savedTelemetry.aqi,
       });
+
+      if (device.status !== newStatus) {
+        this.realtimeService.emitDeviceStatus(device.deviceId, newStatus);
+      }
+
       await this.alertsService.evaluate(device.id, dto);
+
+      // 4) Set latest state in Redis (TTL = 2 * Offline Timeout)
+      const offlineTimeoutSeconds =
+        (Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) || 60) *
+        (Number(process.env.DEVICE_OFFLINE_THRESHOLD_MISSES) || 5);
+
+      const redisKey = `device:${device.deviceId}:latest`;
+      const redisState = {
+        messageId: payload.messageId,
+        timestamp: savedTelemetry.timestamp.toISOString(),
+        status: newStatus,
+        lastHeartbeatAt: new Date().toISOString(),
+        pm25,
+        pm10,
+        tvoc,
+        co2,
+        temperature,
+        humidity,
+        noise,
+        aqi,
+      };
+
+      await this.redis.setex(
+        redisKey,
+        offlineTimeoutSeconds * 2,
+        JSON.stringify(redisState),
+      );
     } catch (dbError) {
+      if (dbError.code === 'P2002') {
+        // Idempotent completion: Duplicate messageId detected for this device
+        this.logToFile({
+          level: 'INFO',
+          event: 'duplicate_telemetry_ignored',
+          deviceId,
+          messageId: payload.messageId,
+          message:
+            'Telemetry message safely ignored due to duplicate messageId',
+        });
+        console.log(
+          `♻️ Ignored duplicate messageId ${payload.messageId} for device ${deviceId}`,
+        );
+        return;
+      }
+
       console.error('❌ Database error:', dbError.message);
       this.logError({
         type: 'ERROR',
@@ -394,15 +495,18 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
 
     if (!device || device.isDeleted) return;
 
-    const wasInactive = device.status !== 'active';
+    const wasInactive = device.status !== DeviceStatus.ACTIVE;
 
     await this.prisma.device.update({
       where: { deviceId },
-      data: { status: 'active', lastHeartbeatAt: new Date() },
+      data: { status: DeviceStatus.ACTIVE, lastHeartbeatAt: new Date() },
     });
 
     if (wasInactive) {
-      this.realtimeService.emitDeviceStatus(device.deviceId, 'active');
+      this.realtimeService.emitDeviceStatus(
+        device.deviceId,
+        DeviceStatus.ACTIVE,
+      );
     }
 
     this.logToFile({

@@ -3,6 +3,8 @@ import { Transform, Expose } from 'class-transformer';
 
 export class TelemetryPayloadDto {
   @IsOptional()
+  messageId?: string;
+  @IsOptional()
   @Transform(({ value }) => {
     if (value === null || value === undefined) return undefined;
     const num = typeof value === 'string' ? parseFloat(value) : Number(value);
@@ -80,7 +82,6 @@ export class TelemetryPayloadDto {
   noise?: number;
 
   @IsOptional()
-
   @Transform(({ value }) => {
     if (value === null || value === undefined) return undefined;
     const num = typeof value === 'string' ? parseFloat(value) : Number(value);
@@ -91,4 +92,3 @@ export class TelemetryPayloadDto {
   @Max(500, { message: 'AQI cannot be above 500' })
   aqi?: number;
 }
-
