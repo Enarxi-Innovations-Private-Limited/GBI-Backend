@@ -63,16 +63,6 @@ export class MqttService implements OnModuleInit {
             );
           }
         });
-
-        this.client.subscribe('gbi/devices/+/heartbeat', { qos: 1 }, (err) => {
-          if (err) {
-            console.error('❌ Failed to subscribe to heartbeat topic', err);
-          } else {
-            console.log(
-              '📡 Subscribed to heartbeat topic: gbi/devices/+/heartbeat (QoS 1)',
-            );
-          }
-        });
       });
 
       this.client.on('reconnect', () => {

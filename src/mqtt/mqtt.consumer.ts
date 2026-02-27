@@ -74,10 +74,6 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         if (topic.includes('telemetry')) {
           await this.handleTelemetry(deviceId, data);
         }
-
-        if (topic.includes('heartbeat')) {
-          await this.handleHeartbeat(deviceId);
-        }
       } catch (error) {
         console.error('MQTT message error:', error.message);
 
@@ -362,7 +358,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       aqi !== null;
 
     const newStatus = allMetricsPresent
-      ? DeviceStatus.ACTIVE
+      ? DeviceStatus.ONLINE
       : DeviceStatus.WARNING;
 
     try {
@@ -486,33 +482,5 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         payload: dto,
       });
     }
-  }
-
-  private async handleHeartbeat(deviceId: string) {
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId },
-    });
-
-    if (!device || device.isDeleted) return;
-
-    const wasInactive = device.status !== DeviceStatus.ACTIVE;
-
-    await this.prisma.device.update({
-      where: { deviceId },
-      data: { status: DeviceStatus.ACTIVE, lastHeartbeatAt: new Date() },
-    });
-
-    if (wasInactive) {
-      this.realtimeService.emitDeviceStatus(
-        device.deviceId,
-        DeviceStatus.ACTIVE,
-      );
-    }
-
-    this.logToFile({
-      type: 'INFO',
-      message: 'Heartbeat received',
-      deviceId,
-    });
   }
 }

@@ -195,7 +195,7 @@ export class AdminRepository {
         this.prisma.user.count(),
         this.prisma.device.count({ where: { isDeleted: false } }),
         this.prisma.device.count({
-          where: { isDeleted: false, status: DeviceStatus.ACTIVE },
+          where: { isDeleted: false, status: DeviceStatus.ONLINE },
         }),
         this.prisma.device.count({
           where: { isDeleted: false, status: DeviceStatus.WARNING },
