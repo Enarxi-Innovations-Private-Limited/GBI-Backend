@@ -55,28 +55,15 @@ describe('AppController', () => {
 
   describe('healthready', () => {
     it('should return ready status (200) when all services are up', async () => {
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        send: jest.fn(),
-      };
-      await appController.getHealthReady(res);
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      expect(res.send).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'ready' }),
-      );
+      const result = await appController.getHealthReady();
+      expect(result).toEqual(expect.objectContaining({ status: 'ready' }));
     });
 
-    it('should return service unavailable (503) when a service is down', async () => {
+    it('should throw ServiceUnavailableException when a service is down', async () => {
       mockPrismaService.$queryRaw.mockRejectedValueOnce(new Error('DB down'));
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        send: jest.fn(),
-      };
-      await appController.getHealthReady(res);
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
-      expect(res.send).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'degraded' }),
-      );
+      await expect(appController.getHealthReady()).rejects.toMatchObject({
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+      });
     });
   });
 

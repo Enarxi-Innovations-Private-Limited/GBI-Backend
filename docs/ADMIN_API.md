@@ -1,24 +1,19 @@
-# Admin API Documentation
+# Admin API
 
-## Overview
-The Admin Module provides endpoints for system administrators to manage devices and users.
-These endpoints are protected by a separate **Admin Strategy**.
-
-## Authentication
-**Header:** `Authorization: Bearer <adminToken>`
-*   Admin tokens are signed with a distinct secret (`ADMIN_JWT_SECRET`).
-*   Standard user tokens **cannot** access these endpoints.
+**Base URL:** `/admin`  
+**Auth:** All endpoints (except `/admin/login`) require `Authorization: Bearer <adminToken>`.  
+Admin tokens are signed with a distinct `ADMIN_JWT_SECRET` — standard user tokens **cannot** access these endpoints.
 
 ---
 
-## API Endpoints
+## Authentication
 
-### 1. Admin Login
+### Admin Login
+
 **POST** `/admin/login`
 
-Authenticates an admin and issues an Admin Access Token (valid for 12 hours).
-
 **Request Body:**
+
 ```json
 {
   "email": "admin@gbi.com",
@@ -27,75 +22,153 @@ Authenticates an admin and issues an Admin Access Token (valid for 12 hours).
 ```
 
 **Response (201):**
+
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
-### 2. Create Device
+Token is valid for **12 hours**.
+
+---
+
+## Device Management
+
+### Create Device
+
 **POST** `/admin/devices`
 
-Registers a new IoT device in the system.
+Registers a single IoT device in the system.
 
 **Request Body:**
+
 ```json
 {
-  "deviceId": "ESP32-001",
-  "deviceType": "Air Quality Monitor" 
+  "deviceId": "GBI-DEV-001",
+  "deviceType": "Air Quality Monitor"
 }
 ```
-*   `deviceType` is optional. 
-*   **Allowed Values:** `Air Quality Monitor`.
-*   **Default:** `Air Quality Monitor` if not specified.
+
+- `deviceType` is optional (defaults to `Air Quality Monitor`).
 
 **Response (201):**
+
 ```json
 {
   "id": "uuid",
-  "deviceId": "ESP32-001",
+  "deviceId": "GBI-DEV-001",
   "type": "Air Quality Monitor",
-  "createdAt": "..."
+  "status": "OFFLINE",
+  "addedAt": "2026-02-27T08:00:00.000Z"
 }
 ```
-**Errors:**
-*   `400 Bad Request`: If `deviceType` is not a valid enum value.
-*   `409 Conflict`: If Device ID already exists.
 
-### 3. List Devices
-**GET** `/admin/devices`
+**Errors:** `409 Conflict` if Device ID already exists.
 
-Returns a list of all registered devices and their assignment status.
+---
 
-**Response (200):**
-```json
-[
-  {
-    "id": "uuid",
-    "deviceId": "ESP32-001",
-    "assignments": [] // Empty if unassigned
-  }
-]
-```
+### Bulk Create Devices (Excel Upload)
 
-### 4. Force Unassign Device
-**POST** `/admin/devices/:id/unassign`
+**POST** `/admin/devices/bulk`
 
-Forcefully removes a device from any user it is currently assigned to.
+Imports multiple devices from an Excel (`.xlsx`) file via `multipart/form-data`.
+
+**Request:** `Content-Type: multipart/form-data`  
+Upload a `.xlsx` file with:
+
+- **Column A:** Device ID (e.g., `GBI-DEV-001`)
+- **Column B (optional):** Device Type
 
 **Response (201):**
+
 ```json
 {
-  "success": true
+  "created": 25,
+  "skipped": 3,
+  "errors": [
+    { "row": 4, "deviceId": "GBI-DEV-004", "reason": "Already exists" }
+  ]
 }
 ```
 
-### 5. List Users
-**GET** `/admin/users`
+---
 
-Returns a list of all registered users with summary statistics.
+### List All Devices
+
+**GET** `/admin/devices`
+
+Returns a paginated list of all registered devices with their assignment status.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `search` | string | — | Filter by Device ID (partial match) |
+| `page` | number | `1` | Page number |
+| `limit` | number | `10` | Items per page |
 
 **Response (200):**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "deviceId": "GBI-DEV-001",
+      "status": "ONLINE",
+      "type": "Air Quality Monitor",
+      "addedAt": "...",
+      "isDeleted": false,
+      "assignments": [{ "userId": "...", "assignedAt": "..." }]
+    }
+  ],
+  "total": 150,
+  "page": 1,
+  "limit": 10
+}
+```
+
+---
+
+### Force Unassign Device
+
+**POST** `/admin/devices/:id/unassign`
+
+Forcefully removes a device from any user assignment it is currently in.  
+`:id` is the Device display ID (e.g., `GBI-DEV-001`).
+
+**Response (201):**
+
+```json
+{ "success": true }
+```
+
+---
+
+### Soft Delete Device
+
+**PATCH** `/admin/devices/:deviceId/delete`
+
+Marks a device as deleted (`isDeleted = true`). The device is hidden from users and ignored by the MQTT consumer — no new telemetry is accepted.
+
+**Response (200):**
+
+```json
+{ "success": true }
+```
+
+---
+
+## User Management
+
+### List All Users
+
+**GET** `/admin/users`
+
+Returns all registered users with summary statistics.
+
+**Response (200):**
+
 ```json
 [
   {
@@ -103,49 +176,83 @@ Returns a list of all registered users with summary statistics.
     "email": "user@example.com",
     "name": "John Doe",
     "organization": "GBI Corp",
+    "city": "Chennai",
     "isRestricted": false,
-    "deviceCount": 2
+    "emailVerified": true,
+    "phoneVerified": false,
+    "deviceCount": 5,
+    "createdAt": "..."
   }
 ]
 ```
 
-### 6. Restrict User
+---
+
+### Restrict User
+
 **PATCH** `/admin/users/:id/restrict`
 
-Bans a user from the system.
-*   Sets `isRestricted = true`.
-*   **Revokes all active sessions** (User is logged out immediately).
+Bans a user from the platform.
 
-**Response (200):**
-```json
-{
-  "success": true
-}
-```
+1. Sets `isRestricted = true` in the database.
+2. **Revokes all active Refresh Tokens** — user is immediately logged out.
+3. Existing short-lived Access Tokens continue working until expiry (typically 15 min), then fail on next refresh.
 
-### 7. Unrestrict User
+**Response (200):** `{ "success": true }`
+
+---
+
+### Unrestrict User
+
 **PATCH** `/admin/users/:id/unrestrict`
 
-Restores access for a banned user.
-*   Sets `isRestricted = false`.
-*   Note: The user will need to log in again if their session has verified the restriction status.
+Restores platform access for a banned user.  
+Sets `isRestricted = false`. User must log in again.
+
+**Response (200):** `{ "success": true }`
+
+---
+
+### Delete User
+
+**DELETE** `/admin/users/:id`
+
+Permanently deletes a user account from the system.
+
+**Response (200):** `{ "success": true }`
+
+---
+
+## Platform Stats
+
+**GET** `/admin/stats`
+
+Returns high-level platform statistics for the admin dashboard.
 
 **Response (200):**
+
 ```json
 {
-  "success": true
+  "totalUsers": 120,
+  "totalDevices": 250,
+  "activeDevices": 198,
+  "assignedDevices": 175,
+  "unassignedDevices": 75
 }
 ```
 
 ---
 
-## User Restriction Logic
-When an admin restricts a user, the following happens immediately:
+## User Restriction Flow
 
-1.  **Database Flag**: The user's `isRestricted` column is set to `true`.
-2.  **Session Revocation**: All active Refresh Tokens for that user are deleted (`revokedAt`).
-3.  **Access Block**:
-    *   Any new login attempts will fail.
-    *   Any attempt to refresh an access token will fail.
-    *   Currently active Access Tokens (short-lived, e.g., 15m) will continue to work until they expire, after which the user will be forced to re-login and fail. This ensures near-immediate lockout without requiring a centralized blacklist for access tokens.
-
+```
+Admin → PATCH /admin/users/:id/restrict
+           ↓
+   isRestricted = true (DB)
+           ↓
+   All RefreshTokens revoked (revokedAt set)
+           ↓
+   Next login attempt → 403 Forbidden
+   Next token refresh → 401 Unauthorized
+   Existing access token → works until expiry (~15 min)
+```

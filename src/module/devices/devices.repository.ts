@@ -1,99 +1,115 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class DevicesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findDevice(deviceId: string) {
+  // Helper to find a device by display ID (e.g. "GBI-001") → returns full Device record
+  async getDeviceByStringId(deviceId: string) {
     return this.prisma.device.findUnique({ where: { deviceId } });
   }
 
-  // Check if device is currently assigned to ANYONE
-  async isDeviceAssigned(deviceId: string): Promise<boolean> {
-    const count = await this.prisma.deviceAssignment.count({
-      where: {
-        deviceId: { equals: deviceId }, // Must match relation field or ID? No, deviceId is a field on Assignment
-        unassignedAt: null, // Active assignment
-      },
-      // Wait, deviceAssignment relates to device via 'deviceId' field which is a string in schema?
-      // Let's verify schema: device Device @relation(fields: [deviceId], references: [id])
-      // Ah! define: deviceId in Assignment refers to the UUID of the device, NOT the "GBI-001" string.
-      // But the User inputs "GBI-001".
-      // So first I need to find the UUID of the device from the String ID.
-      // I will handle this ID lookup in the Service. Use internal IDs here.
-    });
-    return count > 0;
-  }
-
-  // Strictly check if assigned by specific internal ID
-  async isDeviceAssignedById(id: string): Promise<boolean> {
-    const count = await this.prisma.deviceAssignment.count({
-      where: {
-        deviceId: id,
-        unassignedAt: null,
-      },
-    });
-    return count > 0;
-  }
-
+  /**
+   * Fully atomic claim operation.
+   * All steps happen inside a single Prisma transaction:
+   *   1. Look up the Device by display ID
+   *   2. Validate no active assignment exists (race-condition safe)
+   *   3. Create DeviceAssignment (deviceId = device.id UUID)
+   *   4. Create UserDevice metadata (deviceId = device.deviceId display string)
+   *
+   * A DB-level partial unique index on DeviceAssignment(deviceId) WHERE unassignedAt IS NULL
+   * acts as the final guard against concurrent duplicate claims.
+   */
   async claimDevice(
     userId: string,
-    deviceInternalId: string,
-    deviceDisplayId: string,
-    name?: string,
-    location?: string,
-    city?: string,
-    pincode?: string,
+    dto: {
+      deviceId: string;
+      name: string;
+      location: string;
+      city: string;
+      pincode: string;
+    },
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Create Assignment
-      const assignment = await tx.deviceAssignment.create({
-        data: {
-          userId,
-          deviceId: deviceInternalId,
-        },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Step 1: Look up device inside transaction
+        const device = await tx.device.findUnique({
+          where: { deviceId: dto.deviceId },
+        });
+        if (!device) {
+          throw new NotFoundException(
+            'Device ID not found. Please contact support if you believe this is an error.',
+          );
+        }
 
-      // 2. Create User Metadata
-      const meta = await tx.userDevice.upsert({
-        where: { deviceId_userId: { userId, deviceId: deviceDisplayId } },
-        create: {
-          userId,
-          deviceId: deviceDisplayId,
-          name: name || deviceDisplayId,
-          location,
-          city,
-          pincode,
-        },
-        update: {
-          // If re-claiming (unlikely path if we block claim), but handle basics
-          name: name || deviceDisplayId,
-          location,
-          city,
-          pincode,
-        },
-      });
+        // Step 2: Validate no active assignment (findFirst, not count — semantically clear)
+        const existing = await tx.deviceAssignment.findFirst({
+          where: {
+            deviceId: device.id, // UUID FK
+            unassignedAt: null,
+          },
+        });
+        if (existing) {
+          throw new ConflictException(
+            'Device is already claimed by another user.',
+          );
+        }
 
-      return { assignment, meta };
-    });
+        // Step 3: Create assignment — deviceId = device.id (UUID, FK to Device)
+        const assignment = await tx.deviceAssignment.create({
+          data: {
+            userId,
+            deviceId: device.id,
+          },
+        });
+
+        // Step 4: Create UserDevice metadata — deviceId = device.deviceId (display string)
+        const meta = await tx.userDevice.create({
+          data: {
+            userId,
+            deviceId: device.deviceId,
+            name: dto.name,
+            location: dto.location,
+            city: dto.city,
+            pincode: dto.pincode,
+          },
+        });
+
+        return { assignment, meta };
+      });
+    } catch (err) {
+      // Convert DB-level unique constraint violation (race condition) to a clean 409
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Device is already claimed by another user.',
+        );
+      }
+      // Re-throw NestJS HTTP exceptions (NotFoundException, ConflictException) as-is
+      throw err;
+    }
   }
 
   getUserDevices(userId: string) {
-    // We need to return devices the user is ASSIGNED to.
-    // We also want the metadata (UserDevice).
     return this.prisma.deviceAssignment.findMany({
       where: {
         userId,
         unassignedAt: null,
       },
       include: {
-        device: true, // properties like status, type
+        device: true,
       },
     });
   }
 
-  // Get metadata for a list of device IDs (strings)
   getUserDeviceMeta(userId: string) {
     return this.prisma.userDevice.findMany({
       where: { userId },
@@ -101,7 +117,6 @@ export class DevicesRepository {
   }
 
   async unclaimDevice(userId: string, deviceInternalId: string) {
-    // 1. Mark assignment as unassigned
     await this.prisma.deviceAssignment.updateMany({
       where: {
         userId,
@@ -112,10 +127,6 @@ export class DevicesRepository {
         unassignedAt: new Date(),
       },
     });
-    // We don't delete UserDevice metadata, maybe they want to remember settings if they reclaim?
-    // Or we can delete it. User requested "unclaim".
-    // "we don't record any datas ... untill user claims".
-    // I think keeping metadata is fine, but breaking the link is key.
   }
 
   async updateDeviceMeta(
@@ -127,23 +138,22 @@ export class DevicesRepository {
     pincode?: string,
   ) {
     return this.prisma.userDevice.upsert({
-      where: { deviceId_userId: { userId, deviceId: deviceDisplayId } },
+      where: { deviceId: deviceDisplayId },
       create: {
         userId,
         deviceId: deviceDisplayId,
         name: name || deviceDisplayId,
-        location,
+        location: location || '',
+        city: city || '',
+        pincode: pincode || '',
       },
       update: {
         name,
         location,
+        city,
+        pincode,
       },
     });
-  }
-
-  // Helper to find UUID from String ID
-  async getDeviceByStringId(deviceId: string) {
-    return this.prisma.device.findUnique({ where: { deviceId } });
   }
 
   setDeviceThreshold(deviceId: string, thresholds: Record<string, number>) {

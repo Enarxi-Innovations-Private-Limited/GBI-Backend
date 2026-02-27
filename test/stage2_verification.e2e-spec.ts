@@ -33,7 +33,7 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
   beforeAll(async () => {
     // We use the REAL AppModule but mock SseService and MqttService
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule], 
+      imports: [AppModule],
     })
       .overrideProvider(SseService)
       .useValue(mockSseService)
@@ -55,7 +55,10 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
   });
 
   const generateToken = (userId: string) => {
-    return jwtService.sign({ sub: userId, email: 'test@example.com' }, { secret: process.env.JWT_SECRET || 'test-secret' });
+    return jwtService.sign(
+      { sub: userId, email: 'test@example.com' },
+      { secret: process.env.JWT_SECRET || 'test-secret' },
+    );
   };
 
   describe('Alert Hierarchy & Hysteresis', () => {
@@ -73,7 +76,7 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
       await prisma.deviceTelemetry.deleteMany(); // Fix: Delete telemetry first
       await prisma.deviceAssignment.deleteMany();
       await prisma.deviceThreshold.deleteMany(); // Fix: Delete device threshold first
-      await prisma.groupThreshold.deleteMany();  // Fix: Delete group threshold first
+      await prisma.groupThreshold.deleteMany(); // Fix: Delete group threshold first
       await prisma.device.deleteMany();
       await prisma.deviceGroup.deleteMany();
       await prisma.user.deleteMany();
@@ -86,7 +89,7 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
       token = generateToken(userId);
 
       const device = await prisma.device.create({
-        data: { deviceId: 'TEST-DEV-001', status: 'active' },
+        data: { deviceId: 'TEST-DEV-001', status: 'OFFLINE' },
       });
       deviceId = device.id;
 
@@ -102,7 +105,10 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
 
     it('should use Group Threshold if no Device Threshold', async () => {
       // 1. Add device to group
-      await prisma.device.update({ where: { id: deviceId }, data: { groupId } });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { groupId },
+      });
 
       // 2. Set Group Threshold (PM2.5 = 25)
       await prisma.groupThreshold.create({
@@ -115,20 +121,30 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
 
       // 4. Verify Alert Created
       const state = await prisma.alertState.findUnique({
-        where: { userId_deviceId_parameter: { userId, deviceId, parameter: 'pm25' } },
+        where: {
+          userId_deviceId_parameter: { userId, deviceId, parameter: 'pm25' },
+        },
       });
       expect(state?.state).toBe('ALERTING');
-      
+
       // 5. Verify SSE called
-      expect(mockSseService.sendEvent).toHaveBeenCalledWith(userId, expect.objectContaining({
-        type: 'NOTIFICATION',
-        data: expect.objectContaining({ message: expect.stringContaining('PM25 exceeded limit') })
-      }));
+      expect(mockSseService.sendEvent).toHaveBeenCalledWith(
+        userId,
+        expect.objectContaining({
+          type: 'NOTIFICATION',
+          data: expect.objectContaining({
+            message: expect.stringContaining('PM25 exceeded limit'),
+          }),
+        }),
+      );
     });
 
     it('should override Group Threshold with Device Threshold', async () => {
       // 1. Add device to group & Set Group Threshold (PM2.5 = 25)
-      await prisma.device.update({ where: { id: deviceId }, data: { groupId } });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { groupId },
+      });
       await prisma.groupThreshold.create({
         data: { groupId, thresholds: { pm25: 25 } },
       });
@@ -143,7 +159,9 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
 
       // 4. Verify NO Alert
       let state = await prisma.alertState.findUnique({
-        where: { userId_deviceId_parameter: { userId, deviceId, parameter: 'pm25' } },
+        where: {
+          userId_deviceId_parameter: { userId, deviceId, parameter: 'pm25' },
+        },
       });
       expect(state).toBeNull(); // Should not exist or be NORMAL
 
@@ -152,7 +170,9 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
 
       // 6. Verify Alert
       state = await prisma.alertState.findUnique({
-        where: { userId_deviceId_parameter: { userId, deviceId, parameter: 'pm25' } },
+        where: {
+          userId_deviceId_parameter: { userId, deviceId, parameter: 'pm25' },
+        },
       });
       expect(state?.state).toBe('ALERTING');
     });
@@ -179,12 +199,17 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
       await alertsService.evaluate(deviceId, { co2: 94 });
       state = await prisma.alertState.findFirst({ where: { deviceId } });
       expect(state?.state).toBe('NORMAL');
-      
+
       // Verify SSE for resolution
-      expect(mockSseService.sendEvent).toHaveBeenLastCalledWith(userId, expect.objectContaining({
-        type: 'NOTIFICATION',
-        data: expect.objectContaining({ message: expect.stringContaining('returned to normal') })
-      }));
+      expect(mockSseService.sendEvent).toHaveBeenLastCalledWith(
+        userId,
+        expect.objectContaining({
+          type: 'NOTIFICATION',
+          data: expect.objectContaining({
+            message: expect.stringContaining('returned to normal'),
+          }),
+        }),
+      );
     });
   });
 });

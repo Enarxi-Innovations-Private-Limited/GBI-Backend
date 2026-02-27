@@ -2,7 +2,7 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "DeviceStatus" AS ENUM ('ACTIVE', 'WARNING', 'OFFLINE');
+CREATE TYPE "DeviceStatus" AS ENUM ('ACTIVE', 'WARNING', 'OFFLINE', 'ONLINE');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -88,6 +88,7 @@ CREATE TABLE "DeviceTelemetry" (
     "id" BIGSERIAL NOT NULL,
     "deviceId" TEXT NOT NULL,
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "messageId" TEXT NOT NULL,
     "pm25" INTEGER,
     "pm10" INTEGER,
     "tvoc" INTEGER,
@@ -197,6 +198,9 @@ CREATE UNIQUE INDEX "UserDevice_deviceId_userId_key" ON "UserDevice"("deviceId",
 
 -- CreateIndex
 CREATE INDEX "DeviceTelemetry_deviceId_timestamp_idx" ON "DeviceTelemetry"("deviceId", "timestamp");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DeviceTelemetry_deviceId_messageId_key" ON "DeviceTelemetry"("deviceId", "messageId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GroupThreshold_groupId_key" ON "GroupThreshold"("groupId");

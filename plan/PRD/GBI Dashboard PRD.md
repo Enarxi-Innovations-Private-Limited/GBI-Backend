@@ -1,242 +1,736 @@
-Product Requirements Document (PRD)
-GBI – Air Quality Monitor Dashboard
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+# Product Requirements Document (PRD)
 
-1. Product Overview
-Product Name
-GBI Air Quality Monitor Dashboard
-Company
-GBI
-Product Type
-Web-based dashboard for air quality monitoring and device management
-Supported Platforms
-Web (Desktop only)
-(Tablet and mobile responsive support are out of current scope)
+# GBI Web Dashboard
 
-2. Product Purpose
-The GBI Air Quality Monitor Dashboard enables customers to monitor air quality data from GBI devices in real time and historically, configure alerts, and generate reports.
-It also provides admins with centralized tools to register devices and manage users.
+This document defines the complete functional scope of the GBI Web Dashboard,
+covering both:
 
-3. User Roles
-3.1 Admin
-Admins are responsible for:
-Centralized device registration
-Device management
-User management
-3.2 User
-Users are responsible for:
-Registering and managing their own devices
-Viewing air quality data
-Configuring alerts
-Viewing graphs and reports
-Managing their account
+1. User Portal
+2. Admin Portal
 
-4. Authentication & User Onboarding
-Supported Login Methods
-Email & Password
-Google OAuth
-User Verification
-Email verification using Email OTP (for email/password users)
-Mobile number verification using Mobile OTP
+This PRD represents the unified and current functional definition of the system.
 
-5. Admin Portal Requirements
+# PART I – USER PORTAL
 
-Admins can log in to the admin portal using hardcoded credentials.
-5.1 Device Registration & Management
-Admins can add devices to the system. Devices become claimable by users only after admin registration.
+## 1. Overview
 
-When the Add Device button is clicked, the admin must enter the Device ID. The Device Type is set by default to Air Quality Monitor.
-Device Table Fields
-Device ID
-Assigned User (initially empty)
-Device Status (Active / Inactive)
-Device Added Date (date when admin added the device)
-Device Assigned Date (date when user claimed the device)
-Actions
-Deassign Device (with confirmation)
-Remove Device (with confirmation)
-Additional Features
-Search by Device ID
-Confirmation dialogs for destructive actions
+The User Portal enables customers to monitor air quality data from their registered GBI
+devices, configure thresholds, receive alerts, generate reports, and manage their
+account.
 
-5.2 User Management
-Admins can view and manage users.
-User Table Fields
-User Name
-Organization
-Phone Number
-Email ID
-Mobile number
-city
-Number of Devices
-Actions
-Restrict User (with confirmation)
-Delete User (with confirmation)
-Restrict user prevents login and device access
+Platform Scope: Web (Desktop-first).
 
-6. User Dashboard Requirements
-6.1 Header & Navigation
-Top Left
-GBI Logo
-Top Right
-Refresh Button
-Notifications Icon
-Theme Toggle (Dark / Light)
-Profile Menu
-
-6.2 Profile Menu Options
-Alert Groups
- Users can create device groups and configure threshold limits for each group. All devices added to a group will inherit the group's alert thresholds.
-Edit Profile
- Users can edit their personal details, including name, email (only if signed up using the email/password method), mobile number, organization, and city.
-Changing the email or mobile number requires OTP verification to the registered mobile number.
+Mobile and tablet optimization are out of scope for the current phase.
 
 
-Users can reset their password by entering the current password, the new password, and re-entering the new password for confirmation.
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+## 2. User Authentication & Onboarding
+
+### 2.1 Supported Authentication Methods
+
+Users can access the platform using:
+
+- Email and Password
+- Google OAuth
+
+### 2. 2 Sign-Up Flow – Email & Password
+
+#### Step 1: Account Creation
+
+User provides:
+
+- Email address
+- Password
+
+#### Step 2: Email Verification
+
+- An OTP is sent to the registered email address.
+- User must enter the OTP to verify the email.
+- Until verified, the account remains inactive.
+
+#### Step 3: Complete Profile
+
+After email verification, the user is redirected to the **Complete Profile** screen.
+
+User must provide:
+
+- Name
+- Organization
+- City
+- Phone Number
 
 
-Logout
- Users can securely log out of the system.
-6.3 Dashboard
-The dashboard displays air quality parameters and their values using a tile-based UI. Each tile shows:
-The parameter name
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+Notes:
+
+- Email field is auto-filled.
+- Email cannot be edited at this stage.
+
+#### Step 4: Phone Number Verification
+
+- An OTP is sent to the provided phone number.
+- User must verify the OTP.
+- Only after successful phone verification can the user access the dashboard.
+
+#### Access Condition
+
+The user can access the GBI Web Dashboard only after:
+
+- Email verification is complete
+- Profile details are completed
+- Phone number verification is successful
+
+### 2.3 Sign-Up Flow – Google OAuth
+
+When a user signs up using Google:
+
+- Email verification is considered complete (handled by Google).
+- User is redirected to the Complete Profile screen.
+- User must enter:
+    o Name (if not auto-fetched)
+    o Organization
+    o City
+    o Phone Number
+- Phone number OTP verification is mandatory.
+
+Only after phone verification can the user access the dashboard.
 
 
-The current value
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+### 2.4 Login Flow
+
+Users can log in using:
+
+- Email and Password
+- Google OAuth
+
+Conditions:
+
+- Email must be verified (for email/password users).
+- Phone number must be verified.
+- Account must not be restricted.
+
+## 3. Layout & Navigation
+
+#### 3 .1 Sidebar (Left Navigation)
+
+The sidebar contains:
+
+- GBI Logo
+- Company Name
+
+Navigation Items:
+
+- My Dashboard
+- Device Management
+- Generate Report
+- Event Logs
+- Limit Settings
 
 
-Color-coded status
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+#### 3 .2 Top Header
+
+The top header contains:
+
+- User greeting
+- Device search bar (used to select device for dashboard view)
+- Theme toggle (Dark / Light)
+- Notification bell icon
+- Golden Crown subscription icon
+- User name & profile icon
+
+**_Golden Crown (Subscription Indicator)_**
+
+When clicked, it displays:
+
+- Subscription type (Basic / Premium)
+- Remaining subscription days
+- Subscription expiry date
+
+**_Profile Dropdown Contains:_**
+
+- Settings
+- Limit Settings (shortcut)
+- Logout
+
+## 4. My Dashboard (Default Landing Page)
+
+#### 4 .1 AQI & Parameter Tiles
+
+Displays:
+
+- Calculated AQI
+- PM2.
 
 
-Severity expressed in clear, industry-standard terms: Good, Moderate, and Unhealthy
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+##### • PM
+
+##### • TVOC
+
+##### • CO
+
+- Temperature
+- Humidity
+- Noise
+
+Each tile shows:
+
+- Parameter name
+- Current value
+- Status indication
+
+Data updates in real time at defined refresh intervals.
+
+#### 4 .2 Real-Time Trend Chart
+
+- Displays live data for selected device
+- Updates continuously
+
+#### 4 .3 Historical Date-Range Comparison (Same Device)
+
+Users can compare historical data for the **same device** across two date ranges (e.g.,
+Dec 1–31 vs Jan 1–31).
+
+- Comparison is shown in a single graph
+- Multiple lines with different colors
+- Applies to selected parameters
 
 
-A graph section is also provided. When a user clicks on a graph, they are taken to a full-page graph view where they can:
-Select a specific device
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+#### 4 .4 Device Comparison (Parameter-Based)
+
+Users can click on any parameter tile (e.g., PM2.5) to open a detailed graph view.
+
+In the graph view, users can:
+
+- Select presets (1 hour, 1 day, 1 week)
+- Select a custom date range
+- View trends for the selected parameter
+
+**Compare Devices:**
+
+- User can select 2 or more devices
+- Same parameter and same date range
+- All devices displayed in a single graph
+- Each device represented with a different color
+
+## 5. Device Management (User)
+
+#### 5 .1 Device Status Overview
+
+At the top of the page, three tiles show device counts:
+
+- Online Devices
+- Warning Devices
+- Offline Devices
+
+#### 5 .2 Add Device
+
+Users can add a device by clicking **Add Device** , which opens a modal requesting the
+following details:
+
+- **Device ID**
+- **Device Name**
 
 
-Choose a time range (start and end date/time)
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+- **Geo Location**
+    o City (text field)
+    o Pincode (text field – must be a 6-digit numeric value)
+- **Location** (user-defined alias, e.g., Living Room)
 
+**Validation Rules:**
 
-View parameter trends over time
+- The Device ID must be registered in the Admin Portal.
+- The device must not already be claimed by another user.
+- The pincode must be exactly 6 digits and contain only numeric characters.
 
+#### 5 .3 Device Table
 
-Compare the same parameter across multiple devices
+Table columns:
 
+- Device ID
+- Device Name
+- Location
+- Status (Online / Offline / Warning)
 
-7. Device Management (User Side)
-Device Claiming
-Users can claim a device by entering the Device ID, assigning a custom device name, and adding a location tag (for example, Living Room).
-Validation Rules:
-The device must exist in the admin-registered device registry.
+Actions:
 
+- Edit (Device Name, Location only)
+- Delete (removes device from user account)
+- Restart Device (enabled only if device is online)
 
-The device must not already be assigned to another user.
+## 6. Generate Report
 
+#### 6 .1 Device & Parameter Selection
 
-
-Device Table (User View)
-Device ID
-Device Name
-Location Tag (e.g., Living Room, Bedroom)
-Device Status (Online / Offline / Deactivated)
-Actions
-Edit (Device Name, Location Tag only)
-Deactivate Device (with confirmation)
-Delete Device (with confirmation and data loss warning)
-
-Device Groups
-Users can organize their devices into groups to manage alert thresholds efficiently.
-Group Actions:
-Create Group (Name, Description)
-Add/Remove Devices to/from Group
-Set Alert Thresholds for the Group (applies to all devices in the group)
-Delete Group (Devices become ungrouped)
-Validation:
-A device can be part of only one group at a time (to avoid conflicting thresholds).
-
-8. Air Quality Data Dashboard
-Parameters Displayed
-PM2.5
-PM10
-TVOC
-CO₂
-Temperature
-Humidity
-Noise
-Data View
-Real-time readings
-
-9. Graph & Visualization Features
-Single Device Graph
-User can select:
-Device
-Parameter (e.g., PM2.5)
-Start date & time
-End date & time
-Graph displays parameter values over time
-
-Device Comparison Graph
-User can click Compare
-Select another device
-Compare the same parameter across two devices
-Graph shows multiple lines for easy comparison
-
-10. Alerts & Notifications
-Alert Configuration
-Alerts are configured at the **Device Group** level.
-Users define threshold limits for parameters (e.g., CO2 > 1000) within a Group.
-These thresholds apply automatically to all devices belonging to that Group.
-Ungrouped devices rely on default system thresholds (or no alerts).
-Alert Behavior
-Alert triggered only when crossing threshold
-No repeated alerts while value stays beyond limit
-Alert triggered again when value goes back below threshold
-Notification UI
-Toast notifications (bottom-right)
-Max 5 stacked toasts
-Oldest toast removed if overflow
-Stored notifications:
-Last 10 notifications per user
-Notifications shown in bell icon
-
-11. Event Logs
-Logged Events
-Device Online / Offline
-Threshold crossed (above / below)
-Each event includes:
-Timestamp
-Device ID
-Device Name
-Event type
-Relevant parameter and value (if applicable)
-
-12. Reports
-Report Generation
 Users can:
-Select devices
-Select date & time range
-Select parameters
-Choose data interval:
-3 minutes
-5 minutes
-10 minutes
-Output Format
-CSV or Excel (one format will be finalized)
 
-13. Data Validation & Security
-Backend validation of all incoming data
-Frontend input is never trusted
-Device data is validated before processing
 
-14. Out of Scope (Current Phase)
-The following are explicitly out of scope for the current phase:
-Per-device alert thresholds
-Generate report (Admin portal) - Generates report on users device datas
-Graph to visulaize the users air qualities  (Admin Portal)
-Payment gateway integration
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+- Select one or more devices
+- Select parameters:
+     PM2.
+     PM
+     CO₂
+     TVOC
+     Temperature
+     Humidity
+     Noise
+- Use **Select All** to choose all parameters
 
-Final Notes
-This PRD:
-Reflects only confirmed requirements
-Keeps future enhancements clearly out of scope
+#### 6 .2 Date Range & Data Interval
+
+Users select:
+
+- Start and end date
+- Data interval:
+     3 minutes
+     5 minutes
+     10 minutes
+
+Data within the interval is averaged before being included in the report.
+
+#### 6 .3 Report Output
+
+Users can generate reports in:
+
+- CSV format
+- PDF format
+
+PDF reports include:
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+- GBI logo at the top
+- Selected devices, parameters, and date range
+
+## 7. Event Logs
+
+Two Sections:
+
+#### 7 .1 Device Events
+
+Columns:
+
+- Date & Time
+- Device Name
+- Device ID
+- Location
+- Status (Online / Offline / Warning)
+
+#### 7 .2 Sensor Events
+
+Columns:
+
+- Date & Time
+- Device Name
+- Parameter
+- Condition (Above / Below Threshold)
+- Parameter Value
+
+## 8. Limit Settings
+
+Accessible via Sidebar and Profile shortcut.
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+#### 8 .1 Group-Based Threshold Configuration
+
+Users can:
+
+- Create Group
+- Add devices to group
+- Configure threshold values for parameters:
+     PM2.
+     PM
+     TVOC
+     CO₂
+     Temperature
+     Humidity
+     Noise
+
+Thresholds apply to all devices in the group.
+
+If threshold is breached:
+
+- Notification triggered
+- Sensor Event logged
+
+#### 8 .2 Individual Device Threshold Configuration
+
+For devices not in any group:
+
+- User sets thresholds per device
+
+If threshold is breached:
+
+- Notification triggered
+- Sensor Event logged
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+## 9. Notifications
+
+Two types of notifications:
+
+#### 9 .1 Threshold-Based Notifications
+
+- Triggered when a parameter crosses a configured threshold (group-level or
+    individual device-level)
+- Notification is triggered only on threshold crossing (no repeated alerts while
+    value remains beyond limit)
+- When the parameter value returns to normal range, a new event is logged
+- Each threshold breach:
+     Triggers a user notification
+     Creates a Sensor Event log entry
+
+#### 9 .2 Device Connectivity Notifications
+
+A device will be marked Offline if no data is received within a system-configured
+inactivity duration. When connectivity is restored, the device will be marked Online.
+
+- Device marked Offline
+- Notification triggered
+- Logged in Device Events
+
+When device comes back Online:
+
+- Notification triggered
+- Logged in Device Events
+
+## 10. Settings
+
+Users can update:
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+- Name
+- Organization
+- City
+
+#### 10 .1 Password Change
+
+Users must:
+
+- Enter current password
+- Enter new password
+- Re-enter new password for confirmation
+
+## 11. Logout
+
+- Securely ends the user session
+- Redirects to login page
+
+# PART II – ADMIN PORTAL
+
+## 12. Overview
+
+Admin Portal provides centralized control for:
+
+- User management
+- Device registry management
+- Premium subscription management
+
+No UI redesign or structural changes are permitted.
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+### 13. Authentication
+
+- The Admin Portal will use **Email and Password authentication**.
+- Only **one Admin account** will be created for the system.
+
+#### Admin Account Configuration
+
+The Admin account must include:
+
+- Primary Email
+- Recovery Email
+- Phone Number
+
+#### Password Recovery Process
+
+If the Admin password is compromised or forgotten:
+
+- The system will provide an option to send an OTP to either:
+    o The registered Primary/Recovery Email, or
+    o The registered Phone Number
+- After successful OTP verification, the Admin will be allowed to set a new
+    password.
+
+## 14. User Management (Admin)
+
+Admin can view:
+
+- Total user count
+
+User Table Columns:
+
+- User Name
+- Organization
+- Email
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+- Subscription Type (Basic / Premium)
+- Premium Expiry Date (if Premium)
+
+#### 14 .1 User Portal View (Read-Only Mode)
+
+When Admin clicks a user:
+
+Admin can:
+
+- View dashboard
+- View graphs & comparisons
+- View device counts
+- Generate reports
+
+Admin cannot:
+
+- Modify devices
+- Edit thresholds
+- Delete devices
+- Change configurations
+
+This is strictly read-only.
+
+## 15. Device Management (Admin)
+
+#### 15 .1 Add Device
+
+- Device ID must be unique
+- Duplicate IDs are not allowed
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+#### 15 .2 Device Table
+
+The Device Table will display the following columns:
+
+- **Device ID**
+- **Assignment Status** (Assigned / Not Assigned)
+- **Assigned User**
+- **Device Location**
+    o City
+    o Pincode
+
+```
+Device Location (City & Pincode) is captured from the User during device
+claiming and displayed for administrative visibility.
+```
+Delete Rules:
+
+- If not assigned → Direct deletion
+- If assigned → Warning modal explaining:
+    o User loses access
+    o All associated data permanently deleted
+    o Action irreversible
+
+#### 15 .3 Bulk Device Upload (Excel)
+
+Admin can upload Excel file containing Device IDs.
+
+System will:
+
+- Parse IDs
+- Add valid new devices
+- Skip duplicates
+- Display summary of:
+    o Successfully added
+    o Failed due to duplication
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+Excel format details will be finalized separately.
+
+#### 15 .4 Device Summary Tiles
+
+Admin dashboard displays:
+
+- Total Devices
+- Online Devices
+- Offline Devices
+- Warning Devices
+
+## 16. Premium Package & Subscription Management
+
+### Admin Portal capabilities:
+
+- Admin can set and update Premium subscription pricing.
+- Admin can view successful payment records in a payment summary table.
+- The system automatically activates Premium access upon successful payment.
+- The system automatically calculates and manages subscription expiry based on
+    the payment date and plan duration.
+- Admin can view subscription end dates for users (read-only visibility).
+
+### Premium Feature Access Model
+
+All User Portal functionalities will be developed first.
+
+After completion, Clients **Mr. Roop & Ms. Sanjana** will decide which of the completed
+features will be categorized as Premium features.
+
+Premium access will follow a strict **Enable / Disable model** :
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+- A feature is either fully available or fully restricted.
+- No usage limits, counters, quotas, or partial access rules will be implemented.
+
+Examples:
+
+- Excel download available only for Premium users.
+- Custom graph functionality available only for Premium users.
+- If a feature is marked as Premium, Basic users will not have access to it at all.
+
+There will be no conditional limitations such as:
+
+- Limiting the number of reports per day for Basic users.
+- Providing reduced usage counts for non-Premium users.
+
+The Premium logic will be strictly binary (Yes / No access), with no complexity beyond
+feature enablement control.
+
+## 17. Deliverables
+
+#### User Portal Deliverables
+
+- Real-time dashboard
+- Historical & comparison graphs
+- Device management
+- Threshold management (Group & Individual)
+- Notifications (Threshold + Connectivity)
+- Event logs
+- Report generation (CSV & PDF)
+- Subscription indicator (Golden Crown)
+
+
+```
+No 23, Sripuram colony 1st street, Viralur,
+Saint Thomas mount, Chennai , 600016
+Tel: +91-4442076267,
+Email: info@enarxi.com, http://www.enarxi.com.
+CIN: U29305TN2021PTC
+```
+#### Admin Portal Deliverables
+
+- User management with subscription visibility
+- Read-only user portal access
+- Device registry management
+- Bulk device upload
+- Premium subscription control
+
 

@@ -1,60 +1,110 @@
-# Alerts & Notifications System
+# Notifications API
+
+**Base URL:** `/notifications`  
+**Auth:** All endpoints require `Authorization: Bearer <accessToken>` (user JWT).
+
+---
 
 ## Overview
-The alerting system monitors incoming telemetry in real-time. Just-in-time (JIT) evaluation determines if any user-defined thresholds have been breached.
+
+The Notifications module delivers real-time in-app alerts to users when significant events occur on their devices (e.g., threshold breaches, device going offline).
+
+Notifications are stored in the database and delivered via **Server-Sent Events (SSE)** to active frontend connections. They can also be retrieved and managed via REST.
 
 ---
 
-## How It Works
+## Endpoints
 
-### 1. Configuration (Thresholds)
-Users define "Alert Thresholds" for specific devices and parameters.
-*   **Example**: "Notify me if CO2 > 1000 ppm on Device A".
-*   These are stored in the `AlertThreshold` table.
+### 1. Get My Notifications
 
-### 2. Real-Time Evaluation
-When `MqttConsumer` receives a telemetry packet:
-1.  It calls `AlertsService.evaluate(deviceId, data)`.
-2.  The service fetches **all assigned users** for that device + their **thresholds**.
-3.  It compares the incoming value against the limit: `CurrentValue > LimitValue`.
+**GET** `/notifications`
 
-### 3. Stateful Alerting (Hysteresis)
-To prevent "alert fatigue" (flapping), the system uses a **Stateful** approach with Hysteresis, rather than a simple cooldown timer.
+Returns a paginated list of notifications for the authenticated user.
 
-*   **States**: Each (User, Device, Parameter) tuple tracks a state: `NORMAL` or `ALERTING`.
-*   **Hysteresis Buffer**: A 2% buffer is applied to prevent rapid toggling when values hover near the limit.
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `isRead` | boolean | — | Filter by read status (`true` / `false`). Omit for all. |
+| `page` | number | `1` | Page number |
+| `limit` | number | `20` | Items per page |
 
-#### Logic:
-1.  **Triggering (NORMAL -> ALERTING)**:
-    *   Occurs when `Value > Threshold`.
-    *   System sends an "Exceeded limit" notification.
-    *   Records state as `ALERTING`.
+**Example Request:**
 
-2.  **Recovery (ALERTING -> NORMAL)**:
-    *   Occurs only when `Value < (Threshold - 2%)`.
-    *   *Example*: If limit is 1000, recovery happens only when value drops below 980.
-    *   System sends a "Back to normal" notification.
-    *   Records state as `NORMAL`.
+```http
+GET /notifications?isRead=false&page=1&limit=10
+Authorization: Bearer <token>
+```
 
+**Response (200):**
 
----
-
-## Notifications
-
-### Event Logs
-Every valid alert creates a permanent record in the `EventLog` table with `eventType: 'Alert_Triggered'`. This is useful for graphs and auditing.
-
-### In-App Notifications
-A `Notification` record is created for the user.
-*   **Fields**: `message`, `isRead`, `readAt`.
-*   **API**:
-    *   `GET /notifications` - Fetch unread/all.
-    *   `PATCH /notifications/:id/read` - Mark specific as read.
-    *   `PATCH /notifications/read-all` - Mark all as read.
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "message": "PM25 exceeded limit on device GBI-DEV-001",
+      "deviceId": "GBI-DEV-001",
+      "isRead": false,
+      "createdAt": "2026-02-27T08:15:00.000Z",
+      "readAt": null
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "limit": 10
+}
+```
 
 ---
 
-## Database Optimization
-The evaluation process is optimized to handle high loads:
-*   **Batch Fetching**: Users and thresholds are fetched in a single query via `getAssignedUsersWithThresholds`.
-*   **Batch Cooldown Check**: All potential alerts are checked against the history table in a single DB round-trip using `getRecentAlerts`.
+### 2. Mark Notification as Read
+
+**PATCH** `/notifications/:id/read`
+
+Marks a single notification as read.  
+`:id` is the notification UUID.
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "isRead": true,
+  "readAt": "2026-02-27T08:20:00.000Z"
+}
+```
+
+---
+
+### 3. Mark All Notifications as Read
+
+**PATCH** `/notifications/read-all`
+
+Marks all of the user's unread notifications as read in one operation.
+
+**Response (200):**
+
+```json
+{
+  "updated": 15
+}
+```
+
+---
+
+## Notification Triggers
+
+Notifications are generated automatically by the system in the following scenarios:
+
+| Trigger                                      | Message Example                         |
+| -------------------------------------------- | --------------------------------------- |
+| Telemetry parameter exceeds threshold        | `"PM25 exceeded limit on GBI-DEV-001"`  |
+| Device goes offline (no heartbeat > 7 min)   | `"Device GBI-DEV-001 is offline"`       |
+| Threshold resolved (value returns to normal) | `"GBI-DEV-001 PM25 returned to normal"` |
+
+---
+
+## Real-Time Delivery (SSE)
+
+Notifications are also pushed in real-time to the frontend via Server-Sent Events.  
+See [REALTIME_API.md](./REALTIME_API.md) for the SSE connection endpoint and event format.

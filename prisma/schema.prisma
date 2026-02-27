@@ -79,22 +79,20 @@ model DeviceAssignment {
 }
 
 model UserDevice {
-  id       String  @id @default(uuid())
-  deviceId String
+  id       String @id @default(uuid())
+  deviceId String @unique
   userId   String
-  name     String?
-  location String?
-  city     String?
-  pincode  String?
-
-  @@unique([deviceId, userId])
+  name     String
+  location String
+  city     String
+  pincode  String
 }
 
 model DeviceTelemetry {
-  id          BigInt   @id @default(autoincrement())
-  deviceId    String
-  timestamp   DateTime @default(now())
-  messageId   String
+  id        BigInt   @id @default(autoincrement())
+  deviceId  String
+  timestamp DateTime @default(now())
+  messageId String
 
   pm25        Int?
   pm10        Int?
@@ -104,7 +102,7 @@ model DeviceTelemetry {
   humidity    Float?
   noise       Int?
   aqi         Int?
-  device      Device   @relation(fields: [deviceId], references: [id])
+  device      Device @relation(fields: [deviceId], references: [id])
 
   @@unique([deviceId, messageId])
   @@index([deviceId, timestamp])
@@ -181,6 +179,7 @@ model RefreshToken {
 }
 
 enum DeviceStatus {
+  ACTIVE
   ONLINE
   WARNING
   OFFLINE

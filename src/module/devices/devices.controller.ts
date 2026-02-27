@@ -2,12 +2,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { DevicesService } from './devices.service';
@@ -37,13 +38,17 @@ export class DevicesController {
     @Param('id') id: string,
     @Body() dto: UpdateDeviceDto,
   ) {
-    // Note: :id here is the String ID ("GBI-001"), not UUID, for user friendliness
     return this.devicesService.updateDevice(user.id, id, dto);
   }
 
+  /**
+   * Unassign feature is intentionally disabled at the application layer.
+   * DB schema and internal service logic are preserved for future re-enablement.
+   */
   @Delete(':id')
-  unclaim(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.devicesService.unclaimDevice(user.id, id);
+  @HttpCode(403)
+  unclaimDevice(): never {
+    throw new ForbiddenException('Unassign feature is currently disabled');
   }
 
   @Post(':id/threshold')

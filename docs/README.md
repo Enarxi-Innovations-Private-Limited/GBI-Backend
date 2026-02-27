@@ -29,11 +29,13 @@ docs/
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js 24.12.0
 - PostgreSQL 16
 - pnpm 10.27.0
 
 ### Setup
+
 ```bash
 # 1. Install dependencies
 pnpm install
@@ -56,9 +58,11 @@ Server runs on: `http://localhost:4000`
 ## 📖 Documentation Guide
 
 ### 1. **Prisma Documentation**
+
 📁 [`docs/prisma/README.md`](prisma/README.md)
 
 **Learn about:**
+
 - What is Prisma and why we use it
 - How Prisma works with PostgreSQL
 - Database schema design
@@ -69,6 +73,7 @@ Server runs on: `http://localhost:4000`
 - Migration workflow
 
 **Key Topics:**
+
 - Schema models and relations
 - Type-safe database access
 - Query examples (create, read, update, delete)
@@ -77,6 +82,7 @@ Server runs on: `http://localhost:4000`
 - Performance optimization
 
 **Read this if you want to understand:**
+
 - How data is stored
 - How to query the database
 - Why we use composition over inheritance
@@ -85,9 +91,11 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 2. **Authentication Documentation**
+
 📁 [`docs/auth/README.md`](auth/README.md)
 
 **Learn about:**
+
 - Authentication architecture
 - Email/Password login implementation
 - Google OAuth 2.0 integration
@@ -97,6 +105,7 @@ Server runs on: `http://localhost:4000`
 - Security features
 
 **Key Topics:**
+
 - Complete authentication flows (signup, login, refresh, logout)
 - Folder structure (`dto/`, `guards/`, `strategies/`, `decorators/`)
 - DTOs for input validation
@@ -106,6 +115,7 @@ Server runs on: `http://localhost:4000`
 - Password hashing with bcrypt
 
 **Read this if you want to understand:**
+
 - How users authenticate
 - How tokens work
 - How protected routes function
@@ -115,9 +125,11 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 3. **Authentication Testing Guide**
+
 📁 [`docs/test/auth/README.md`](test/auth/README.md)
 
 **Learn about:**
+
 - Testing authentication endpoints
 - Using cURL, Postman, REST Client
 - Automated testing with Jest
@@ -125,6 +137,7 @@ Server runs on: `http://localhost:4000`
 - Troubleshooting tips
 
 **Key Topics:**
+
 - Step-by-step API testing
 - Expected requests and responses
 - Error handling examples
@@ -133,6 +146,7 @@ Server runs on: `http://localhost:4000`
 - Testing checklist
 
 **Read this if you want to:**
+
 - Test the authentication system
 - Understand API request/response formats
 - Write automated tests
@@ -142,9 +156,11 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 4. **MQTT Integration Documentation**
+
 📁 [`docs/mqtt/MQTT_INTEGRATION_STATUS.md`](mqtt/MQTT_INTEGRATION_STATUS.md)
 
 **Learn about:**
+
 - Complete MQTT pipeline and data flow
 - Device registration and telemetry handling
 - Data validation and transformation
@@ -152,6 +168,7 @@ Server runs on: `http://localhost:4000`
 - Troubleshooting MQTT issues
 
 **Key Topics:**
+
 - MQTT broker configuration
 - Topic structure (`gbi/devices/{DEVICE_ID}/telemetry`)
 - Payload validation and DTOs
@@ -160,6 +177,7 @@ Server runs on: `http://localhost:4000`
 - Production deployment checklist
 
 **Read this if you want to understand:**
+
 - How devices send data
 - How telemetry is processed
 - How to test MQTT integration
@@ -168,15 +186,18 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 5. **MQTT Error Logging**
+
 📁 [`docs/mqtt/MQTT_ERROR_LOGGING.md`](mqtt/MQTT_ERROR_LOGGING.md)
 
 **Learn about:**
+
 - Error logging system for MQTT messages
 - Log file format and location
 - Debugging malformed JSON
 - Common error patterns
 
 **Key Topics:**
+
 - File logging to `mqtt-errors.log`
 - Error types (invalid JSON, validation errors)
 - Viewing and analyzing logs
@@ -184,6 +205,7 @@ Server runs on: `http://localhost:4000`
 - Log rotation strategies
 
 **Read this if you want to:**
+
 - Debug MQTT message issues
 - Find devices sending bad data
 - Understand error patterns
@@ -192,15 +214,18 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 6. **Device Status Monitoring**
+
 📁 [`docs/monitoring/DEVICE_STATUS_MONITORING.md`](monitoring/DEVICE_STATUS_MONITORING.md)
 
 **Learn about:**
+
 - Counter-based device monitoring system
 - Online/offline detection
 - Configuration via environment variables
 - Automatic device recovery
 
 **Key Topics:**
+
 - 5-second check intervals (configurable)
 - Miss counter threshold (5 consecutive misses = offline)
 - In-memory tracking for scalability
@@ -208,6 +233,7 @@ Server runs on: `http://localhost:4000`
 - Notifications and event logging
 
 **Read this if you want to understand:**
+
 - How device status is tracked
 - How offline detection works
 - How to configure monitoring thresholds
@@ -216,15 +242,18 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 7. **Database Migration Guide**
+
 📁 [`docs/database/MIGRATION_DRIFT_FIX.md`](database/MIGRATION_DRIFT_FIX.md)
 
 **Learn about:**
+
 - Resolving Prisma migration drift issues
 - Manual SQL migrations
 - Database reset strategies
 - Migration troubleshooting
 
 **Key Topics:**
+
 - What is migration drift
 - Multiple resolution options
 - Manual SQL scripts
@@ -232,6 +261,7 @@ Server runs on: `http://localhost:4000`
 - Verification queries
 
 **Read this if you encounter:**
+
 - Migration drift errors
 - Schema sync issues
 - "Migrations applied but missing" errors
@@ -240,15 +270,18 @@ Server runs on: `http://localhost:4000`
 ---
 
 ### 8. **Data Type Conversion**
+
 📁 [`docs/database/DATA_TYPE_CONVERSION_SUMMARY.md`](database/DATA_TYPE_CONVERSION_SUMMARY.md)
 
 **Learn about:**
+
 - Telemetry data type conversion system
 - Transform decorators for DTOs
 - Integer and float conversion logic
 - Schema changes for telemetry data
 
 **Key Topics:**
+
 - Automatic type conversion (string → number)
 - Rounding strategies (integers vs floats)
 - Database schema updates
@@ -256,6 +289,7 @@ Server runs on: `http://localhost:4000`
 - Example payloads
 
 **Read this if you want to understand:**
+
 - How sensor data is converted
 - Why some fields are integers vs floats
 - How to handle different input formats
@@ -268,31 +302,38 @@ Server runs on: `http://localhost:4000`
 ### Tech Stack
 
 **Framework:**
+
 - NestJS 11.0.1
 - Fastify (HTTP server)
 - TypeScript 5.7.3
 
 **Database:**
+
 - PostgreSQL (via Prisma v6.19.1)
 - Prisma ORM for type-safe queries
 
 **Authentication:**
+
 - JWT tokens (@nestjs/jwt)
 - Passport.js (passport-jwt, passport-google-oauth20)
 - bcrypt for password hashing
 
 **Real-time:**
-- WebSockets (@nestjs/websockets)
-- MQTT (for device data)
+
+- Server-Sent Events (SSE) — live notification push
+- MQTT (for device telemetry ingestion)
 
 **Background Jobs:**
+
 - BullMQ with Redis
 
 **Validation:**
+
 - class-validator
 - class-transformer
 
 **Notifications:**
+
 - Mock providers (dev)
 - AWS SES/SNS ready (production)
 
@@ -333,6 +374,7 @@ src/
 ### Database Schema
 
 **Core Models:**
+
 - `User` - User accounts
 - `Admin` - Admin accounts
 - `RefreshToken` - Session tokens
@@ -345,6 +387,7 @@ src/
 - `Notification` - User notifications
 
 **Relations:**
+
 - User ↔ RefreshToken (1:many)
 - User ↔ DeviceAssignment (1:many)
 - Device ↔ DeviceAssignment (1:many)
@@ -444,6 +487,7 @@ src/
 ### Manual Testing
 
 **cURL Example:**
+
 ```bash
 curl -X POST http://localhost:4000/auth/signup \
   -H "Content-Type: application/json" \
@@ -455,16 +499,19 @@ curl -X POST http://localhost:4000/auth/signup \
 ### Automated Testing
 
 **Unit Tests:**
+
 ```bash
 pnpm test
 ```
 
 **E2E Tests:**
+
 ```bash
 pnpm test:e2e
 ```
 
 **Test Coverage:**
+
 ```bash
 pnpm test:cov
 ```
@@ -539,15 +586,15 @@ GOOGLE_CALLBACK_URL="http://localhost:4000/auth/google/callback"
 
 ### Authentication
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/auth/signup` | Create new user | No |
-| POST | `/auth/login` | Login user | No |
-| GET | `/auth/google` | Start Google OAuth | No |
-| GET | `/auth/google/callback` | OAuth callback | No |
-| POST | `/auth/refresh` | Refresh access token | No |
-| POST | `/auth/logout` | Revoke refresh token | No |
-| GET | `/auth/me` | Get current user | Yes (JWT) |
+| Method | Endpoint                | Description          | Auth Required |
+| ------ | ----------------------- | -------------------- | ------------- |
+| POST   | `/auth/signup`          | Create new user      | No            |
+| POST   | `/auth/login`           | Login user           | No            |
+| GET    | `/auth/google`          | Start Google OAuth   | No            |
+| GET    | `/auth/google/callback` | OAuth callback       | No            |
+| POST   | `/auth/refresh`         | Refresh access token | No            |
+| POST   | `/auth/logout`          | Revoke refresh token | No            |
+| GET    | `/auth/me`              | Get current user     | Yes (JWT)     |
 
 **Full API Documentation:** [`docs/test/auth/README.md`](test/auth/README.md)
 
@@ -558,21 +605,25 @@ GOOGLE_CALLBACK_URL="http://localhost:4000/auth/google/callback"
 ### Common Issues
 
 **1. Prisma Client Not Found**
+
 ```bash
 pnpm prisma generate
 ```
 
 **2. Database Connection Error**
+
 - Check `DATABASE_URL` in `.env`
 - Verify PostgreSQL is running
 - Test connection with `pnpm prisma studio`
 
 **3. JWT Errors**
+
 - Verify `JWT_SECRET` is set
 - Check token format: `Bearer <token>`
 - Decode token at https://jwt.io
 
 **4. Module Not Found**
+
 ```bash
 rm -rf node_modules dist
 pnpm install
@@ -580,6 +631,7 @@ pnpm run build
 ```
 
 **5. Migration Issues**
+
 ```bash
 # Development only!
 pnpm prisma migrate reset
@@ -591,75 +643,94 @@ pnpm prisma migrate dev
 ## 📚 Additional Resources
 
 ### Official Documentation
+
 - [NestJS Docs](https://docs.nestjs.com/)
 - [Prisma Docs](https://www.prisma.io/docs/)
 - [Passport.js Docs](http://www.passportjs.org/)
 - [Fastify Docs](https://www.fastify.io/)
 
 ### Related Files
+
 - `README.md` - Project overview
 - `SETUP_GUIDE.md` - Initial setup
 - **API Documentation**:
-  - [Authentication API](./docs/AUTH_API.md)
-  - [Users API](./docs/USERS_API.md) (Profile, Password, OTP Verification)
-  - [Devices API](./docs/DEVICES_API.md) (Claim & Manage Devices)
-  - [Admin API](./docs/ADMIN_API.md) (Device Management, User Control)
-  - [Real-time API](./docs/REALTIME_API.md) (WebSocket Streaming)
-  - [Telemetry Schema](./docs/TELEMETRY_SCHEMA.md) (MQTT Data Format)
-  - [Notifications](./docs/MOCK_NOTIFICATIONS.md)
+  - [Auth API](./AUTH_API.md) (Signup, Login, OAuth, Refresh, Logout)
+  - [Users API](./USERS_API.md) (Profile, Password, OTP Verification)
+  - [Devices API](./DEVICES_API.md) (Claim, Manage, Thresholds)
+  - [Groups API](./GROUPS_API.md) (Device Groups, Group Thresholds)
+  - [Admin API](./ADMIN_API.md) (Device Registration, User Control, Stats)
+  - [Reports API](./REPORTS_API.md) (CSV & PDF Telemetry Reports)
+  - [Notifications API](./ALERTS_NOTIFICATIONS.md) (In-App Notifications)
+  - [Realtime API](./REALTIME_API.md) (SSE Live Event Stream)
+  - [MQTT Telemetry](./MQTT_TELEMETRY.md) (Device Data Format)
+  - [Telemetry Schema](./TELEMETRY_SCHEMA.md) (Field Definitions)
 
 ---
 
 ## 🗺️ Roadmap
 
+## 🗺️ Implementation Status
+
 ### ✅ Phase 1: Authentication (Complete)
+
 - [x] Email/Password auth
-- [x] Google OAuth
-- [x] JWT tokens
-- [x] Refresh token rotation
-- [x] Mock OTP system
+- [x] Google OAuth 2.0
+- [x] JWT access tokens + refresh token rotation
+- [x] OTP email & phone verification (Redis-backed)
 
-### 🔄 Phase 2: Admin Portal (TODO)
-- [ ] Admin login (hardcoded credentials)
-- [ ] Device registration
-- [ ] User management
-- [ ] Device assignment
+### ✅ Phase 2: Admin Portal (Complete)
 
-### 📅 Phase 3: User Portal (TODO)
-- [ ] Device claiming
-- [ ] Device management
-- [ ] Profile management
-- [ ] Alert thresholds
+- [x] Admin login (secret-based JWT)
+- [x] Create devices (single + bulk Excel upload)
+- [x] Paginated device list with search
+- [x] Soft delete device
+- [x] User management (list, restrict, unrestrict, delete)
+- [x] Force unassign device
+- [x] Platform stats endpoint (`GET /admin/stats`)
 
-### 📊 Phase 4: Telemetry (TODO)
-- [ ] MQTT integration
-- [ ] Real-time data ingestion
-- [ ] WebSocket broadcasting
-- [ ] Data storage
+### ✅ Phase 3: User Portal (Complete)
 
-### 🔔 Phase 5: Alerts & Notifications (TODO)
-- [ ] Alert processing (BullMQ)
-- [ ] Email notifications
-- [ ] SMS notifications
-- [ ] Event logging
+- [x] Transactional device claiming (atomic, race-condition safe)
+- [x] Mandatory geo metadata (name, location, city, pincode)
+- [x] Device threshold configuration
+- [x] Profile management & password change
+- [x] Device groups with group thresholds
 
-### 📈 Phase 6: Analytics (TODO)
-- [ ] Graph data APIs
-- [ ] Device comparison
-- [ ] Report generation
-- [ ] CSV/Excel export
+### ✅ Phase 4: Telemetry (Complete)
+
+- [x] MQTT integration (NestJS MQTT module)
+- [x] Real-time telemetry ingestion & storage
+- [x] SSE event broadcasting to connected frontends
+- [x] Device heartbeat & offline detection
+
+### ✅ Phase 5: Alerts & Notifications (Complete)
+
+- [x] Alert state machine (NORMAL → ALERTING → NORMAL)
+- [x] 5% hysteresis to prevent alert flapping
+- [x] Device threshold + Group threshold priority model
+- [x] In-app notification REST API (paginated, mark-read)
+- [x] Real-time notification push via SSE
+
+### ✅ Phase 6: Reports (Complete)
+
+- [x] CSV telemetry export (time-bucketed, AVG aggregation)
+- [x] PDF report generation (branded GBI header)
+- [x] Multi-device reports
+- [x] Ownership-enforced access control
 
 ---
 
 ## 🤝 Contributing
 
 ### Code Style
+
 - Follow NestJS conventions
 - Use TypeScript strict mode
 - Add JSDoc comments for public APIs
 - Write tests for new features
 
 ### Git Workflow
+
 ```bash
 # Create feature branch
 git checkout -b feature/your-feature
@@ -673,6 +744,7 @@ git push origin feature/your-feature
 ```
 
 ### Commit Message Format
+
 ```
 <type>: <description>
 
@@ -690,11 +762,13 @@ Types:
 ## 📞 Support
 
 ### Documentation
+
 1. Check this documentation
 2. Review code comments
 3. See official framework docs
 
 ### Debugging
+
 1. Check server logs
 2. Use Prisma Studio for database
 3. Decode JWTs at https://jwt.io
@@ -705,16 +779,20 @@ Types:
 ## 📝 Summary
 
 ### What's Implemented
-- ✅ Complete authentication system
-- ✅ Email/Password + Google OAuth
-- ✅ JWT + Refresh tokens with rotation
-- ✅ Prisma v6 with PostgreSQL
-- ✅ Mock notification system (AWS-ready)
-- ✅ Type-safe with TypeScript
-- ✅ Input validation with DTOs
-- ✅ Comprehensive documentation
+
+- ✅ Full authentication system (JWT, Google OAuth, OTP)
+- ✅ Admin portal (device management, user control, stats)
+- ✅ User device claiming (transactional, race-condition safe)
+- ✅ Device groups with shared thresholds
+- ✅ MQTT telemetry ingestion + SSE real-time push
+- ✅ Alert system (threshold hierarchy, hysteresis)
+- ✅ In-app notifications (REST + real-time)
+- ✅ CSV & PDF report generation
+- ✅ Prisma v6 with PostgreSQL (Neon)
+- ✅ Type-safe end-to-end with TypeScript
 
 ### Key Features
+
 - Type-safe database access
 - Secure authentication
 - Token rotation
@@ -723,6 +801,7 @@ Types:
 - Production-ready architecture
 
 ### Next Steps
+
 1. Read the documentation sections
 2. Test the authentication API
 3. Understand the architecture
@@ -733,6 +812,7 @@ Types:
 **Happy coding!** 🚀
 
 For specific topics:
+
 - **Database:** See [`docs/prisma/README.md`](prisma/README.md)
 - **Authentication:** See [`docs/auth/README.md`](auth/README.md)
 - **Testing:** See [`docs/test/auth/README.md`](test/auth/README.md)

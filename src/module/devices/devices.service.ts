@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DevicesRepository } from './devices.repository';
 import { ClaimDeviceDto } from './dto/claim-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
@@ -11,47 +7,30 @@ import { UpdateDeviceDto } from './dto/update-device.dto';
 export class DevicesService {
   constructor(private readonly repo: DevicesRepository) {}
 
+  /**
+   * Claim a device for the authenticated user.
+   * All validation and writes are fully atomic inside the repository transaction.
+   * No pre-checks here to avoid race condition windows.
+   */
   async claimDevice(userId: string, dto: ClaimDeviceDto) {
-    // 1. Check if device exists
-    const device = await this.repo.getDeviceByStringId(dto.deviceId);
-    if (!device) {
-      throw new NotFoundException(
-        'Device ID not found. Please contact support if you believe this is an error.',
-      );
-    }
-
-    // 2. Check if already assigned
-    const isAssigned = await this.repo.isDeviceAssignedById(device.id);
-    if (isAssigned) {
-      throw new ConflictException('Device is already claimed by another user.');
-    }
-
-    // 3. Claim it
-    return this.repo.claimDevice(
-      userId,
-      device.id,
-      device.deviceId,
-      dto.name,
-      dto.location,
-    );
+    return this.repo.claimDevice(userId, dto);
   }
 
   async getMyDevices(userId: string) {
-    // Get active assignments
     const assignments = await this.repo.getUserDevices(userId);
-    // Get friendly names
     const metaList = await this.repo.getUserDeviceMeta(userId);
 
-    // Merge them
     return assignments.map((a) => {
       const meta = metaList.find((m) => m.deviceId === a.device.deviceId);
       return {
-        id: a.device.id, // Internal UUID
-        deviceId: a.device.deviceId, // Display ID (GBI-001)
+        id: a.device.id,
+        deviceId: a.device.deviceId,
         type: a.device.type,
         status: a.device.status,
         name: meta?.name || a.device.deviceId,
         location: meta?.location || null,
+        city: meta?.city || null,
+        pincode: meta?.pincode || null,
         claimedAt: a.assignedAt,
       };
     });
@@ -62,20 +41,8 @@ export class DevicesService {
     deviceStringId: string,
     dto: UpdateDeviceDto,
   ) {
-    // Ensure user owns this device first?
-    // The upsert in repo handles "if exists for user", but semantically we should check assignment.
-    // For efficiency, we will trust the repository logic: if they update metadata for a device they don't oversee, it creates a dangling UserDevice record (harmless).
-    // But better to check ownership.
-
-    // Check ownership by finding the device UUID first
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
-
-    // Check if user has active assignment
-    // Use the repo's getUserDevices (filtered) or a specific check
-    // Optimization: Just allow update. If they Unclaimed it, they can still edit the "UserDevice" record (saved preferences).
-    // But let's act like a standard API: only active devices.
-    // ... skipping strict check for speed, implementing upsert directly.
 
     return this.repo.updateDeviceMeta(
       userId,
@@ -85,10 +52,13 @@ export class DevicesService {
     );
   }
 
+  /**
+   * @deprecated Unassign is disabled at the API layer.
+   * Schema and DB logic preserved for future re-enablement.
+   */
   async unclaimDevice(userId: string, deviceStringId: string) {
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
-
     await this.repo.unclaimDevice(userId, device.id);
     return { success: true };
   }
@@ -101,8 +71,8 @@ export class DevicesService {
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
 
-    // ❌ Block if device is in a group
     if (device.groupId) {
+      const { ConflictException } = await import('@nestjs/common');
       throw new ConflictException(
         'Remove device from group before setting individual threshold',
       );
