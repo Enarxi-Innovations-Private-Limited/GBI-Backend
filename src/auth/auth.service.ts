@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, randomInt } from 'crypto';
+import { Cron } from '@nestjs/schedule';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -89,7 +90,6 @@ export class AuthService {
     // and implement proper OTP verification flow
     const user = await this.prisma.user.create({
       data: {
-        email,
         passwordHash,
         name,
         organization,
@@ -414,7 +414,8 @@ export class AuthService {
   async completeProfile(
     completeProfileDto: CompleteProfileDto,
   ): Promise<AuthResponse> {
-    let { email, name, organization, city, phone, otp, password } = completeProfileDto;
+    let { email, name, organization, city, phone, otp, password } =
+      completeProfileDto;
 
     // Normalize
     email = email.trim().toLowerCase();
@@ -695,6 +696,17 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + Number(refreshTokenExpiresIn));
 
+    // Clean up stale tokens (expired or revoked) for this user before adding new one
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        userId,
+        OR: [
+          { expiresAt: { lt: new Date() } }, // expired
+          { revokedAt: { not: null } }, // revoked
+        ],
+      },
+    });
+
     // Store refresh token in database
     await this.prisma.refreshToken.create({
       data: {
@@ -708,8 +720,9 @@ export class AuthService {
   }
 
   /**
-   * Clean up expired refresh tokens (should be called periodically)
+   * Purge ALL expired refresh tokens across all users (runs daily at 2:00 AM)
    */
+  @Cron('0 2 * * *')
   async cleanupExpiredTokens(): Promise<number> {
     const result = await this.prisma.refreshToken.deleteMany({
       where: {
@@ -719,6 +732,9 @@ export class AuthService {
       },
     });
 
+    console.log(
+      `🧹 [TokenPurge] Deleted ${result.count} expired refresh tokens`,
+    );
     return result.count;
   }
 
