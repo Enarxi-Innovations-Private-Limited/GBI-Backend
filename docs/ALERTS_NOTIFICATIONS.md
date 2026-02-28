@@ -99,7 +99,7 @@ Notifications are generated automatically by the system in the following scenari
 | Trigger                                      | Message Example                         |
 | -------------------------------------------- | --------------------------------------- |
 | Telemetry parameter exceeds threshold        | `"PM25 exceeded limit on GBI-DEV-001"`  |
-| Device goes offline (no heartbeat > 7 min)   | `"Device GBI-DEV-001 is offline"`       |
+| Device goes offline (no telemetry > 5 min)   | `"Device GBI-DEV-001 is offline"`       |
 | Threshold resolved (value returns to normal) | `"GBI-DEV-001 PM25 returned to normal"` |
 
 ---

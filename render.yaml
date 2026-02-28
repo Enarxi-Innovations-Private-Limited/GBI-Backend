@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: gbi-backend
+    env: docker
+    plan: free
+    region: singapore # Optional: Choose a region closer to you
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: / # Update this if you have a specific health check endpoint
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false # User needs to provide this in Render Dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_JWT_SECRET
+        sync: false
+      - key: REFRESH_TOKEN_EXPIRES_IN
+        value: 30
+      - key: REDIS_URL
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: APP_domain
+        sync: false

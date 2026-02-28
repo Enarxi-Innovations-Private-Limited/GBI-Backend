@@ -8,6 +8,7 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
@@ -41,12 +42,32 @@ export class AuthController {
 
   /**
    * POST /auth/login
-   * Login with email and password
+   * Login with email and password — sets HttpOnly cookies
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: any) {
+    const result = await this.authService.login(loginDto);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Set tokens as HttpOnly cookies
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return result;
   }
 
   /**
@@ -61,7 +82,7 @@ export class AuthController {
 
   /**
    * GET /auth/google/callback
-   * Google OAuth callback
+   * Google OAuth callback — sets tokens as HttpOnly cookies, NOT in URL params
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
@@ -70,36 +91,72 @@ export class AuthController {
       // Process Google login
       const result = await this.authService.googleLogin(req.user);
 
-      // Redirect to frontend with tokens
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const isProduction = process.env.NODE_ENV === 'production';
 
-      // Encode data to safe query params
-      const accessToken = encodeURIComponent(result.accessToken);
-      const refreshToken = encodeURIComponent(result.refreshToken);
+      // Set tokens as HttpOnly cookies — JS cannot access these
+      res.setCookie('accessToken', result.accessToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax', // 'lax' needed for OAuth redirect flow
+        path: '/',
+        maxAge: 15 * 60, // 15 minutes (seconds)
+      });
+
+      res.setCookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/api/auth', // Scoped to auth endpoints only
+        maxAge: 30 * 24 * 60 * 60, // 30 days (seconds)
+      });
+
+      // Only pass non-sensitive user profile info in URL (NOT tokens)
       const user = encodeURIComponent(JSON.stringify(result.user));
+      const callbackUrl = `${frontendUrl}/auth/callback?user=${user}`;
 
-      const callbackUrl = `${frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${user}`;
-
-      // Fastify redirect: reply.redirect(url) or reply.code(302).redirect(url)
-      // The error "Called reply with an invalid status code: http..." suggests the arguments were swapped or misunderstood by the underlying framework.
-      // Let's preserve the standard Fastify signature: code, url
       return res.status(302).redirect(callbackUrl);
     } catch (error) {
       console.error('Google OAuth Error:', error);
-      return res
-        .status(500)
-        .send({ message: 'Authentication failed', error: error.message });
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.status(302).redirect(`${frontendUrl}/login?error=oauth_failed`);
     }
   }
 
   /**
-   * POST /auth/refresh
-   * Get new access token using refresh token
+   * POST /auth/refresh-token
+   * Get new access token — reads refreshToken from HttpOnly cookie first, body as fallback
    */
-  @Post('refresh')
+  @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
-  async refreshTokens(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshTokenDto.refreshToken);
+  async refreshTokens(@Req() req: any, @Res({ passthrough: true }) res: any, @Body() refreshTokenDto: RefreshTokenDto) {
+    // Read refresh token from HttpOnly cookie first, fallback to body
+    const refreshToken = req.cookies?.refreshToken || refreshTokenDto?.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
+
+    const result = await this.authService.refreshTokens(refreshToken);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Set new tokens as HttpOnly cookies
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return result;
   }
 
   /**
@@ -155,12 +212,22 @@ export class AuthController {
 
   /**
    * POST /auth/logout
-   * Logout user (revoke refresh token)
+   * Logout user — revokes refresh token and clears HttpOnly cookies
    */
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.logout(refreshTokenDto.refreshToken);
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: any, @Body() refreshTokenDto: RefreshTokenDto) {
+    const refreshToken = req.cookies?.refreshToken || refreshTokenDto?.refreshToken;
+
+    if (refreshToken) {
+      await this.authService.logout(refreshToken);
+    }
+
+    // Clear HttpOnly cookies
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+
+    return { message: 'Logged out successfully' };
   }
 
   /**

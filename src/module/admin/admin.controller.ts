@@ -90,11 +90,13 @@ export class AdminController {
     return this.adminService.getDevices(search, pageNumber, limitNumber);
   }
 
+  @UseGuards(AdminGuard)
   @Delete('users/:id')
   deleteUser(@Param('id') id: string) {
     return this.adminService.deleteUser(id);
   }
 
+  @UseGuards(AdminGuard)
   @Patch('devices/:deviceId/delete')
   deleteDevice(@Param('deviceId') deviceId: string) {
     return this.adminService.deleteDevice(deviceId);
