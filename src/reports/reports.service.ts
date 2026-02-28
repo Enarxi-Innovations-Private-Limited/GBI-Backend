@@ -81,7 +81,7 @@ export class ReportsService {
         const seconds = String(istDate.getSeconds()).padStart(2, '0');
 
         processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}:${seconds}`;
+        processedRow.Time = `${hours}:${minutes}`;
       }
 
       // Round parameters
@@ -272,7 +272,7 @@ export class ReportsService {
         const seconds = String(istDate.getSeconds()).padStart(2, '0');
 
         processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}:${seconds}`;
+        processedRow.Time = `${hours}:${minutes}`;
       }
 
       // Round using orderedParams (canonical order)

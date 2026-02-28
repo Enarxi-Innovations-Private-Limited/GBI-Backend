@@ -58,9 +58,17 @@ export class PdfService {
         const pageBreakThreshold = doc.page.height - margin;
         const footerY = doc.page.height - 30;
 
-        const timestamp = new Date().toLocaleString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-        });
+        // Footer timestamp — HH:MM (no seconds)
+        const now = new Date();
+        const _ist = new Date(
+          now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+        );
+        const _footerHH = String(_ist.getHours()).padStart(2, '0');
+        const _footerMM = String(_ist.getMinutes()).padStart(2, '0');
+        const _footerDD = String(_ist.getDate()).padStart(2, '0');
+        const _footerMo = String(_ist.getMonth() + 1).padStart(2, '0');
+        const _footerYYYY = _ist.getFullYear();
+        const timestamp = `${_footerDD}/${_footerMo}/${_footerYYYY}, ${_footerHH}:${_footerMM}`;
 
         let pageNumber = 1;
         let currentY = margin;
@@ -105,30 +113,49 @@ export class PdfService {
           });
         };
 
-        // ================= HEADER (NO SMALL LOGO NOW) =================
-        const drawDocHeader = () => {
-          const headerTop = 40;
+        // ================= HEADER =================
 
+        // Format a Date to "DD/MM/YYYY, H:MM am/pm" (no seconds) in IST
+        const formatDateHHMM = (d: Date): string => {
+          const ist = new Date(
+            d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+          );
+          const dd2 = String(ist.getDate()).padStart(2, '0');
+          const mo2 = String(ist.getMonth() + 1).padStart(2, '0');
+          const yy2 = ist.getFullYear();
+          let h = ist.getHours();
+          const ampm = h >= 12 ? 'pm' : 'am';
+          h = h % 12 || 12;
+          const hStr = String(h);
+          const mStr = String(ist.getMinutes()).padStart(2, '0');
+          return `${dd2}/${mo2}/${yy2}, ${hStr}:${mStr} ${ampm}`;
+        };
+
+        const drawDocHeader = (isFirstPage: boolean) => {
+          const headerTop = 40;
           const title = 'GBI Air Quality Monitor - Report';
 
-          doc.font('Helvetica-Bold').fontSize(20).fillColor('black');
+          // Show logo on first page only — top-left, vertically centred with the title+date block
+          if (isFirstPage && fs.existsSync(logoPath)) {
+            const logoSize = 50;
+            const logoY = headerTop - 10;
+            doc.image(logoPath, margin, logoY, {
+              width: logoSize,
+              height: logoSize,
+            });
+          }
 
+          doc.font('Helvetica-Bold').fontSize(20).fillColor('black');
           doc.text(title, margin, headerTop, {
             width: usableWidth,
             align: 'right',
             lineBreak: false,
           });
 
-          doc.font('Helvetica').fontSize(10).fillColor('gray');
-
-          const startStr = data.start.toLocaleString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-          });
-
-          const endStr = data.end.toLocaleString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-          });
-
+          // Date range — black, no seconds
+          doc.font('Helvetica').fontSize(10).fillColor('black');
+          const startStr = formatDateHHMM(data.start);
+          const endStr = formatDateHHMM(data.end);
           doc.text(`${startStr} - ${endStr}`, margin, headerTop + 28, {
             width: usableWidth,
             align: 'right',
@@ -176,7 +203,7 @@ export class PdfService {
         // ================= START RENDERING =================
 
         drawWatermark(); // First page watermark
-        drawDocHeader();
+        drawDocHeader(true); // Logo only on first page
 
         const columns = data.columns;
 
@@ -290,12 +317,12 @@ export class PdfService {
                   .lineWidth(0.5)
                   .stroke();
 
-                // Parameter columns centre-aligned; Date & Time stay left
-                const isDateOrTime = col === 'Date' || col === 'Time';
+                // Only Date stays left-aligned; Time and parameter columns are centre-aligned
+                const isDate = col === 'Date';
 
                 doc.text(String(val), currentX + 3, currentY + 5, {
                   width: width - 6,
-                  align: isDateOrTime ? 'left' : 'center',
+                  align: isDate ? 'left' : 'center',
                   lineBreak: false,
                   ellipsis: true,
                 });
