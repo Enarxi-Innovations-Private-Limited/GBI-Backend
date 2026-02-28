@@ -9,19 +9,34 @@ export interface PdfReportData {
   end: Date;
   columns: string[];
   rowsByDevice: Record<string, any[]>;
+  deviceNames: Record<string, string>; // deviceId → user-defined name
 }
 
 const COLUMN_WIDTHS: Record<string, number> = {
   Date: 55,
   Time: 45,
-  deviceId: 80,
-  pm25: 35,
-  temperature: 65,
-  humidity: 50,
-  pm10: 35,
-  co2: 45,
-  noise: 45,
-  aqi: 40,
+  pm25: 38,
+  temperature: 68,
+  humidity: 52,
+  pm10: 38,
+  co2: 40,
+  noise: 40,
+  aqi: 38,
+  tvoc: 38,
+};
+
+// Display labels for column headers — name + unit on second line
+const COLUMN_LABELS: Record<string, string> = {
+  Date: 'Date',
+  Time: 'Time',
+  aqi: 'AQI',
+  pm25: 'PM2.5\n(\u00b5g/m\u00b3)',
+  pm10: 'PM10\n(\u00b5g/m\u00b3)',
+  tvoc: 'TVOC\n(ppb)',
+  co2: 'CO2\n(ppm)',
+  temperature: 'Temperature\n(\u00b0C)',
+  humidity: 'Humidity\n(%)',
+  noise: 'Noise\n(dB)',
 };
 
 @Injectable()
@@ -123,11 +138,15 @@ export class PdfService {
           currentY = headerTop + 70;
         };
 
-        const drawTableHeader = (columns: string[], y: number): number => {
-          doc.font('Helvetica-Bold').fontSize(10).fillColor('black');
+        const drawTableHeader = (
+          columns: string[],
+          y: number,
+          startX: number,
+        ): number => {
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('black');
 
-          let currentX = margin;
-          const headerHeight = 18;
+          let currentX = startX;
+          const headerHeight = 34;
 
           for (const col of columns) {
             const width = COLUMN_WIDTHS[col] || 45;
@@ -138,11 +157,14 @@ export class PdfService {
               .lineWidth(0.5)
               .stroke();
 
-            doc.text(col, currentX + 3, y + 5, {
+            const label =
+              COLUMN_LABELS[col] ?? col.charAt(0).toUpperCase() + col.slice(1);
+
+            doc.text(label, currentX + 3, y + 6, {
               width: width - 6,
-              align: 'left',
-              lineBreak: false,
-              ellipsis: true,
+              align: 'center',
+              lineBreak: true,
+              ellipsis: false,
             });
 
             currentX += width;
@@ -157,6 +179,13 @@ export class PdfService {
         drawDocHeader();
 
         const columns = data.columns;
+
+        // Compute total table width and center it on the page
+        const totalTableWidth = columns.reduce(
+          (sum, col) => sum + (COLUMN_WIDTHS[col] || 45),
+          0,
+        );
+        const tableStartX = (doc.page.width - totalTableWidth) / 2;
 
         for (const deviceId of data.deviceIds) {
           if (currentY + 25 + 18 > pageBreakThreshold) {
@@ -175,9 +204,23 @@ export class PdfService {
               lineBreak: false,
             });
 
-          currentY += 25;
+          currentY += 16;
 
-          currentY = drawTableHeader(columns, currentY);
+          const deviceName = data.deviceNames?.[deviceId];
+          if (deviceName) {
+            doc
+              .fontSize(9)
+              .fillColor('#444444')
+              .font('Helvetica')
+              .text(`Device Name: ${deviceName}`, margin, currentY, {
+                lineBreak: false,
+              });
+            currentY += 14;
+          } else {
+            currentY += 9;
+          }
+
+          currentY = drawTableHeader(columns, currentY, tableStartX);
 
           const rows = data.rowsByDevice[deviceId] || [];
 
@@ -196,23 +239,7 @@ export class PdfService {
             currentY += 30;
           } else {
             for (const row of rows) {
-              let rowHeight = 18;
-
-              const deviceIdVal = row['deviceId'];
-              if (deviceIdVal) {
-                doc.font('Helvetica').fontSize(9);
-
-                const textWidth = COLUMN_WIDTHS['deviceId'] - 6;
-
-                const computedHeight = doc.heightOfString(
-                  String(deviceIdVal),
-                  { width: textWidth },
-                );
-
-                if (computedHeight + 10 > rowHeight) {
-                  rowHeight = computedHeight + 10;
-                }
-              }
+              const rowHeight = 18;
 
               if (currentY + rowHeight > pageBreakThreshold) {
                 renderFooter();
@@ -229,13 +256,27 @@ export class PdfService {
                     lineBreak: false,
                   });
 
-                currentY += 25;
-                currentY = drawTableHeader(columns, currentY);
+                currentY += 16;
+
+                const deviceNameCont = data.deviceNames?.[deviceId];
+                if (deviceNameCont) {
+                  doc
+                    .fontSize(9)
+                    .fillColor('#444444')
+                    .font('Helvetica')
+                    .text(`Device Name: ${deviceNameCont}`, margin, currentY, {
+                      lineBreak: false,
+                    });
+                  currentY += 14;
+                } else {
+                  currentY += 9;
+                }
+                currentY = drawTableHeader(columns, currentY, tableStartX);
               }
 
               doc.font('Helvetica').fontSize(9).fillColor('black');
 
-              let currentX = margin;
+              let currentX = tableStartX;
 
               for (const col of columns) {
                 const width = COLUMN_WIDTHS[col] || 45;
@@ -249,13 +290,14 @@ export class PdfService {
                   .lineWidth(0.5)
                   .stroke();
 
-                const isDeviceId = col === 'deviceId';
+                // Parameter columns centre-aligned; Date & Time stay left
+                const isDateOrTime = col === 'Date' || col === 'Time';
 
                 doc.text(String(val), currentX + 3, currentY + 5, {
                   width: width - 6,
-                  align: 'left',
-                  lineBreak: isDeviceId,
-                  ellipsis: !isDeviceId,
+                  align: isDateOrTime ? 'left' : 'center',
+                  lineBreak: false,
+                  ellipsis: true,
                 });
 
                 currentX += width;

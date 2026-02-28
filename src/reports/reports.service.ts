@@ -237,6 +237,23 @@ export class ReportsService {
       interval,
     );
 
+    // Canonical column order — always render in this sequence regardless of request order
+    const CANONICAL_ORDER = [
+      'aqi',
+      'pm25',
+      'pm10',
+      'tvoc',
+      'co2',
+      'temperature',
+      'humidity',
+      'noise',
+    ];
+
+    // Only keep params that were requested, in canonical order (drop anything missing)
+    const orderedParams = CANONICAL_ORDER.filter((p) =>
+      dto.parameters.includes(p),
+    );
+
     // 3) Process rows: Date/Time formatting (IST) & Rounding
     const rows = rawRows.map((row) => {
       const processedRow: any = { deviceId: row.deviceId };
@@ -258,7 +275,8 @@ export class ReportsService {
         processedRow.Time = `${hours}:${minutes}:${seconds}`;
       }
 
-      dto.parameters.forEach((param) => {
+      // Round using orderedParams (canonical order)
+      orderedParams.forEach((param) => {
         if (row[param] !== null && row[param] !== undefined) {
           if (param === 'temperature') {
             processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
@@ -272,7 +290,7 @@ export class ReportsService {
       return processedRow;
     });
 
-    // 4) Group rows by deviceId for the PDF Service
+    // 4) Group rows by deviceId
     const rowsByDevice: Record<string, any[]> = {};
     for (const row of rows) {
       if (!rowsByDevice[row.deviceId]) {
@@ -281,12 +299,38 @@ export class ReportsService {
       rowsByDevice[row.deviceId].push(row);
     }
 
+    // 5) Fetch device friendly names from UserDevice table.
+    //    Old claim code stored device.id (UUID) in UserDevice.deviceId;
+    //    new claim code stores device.deviceId (display string).
+    //    We query with OR to handle both, then normalise to display ID.
+    const uuidToDisplay = new Map(devices.map((d) => [d.id, d.deviceId]));
+
+    const userDevices = await this.prisma.userDevice.findMany({
+      where: {
+        userId,
+        OR: [
+          { deviceId: { in: deviceIdsUuid } }, // old data: UUID stored
+          { deviceId: { in: dto.deviceIds } }, // new data: display ID stored
+        ],
+      },
+      select: { deviceId: true, name: true },
+    });
+
+    const deviceNames: Record<string, string> = {};
+    for (const ud of userDevices) {
+      if (!ud.name) continue;
+      // If deviceId is a UUID key, map it to the display ID
+      const displayId = uuidToDisplay.get(ud.deviceId) ?? ud.deviceId;
+      deviceNames[displayId] = ud.name;
+    }
+
     return this.pdfService.generateReport({
       deviceIds: dto.deviceIds,
       start,
       end,
-      columns: ['Date', 'Time', 'deviceId', ...dto.parameters],
+      columns: ['Date', 'Time', ...orderedParams],
       rowsByDevice,
+      deviceNames,
     });
   }
 
