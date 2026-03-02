@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { join } from 'path';
 
 export interface PdfReportData {
-  deviceIds: string[];
+  deviceId: string;
   start: Date;
   end: Date;
   columns: string[];
@@ -214,128 +214,125 @@ export class PdfService {
         );
         const tableStartX = (doc.page.width - totalTableWidth) / 2;
 
-        for (const deviceId of data.deviceIds) {
-          if (currentY + 25 + 18 > pageBreakThreshold) {
-            renderFooter();
-            doc.addPage();
-            pageNumber++;
-            drawWatermark(); // Watermark on new page
-            currentY = margin;
-          }
+        const deviceId = data.deviceId;
 
+        if (currentY + 25 + 18 > pageBreakThreshold) {
+          renderFooter();
+          doc.addPage();
+          pageNumber++;
+          drawWatermark(); // Watermark on new page
+          currentY = margin;
+        }
+
+        doc
+          .fontSize(12)
+          .fillColor('black')
+          .font('Helvetica-Bold')
+          .text(`Device: ${deviceId}`, margin, currentY, {
+            lineBreak: false,
+          });
+
+        currentY += 16;
+
+        const deviceName = data.deviceNames?.[deviceId];
+        if (deviceName) {
           doc
-            .fontSize(12)
-            .fillColor('black')
-            .font('Helvetica-Bold')
-            .text(`Device: ${deviceId}`, margin, currentY, {
+            .fontSize(9)
+            .fillColor('#444444')
+            .font('Helvetica')
+            .text(`Device Name: ${deviceName}`, margin, currentY, {
               lineBreak: false,
             });
+          currentY += 14;
+        } else {
+          currentY += 9;
+        }
 
-          currentY += 16;
+        currentY = drawTableHeader(columns, currentY, tableStartX);
 
-          const deviceName = data.deviceNames?.[deviceId];
-          if (deviceName) {
-            doc
-              .fontSize(9)
-              .fillColor('#444444')
-              .font('Helvetica')
-              .text(`Device Name: ${deviceName}`, margin, currentY, {
-                lineBreak: false,
-              });
-            currentY += 14;
-          } else {
-            currentY += 9;
-          }
+        const rows = data.rowsByDevice[deviceId] || [];
 
-          currentY = drawTableHeader(columns, currentY, tableStartX);
+        if (rows.length === 0) {
+          doc
+            .font('Helvetica')
+            .fontSize(9)
+            .fillColor('#777777')
+            .text(
+              'No data available in this time range.',
+              margin,
+              currentY + 5,
+              { lineBreak: false },
+            );
 
-          const rows = data.rowsByDevice[deviceId] || [];
+          currentY += 30;
+        } else {
+          for (const row of rows) {
+            const rowHeight = 18;
 
-          if (rows.length === 0) {
-            doc
-              .font('Helvetica')
-              .fontSize(9)
-              .fillColor('#777777')
-              .text(
-                'No data available in this time range.',
-                margin,
-                currentY + 5,
-                { lineBreak: false },
-              );
+            if (currentY + rowHeight > pageBreakThreshold) {
+              renderFooter();
+              doc.addPage();
+              pageNumber++;
+              drawWatermark(); // Watermark again
+              currentY = margin;
 
-            currentY += 30;
-          } else {
-            for (const row of rows) {
-              const rowHeight = 18;
-
-              if (currentY + rowHeight > pageBreakThreshold) {
-                renderFooter();
-                doc.addPage();
-                pageNumber++;
-                drawWatermark(); // Watermark again
-                currentY = margin;
-
-                doc
-                  .fontSize(12)
-                  .fillColor('black')
-                  .font('Helvetica-Bold')
-                  .text(`Device: ${deviceId}`, margin, currentY, {
-                    lineBreak: false,
-                  });
-
-                currentY += 16;
-
-                const deviceNameCont = data.deviceNames?.[deviceId];
-                if (deviceNameCont) {
-                  doc
-                    .fontSize(9)
-                    .fillColor('#444444')
-                    .font('Helvetica')
-                    .text(`Device Name: ${deviceNameCont}`, margin, currentY, {
-                      lineBreak: false,
-                    });
-                  currentY += 14;
-                } else {
-                  currentY += 9;
-                }
-                currentY = drawTableHeader(columns, currentY, tableStartX);
-              }
-
-              doc.font('Helvetica').fontSize(9).fillColor('black');
-
-              let currentX = tableStartX;
-
-              for (const col of columns) {
-                const width = COLUMN_WIDTHS[col] || 45;
-
-                let val = row[col];
-                if (val === null || val === undefined) val = '-';
-
-                doc
-                  .rect(currentX, currentY, width, rowHeight)
-                  .strokeColor('#dddddd')
-                  .lineWidth(0.5)
-                  .stroke();
-
-                // Only Date stays left-aligned; Time and parameter columns are centre-aligned
-                const isDate = col === 'Date';
-
-                doc.text(String(val), currentX + 3, currentY + 5, {
-                  width: width - 6,
-                  align: isDate ? 'left' : 'center',
+              doc
+                .fontSize(12)
+                .fillColor('black')
+                .font('Helvetica-Bold')
+                .text(`Device: ${deviceId}`, margin, currentY, {
                   lineBreak: false,
-                  ellipsis: true,
                 });
 
-                currentX += width;
+              currentY += 16;
+
+              const deviceNameCont = data.deviceNames?.[deviceId];
+              if (deviceNameCont) {
+                doc
+                  .fontSize(9)
+                  .fillColor('#444444')
+                  .font('Helvetica')
+                  .text(`Device Name: ${deviceNameCont}`, margin, currentY, {
+                    lineBreak: false,
+                  });
+                currentY += 14;
+              } else {
+                currentY += 9;
               }
-
-              currentY += rowHeight;
+              currentY = drawTableHeader(columns, currentY, tableStartX);
             }
-          }
 
-          currentY += 15;
+            doc.font('Helvetica').fontSize(9).fillColor('black');
+
+            let currentX = tableStartX;
+
+            for (const col of columns) {
+              const width = COLUMN_WIDTHS[col] || 45;
+
+              let val = row[col];
+              if (val === null || val === undefined) val = '-';
+
+              doc
+                .rect(currentX, currentY, width, rowHeight)
+                .strokeColor('#dddddd')
+                .lineWidth(0.5)
+                .stroke();
+
+              doc.text(String(val), currentX + 3, currentY + 5, {
+                width: width - 6,
+                align: 'center',
+                lineBreak: false,
+                ellipsis: true,
+              });
+
+              currentX += width;
+            }
+
+            currentY += rowHeight;
+          }
         }
+
+        currentY += 15;
 
         renderFooter();
         doc.end();

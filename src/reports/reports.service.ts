@@ -9,6 +9,19 @@ import { Parser } from 'json2csv';
 import { Prisma } from '@prisma/client';
 import { PdfService } from './pdf.service';
 
+const CSV_COLUMN_LABELS: Record<string, string> = {
+  Date: 'Date',
+  Time: 'Time',
+  aqi: 'AQI',
+  pm25: 'PM2.5 (\u00b5g/m\u00b3)',
+  pm10: 'PM10 (\u00b5g/m\u00b3)',
+  tvoc: 'TVOC (ppb)',
+  co2: 'CO2 (ppm)',
+  temperature: 'Temperature (\u00b0C)',
+  humidity: 'Humidity (%)',
+  noise: 'Noise (dB)',
+};
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -26,38 +39,49 @@ export class ReportsService {
     }
 
     // 1) Validate ownership
-    const devices = await this.prisma.device.findMany({
-      where: { deviceId: { in: dto.deviceIds } },
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId: dto.deviceId },
       select: { id: true, deviceId: true },
     });
 
-    if (devices.length === 0) {
-      throw new ForbiddenException('No valid devices found');
+    if (!device) {
+      throw new ForbiddenException('No valid device found');
     }
 
-    const deviceIdsUuid = devices.map((d) => d.id);
-
-    const assignments = await this.prisma.deviceAssignment.findMany({
+    const assignment = await this.prisma.deviceAssignment.findFirst({
       where: {
         userId,
-        deviceId: { in: deviceIdsUuid },
+        deviceId: device.id,
         unassignedAt: null,
       },
     });
 
-    if (assignments.length !== deviceIdsUuid.length) {
-      throw new ForbiddenException(
-        'One or more devices are not assigned to you',
-      );
+    if (!assignment) {
+      throw new ForbiddenException('This device is not assigned to you');
     }
 
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
-      devices,
+      [device],
       dto.parameters,
       start,
       end,
       interval,
+    );
+
+    // Canonical column order — always render in this sequence regardless of request order
+    const CANONICAL_ORDER = [
+      'aqi',
+      'pm25',
+      'pm10',
+      'tvoc',
+      'co2',
+      'temperature',
+      'humidity',
+      'noise',
+    ];
+    const orderedParams = CANONICAL_ORDER.filter((p) =>
+      dto.parameters.includes(p),
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
@@ -84,8 +108,8 @@ export class ReportsService {
         processedRow.Time = `${hours}:${minutes}`;
       }
 
-      // Round parameters
-      dto.parameters.forEach((param) => {
+      // Round parameters (in canonical order)
+      orderedParams.forEach((param) => {
         if (row[param] !== null && row[param] !== undefined) {
           if (param === 'temperature') {
             // Keep 1 decimal place for temperature
@@ -103,7 +127,7 @@ export class ReportsService {
     });
 
     // 4) Build Custom CSV String
-    const columns = ['Date', 'Time', 'deviceId', ...dto.parameters];
+    const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
     const totalCols = columns.length;
 
     // Helper to center text by padding with commas
@@ -156,41 +180,34 @@ export class ReportsService {
       rowsByDevice[row.deviceId].push(row);
     }
 
-    // Use the exact array of IDs the user provided in the request query to guarantee order
-    const deviceIds = dto.deviceIds;
+    // Use the exact device ID the user provided in the request query
+    const deviceId = dto.deviceId;
 
-    deviceIds.forEach((deviceId, index) => {
-      // Row 5 (or dynamically placed): Device Name Title
-      csvContent += `${centerText(`Device - ${deviceId}`)}\n`;
-      // Row 6: Empty
+    // Row 5 (or dynamically placed): Device Name Title
+    csvContent += `${centerText(`Device - ${deviceId}`)}\n`;
+    // Row 6: Empty
+    csvContent += `${','.repeat(totalCols - 1)}\n`;
+    // Row 7: Column Headers
+    const headerRow = columns.map((col) => CSV_COLUMN_LABELS[col] ?? col);
+    csvContent += `${headerRow.join(',')}\n`;
+
+    // Data Rows
+    const deviceRows = rowsByDevice[deviceId] || [];
+
+    if (deviceRows.length === 0) {
+      // Print empty row to show column headers but no data
       csvContent += `${','.repeat(totalCols - 1)}\n`;
-      // Row 7: Column Headers
-      csvContent += `${columns.join(',')}\n`;
-
-      // Data Rows
-      const deviceRows = rowsByDevice[deviceId] || [];
-
-      if (deviceRows.length === 0) {
-        // Print empty row to show column headers but no data
-        csvContent += `${','.repeat(totalCols - 1)}\n`;
-      } else {
-        for (const row of deviceRows) {
-          const rowData = columns.map((col) => {
-            const val = row[col];
-            return val === null || val === undefined ? '' : String(val);
-          });
-          csvContent += `${rowData.join(',')}\n`;
-        }
+    } else {
+      for (const row of deviceRows) {
+        const rowData = columns.map((col) => {
+          const val = row[col];
+          return val === null || val === undefined ? '' : String(val);
+        });
+        csvContent += `${rowData.join(',')}\n`;
       }
+    }
 
-      // Add two empty rows between devices (if not the last device)
-      if (index < deviceIds.length - 1) {
-        csvContent += `${','.repeat(totalCols - 1)}\n`;
-        csvContent += `${','.repeat(totalCols - 1)}\n`;
-      }
-    });
-
-    return csvContent;
+    return '\ufeff' + csvContent;
   }
 
   async generatePdf(userId: string, dto: GenerateReportDto): Promise<Buffer> {
@@ -203,34 +220,30 @@ export class ReportsService {
     }
 
     // 1) Validate ownership
-    const devices = await this.prisma.device.findMany({
-      where: { deviceId: { in: dto.deviceIds } },
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId: dto.deviceId },
       select: { id: true, deviceId: true },
     });
 
-    if (devices.length === 0) {
-      throw new ForbiddenException('No valid devices found');
+    if (!device) {
+      throw new ForbiddenException('No valid device found');
     }
 
-    const deviceIdsUuid = devices.map((d) => d.id);
-
-    const assignments = await this.prisma.deviceAssignment.findMany({
+    const assignment = await this.prisma.deviceAssignment.findFirst({
       where: {
         userId,
-        deviceId: { in: deviceIdsUuid },
+        deviceId: device.id,
         unassignedAt: null,
       },
     });
 
-    if (assignments.length !== deviceIdsUuid.length) {
-      throw new ForbiddenException(
-        'One or more devices are not assigned to you',
-      );
+    if (!assignment) {
+      throw new ForbiddenException('This device is not assigned to you');
     }
 
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
-      devices,
+      [device],
       dto.parameters,
       start,
       end,
@@ -303,14 +316,14 @@ export class ReportsService {
     //    Old claim code stored device.id (UUID) in UserDevice.deviceId;
     //    new claim code stores device.deviceId (display string).
     //    We query with OR to handle both, then normalise to display ID.
-    const uuidToDisplay = new Map(devices.map((d) => [d.id, d.deviceId]));
+    const uuidToDisplay = new Map([[device.id, device.deviceId]]);
 
     const userDevices = await this.prisma.userDevice.findMany({
       where: {
         userId,
         OR: [
-          { deviceId: { in: deviceIdsUuid } }, // old data: UUID stored
-          { deviceId: { in: dto.deviceIds } }, // new data: display ID stored
+          { deviceId: device.id }, // old data: UUID stored
+          { deviceId: dto.deviceId }, // new data: display ID stored
         ],
       },
       select: { deviceId: true, name: true },
@@ -325,7 +338,7 @@ export class ReportsService {
     }
 
     return this.pdfService.generateReport({
-      deviceIds: dto.deviceIds,
+      deviceId: dto.deviceId,
       start,
       end,
       columns: ['Date', 'Time', ...orderedParams],

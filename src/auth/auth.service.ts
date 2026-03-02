@@ -90,6 +90,7 @@ export class AuthService {
     // and implement proper OTP verification flow
     const user = await this.prisma.user.create({
       data: {
+        email,
         passwordHash,
         name,
         organization,
