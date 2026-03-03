@@ -21,8 +21,8 @@ export class GenerateReportDto {
 
   @Type(() => Number)
   @IsInt({ message: 'intervalMinutes must be an integer' })
-  @IsIn([1, 3, 5, 10], {
-    message: 'intervalMinutes must be one of: 1, 3, 5, 10',
+  @IsIn([1, 3, 5, 10, 60, 360], {
+    message: 'intervalMinutes must be one of: 1, 3, 5, 10, 60, 360',
   })
   @IsNotEmpty({ message: 'intervalMinutes is required' })
   intervalMinutes: number;

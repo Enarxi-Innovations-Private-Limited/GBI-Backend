@@ -108,6 +108,25 @@ model DeviceTelemetry {
   @@index([deviceId, timestamp])
 }
 
+model DummyDeviceTelemetry {
+  id        BigInt   @id @default(autoincrement())
+  deviceId  String
+  timestamp DateTime @default(now())
+  messageId String
+
+  pm25        Int?
+  pm10        Int?
+  tvoc        Int?
+  co2         Int?
+  temperature Float?
+  humidity    Float?
+  noise       Int?
+  aqi         Int?
+
+  @@unique([deviceId, messageId])
+  @@index([deviceId, timestamp])
+}
+
 model GroupThreshold {
   id         String      @id @default(uuid())
   groupId    String      @unique

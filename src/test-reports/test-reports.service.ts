@@ -1,13 +1,8 @@
-import {
-  ForbiddenException,
-  Injectable,
-  BadRequestException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { GenerateReportDto } from './dto/generate-report.dto';
-import { Parser } from 'json2csv';
+import { GenerateReportDto } from 'src/reports/dto/generate-report.dto';
+import { PdfService } from 'src/reports/pdf.service';
 import { Prisma } from '@prisma/client';
-import { PdfService } from './pdf.service';
 
 const CSV_COLUMN_LABELS: Record<string, string> = {
   Date: 'Date',
@@ -23,13 +18,13 @@ const CSV_COLUMN_LABELS: Record<string, string> = {
 };
 
 @Injectable()
-export class ReportsService {
+export class TestReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pdfService: PdfService,
   ) {}
 
-  async generateCsv(userId: string, dto: GenerateReportDto): Promise<string> {
+  async generateCsv(dto: GenerateReportDto): Promise<string> {
     const interval = Number(dto.intervalMinutes ?? 5);
     const start = new Date((dto.start || '').trim());
     const end = new Date((dto.end || '').trim());
@@ -38,38 +33,14 @@ export class ReportsService {
       throw new BadRequestException('Invalid start or end timestamp format');
     }
 
-    // 1) Validate ownership
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId: dto.deviceId },
-      select: { id: true, deviceId: true },
-    });
-
-    if (!device) {
-      throw new ForbiddenException('No valid device found');
-    }
-
-    const assignment = await this.prisma.deviceAssignment.findFirst({
-      where: {
-        userId,
-        deviceId: device.id,
-        unassignedAt: null,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException('This device is not assigned to you');
-    }
-
-    // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
-      [device],
+      dto.deviceId,
       dto.parameters,
       start,
       end,
       interval,
     );
 
-    // Canonical column order — always render in this sequence regardless of request order
     const CANONICAL_ORDER = [
       'aqi',
       'pm25',
@@ -84,38 +55,31 @@ export class ReportsService {
       dto.parameters.includes(p),
     );
 
-    // 3) Process rows: Date/Time formatting (IST) & Rounding
     const rows = rawRows.map((row) => {
       const processedRow: any = { deviceId: row.deviceId };
 
-      // Convert timestamp to IST and split into Date (DD:MM:YYYY) and Time
       if (row.timestamp) {
         const istDate = new Date(
           new Date(row.timestamp).toLocaleString('en-US', {
             timeZone: 'Asia/Kolkata',
           }),
         );
-
         const dd = String(istDate.getDate()).padStart(2, '0');
-        const mm = String(istDate.getMonth() + 1).padStart(2, '0'); // January is 0!
+        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
         const yyyy = istDate.getFullYear();
 
         const hours = String(istDate.getHours()).padStart(2, '0');
         const minutes = String(istDate.getMinutes()).padStart(2, '0');
-        const seconds = String(istDate.getSeconds()).padStart(2, '0');
 
         processedRow.Date = `${dd}-${mm}-${yyyy}`;
         processedRow.Time = `${hours}:${minutes}`;
       }
 
-      // Round parameters (in canonical order)
       orderedParams.forEach((param) => {
         if (row[param] !== null && row[param] !== undefined) {
           if (param === 'temperature') {
-            // Keep 1 decimal place for temperature
             processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
           } else {
-            // Drop to 0 decimal places for all others
             processedRow[param] = Math.round(Number(row[param]));
           }
         } else {
@@ -126,18 +90,15 @@ export class ReportsService {
       return processedRow;
     });
 
-    // 4) Build Custom CSV String
     const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
     const totalCols = columns.length;
 
-    // Helper to center text by padding with commas
     const centerText = (text: string) => {
       const leftCommas = Math.floor((totalCols - 1) / 2);
       const rightCommas = totalCols - 1 - leftCommas;
       return `${','.repeat(leftCommas)}${text}${','.repeat(rightCommas)}`;
     };
 
-    // Format start/end strings for the header manually to avoid commas
     const formatHeaderDate = (d: Date) => {
       const istDate = new Date(
         new Date(d).toLocaleString('en-US', {
@@ -152,53 +113,31 @@ export class ReportsService {
       let hoursStr = istDate.getHours();
       const ampm = hoursStr >= 12 ? 'PM' : 'AM';
       hoursStr = hoursStr % 12;
-      hoursStr = hoursStr ? hoursStr : 12; // the hour '0' should be '12'
+      hoursStr = hoursStr ? hoursStr : 12;
       const hours = String(hoursStr).padStart(2, '0');
       const minutes = String(istDate.getMinutes()).padStart(2, '0');
 
       return `${dd}-${mm}-${yyyy} ${hours}:${minutes} ${ampm}`;
     };
+
     const dateRangeText = `${formatHeaderDate(start)} - ${formatHeaderDate(end)}`;
 
     let csvContent = '';
-
-    // Row 1: Main Title
-    csvContent += `${centerText('GBI Air Quality Monitor - Report')}\n`;
-    // Row 2: Empty
+    csvContent += `${centerText('GBI Air Quality Monitor - Report (TESTING)')}\n`;
     csvContent += `${','.repeat(totalCols - 1)}\n`;
-    // Row 3: Date Range
     csvContent += `${centerText(dateRangeText)}\n`;
-    // Row 4: Empty
     csvContent += `${','.repeat(totalCols - 1)}\n`;
 
-    // Group rows by deviceId to add spacing and device headers
-    const rowsByDevice: Record<string, any[]> = {};
-    for (const row of rows) {
-      if (!rowsByDevice[row.deviceId]) {
-        rowsByDevice[row.deviceId] = [];
-      }
-      rowsByDevice[row.deviceId].push(row);
-    }
-
-    // Use the exact device ID the user provided in the request query
     const deviceId = dto.deviceId;
-
-    // Row 5 (or dynamically placed): Device Name Title
     csvContent += `${centerText(`Device - ${deviceId}`)}\n`;
-    // Row 6: Empty
     csvContent += `${','.repeat(totalCols - 1)}\n`;
-    // Row 7: Column Headers
     const headerRow = columns.map((col) => CSV_COLUMN_LABELS[col] ?? col);
     csvContent += `${headerRow.join(',')}\n`;
 
-    // Data Rows
-    const deviceRows = rowsByDevice[deviceId] || [];
-
-    if (deviceRows.length === 0) {
-      // Print empty row to show column headers but no data
+    if (rows.length === 0) {
       csvContent += `${','.repeat(totalCols - 1)}\n`;
     } else {
-      for (const row of deviceRows) {
+      for (const row of rows) {
         const rowData = columns.map((col) => {
           const val = row[col];
           return val === null || val === undefined ? '' : String(val);
@@ -210,7 +149,7 @@ export class ReportsService {
     return '\ufeff' + csvContent;
   }
 
-  async generatePdf(userId: string, dto: GenerateReportDto): Promise<Buffer> {
+  async generatePdf(dto: GenerateReportDto): Promise<Buffer> {
     const interval = Number(dto.intervalMinutes ?? 5);
     const start = new Date((dto.start || '').trim());
     const end = new Date((dto.end || '').trim());
@@ -219,38 +158,14 @@ export class ReportsService {
       throw new BadRequestException('Invalid start or end timestamp format');
     }
 
-    // 1) Validate ownership
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId: dto.deviceId },
-      select: { id: true, deviceId: true },
-    });
-
-    if (!device) {
-      throw new ForbiddenException('No valid device found');
-    }
-
-    const assignment = await this.prisma.deviceAssignment.findFirst({
-      where: {
-        userId,
-        deviceId: device.id,
-        unassignedAt: null,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException('This device is not assigned to you');
-    }
-
-    // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
-      [device],
+      dto.deviceId,
       dto.parameters,
       start,
       end,
       interval,
     );
 
-    // Canonical column order — always render in this sequence regardless of request order
     const CANONICAL_ORDER = [
       'aqi',
       'pm25',
@@ -262,12 +177,10 @@ export class ReportsService {
       'noise',
     ];
 
-    // Only keep params that were requested, in canonical order (drop anything missing)
     const orderedParams = CANONICAL_ORDER.filter((p) =>
       dto.parameters.includes(p),
     );
 
-    // 3) Process rows: Date/Time formatting (IST) & Rounding
     const rows = rawRows.map((row) => {
       const processedRow: any = { deviceId: row.deviceId };
 
@@ -282,13 +195,11 @@ export class ReportsService {
         const yyyy = istDate.getFullYear();
         const hours = String(istDate.getHours()).padStart(2, '0');
         const minutes = String(istDate.getMinutes()).padStart(2, '0');
-        const seconds = String(istDate.getSeconds()).padStart(2, '0');
 
         processedRow.Date = `${dd}-${mm}-${yyyy}`;
         processedRow.Time = `${hours}:${minutes}`;
       }
 
-      // Round using orderedParams (canonical order)
       orderedParams.forEach((param) => {
         if (row[param] !== null && row[param] !== undefined) {
           if (param === 'temperature') {
@@ -303,39 +214,13 @@ export class ReportsService {
       return processedRow;
     });
 
-    // 4) Group rows by deviceId
-    const rowsByDevice: Record<string, any[]> = {};
-    for (const row of rows) {
-      if (!rowsByDevice[row.deviceId]) {
-        rowsByDevice[row.deviceId] = [];
-      }
-      rowsByDevice[row.deviceId].push(row);
-    }
+    const rowsByDevice: Record<string, any[]> = {
+      [dto.deviceId]: rows,
+    };
 
-    // 5) Fetch device friendly names from UserDevice table.
-    //    Old claim code stored device.id (UUID) in UserDevice.deviceId;
-    //    new claim code stores device.deviceId (display string).
-    //    We query with OR to handle both, then normalise to display ID.
-    const uuidToDisplay = new Map([[device.id, device.deviceId]]);
-
-    const userDevices = await this.prisma.userDevice.findMany({
-      where: {
-        userId,
-        OR: [
-          { deviceId: device.id }, // old data: UUID stored
-          { deviceId: dto.deviceId }, // new data: display ID stored
-        ],
-      },
-      select: { deviceId: true, name: true },
-    });
-
-    const deviceNames: Record<string, string> = {};
-    for (const ud of userDevices) {
-      if (!ud.name) continue;
-      // If deviceId is a UUID key, map it to the display ID
-      const displayId = uuidToDisplay.get(ud.deviceId) ?? ud.deviceId;
-      deviceNames[displayId] = ud.name;
-    }
+    const deviceNames: Record<string, string> = {
+      [dto.deviceId]: `Test Device ${dto.deviceId}`,
+    };
 
     return this.pdfService.generateReport({
       deviceId: dto.deviceId,
@@ -348,17 +233,13 @@ export class ReportsService {
   }
 
   private async queryBucketedTelemetry(
-    devices: { id: string; deviceId: string }[],
+    deviceId: string,
     params: string[],
     start: Date,
     end: Date,
     interval: number,
   ) {
-    if (!devices.length || !params.length) return [];
-
-    const uuidList = devices.map((d) => d.id);
-
-    const deviceIdMap = new Map(devices.map((d) => [d.id, d.deviceId]));
+    if (!deviceId || !params.length) return [];
 
     const allowedParams = [
       'pm25',
@@ -390,8 +271,8 @@ export class ReportsService {
           "deviceId",
           "timestamp" as "original_timestamp",
           ${selectCols}
-        FROM "DeviceTelemetry"
-        WHERE "deviceId" IN (${Prisma.join(uuidList)})
+        FROM "DummyDeviceTelemetry"
+        WHERE "deviceId" = ${deviceId}
         AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
         ORDER BY
           "timestamp_bucket" ASC,
@@ -421,9 +302,9 @@ export class ReportsService {
 
           ${selectAgg}
 
-        FROM "DeviceTelemetry"
+        FROM "DummyDeviceTelemetry"
 
-        WHERE "deviceId" IN (${Prisma.join(uuidList)})
+        WHERE "deviceId" = ${deviceId}
         AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
 
         GROUP BY 1, "deviceId"
@@ -436,7 +317,6 @@ export class ReportsService {
     return rows.map((row) => ({
       ...row,
       timestamp: row.timestamp_bucket || row.timestamp,
-      deviceId: deviceIdMap.get(row.deviceId),
     }));
   }
 }
