@@ -60,14 +60,12 @@ export class PdfService {
 
         // Footer timestamp — HH:MM (no seconds)
         const now = new Date();
-        const _ist = new Date(
-          now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-        );
-        const _footerHH = String(_ist.getHours()).padStart(2, '0');
-        const _footerMM = String(_ist.getMinutes()).padStart(2, '0');
-        const _footerDD = String(_ist.getDate()).padStart(2, '0');
-        const _footerMo = String(_ist.getMonth() + 1).padStart(2, '0');
-        const _footerYYYY = _ist.getFullYear();
+        const _ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+        const _footerHH = String(_ist.getUTCHours()).padStart(2, '0');
+        const _footerMM = String(_ist.getUTCMinutes()).padStart(2, '0');
+        const _footerDD = String(_ist.getUTCDate()).padStart(2, '0');
+        const _footerMo = String(_ist.getUTCMonth() + 1).padStart(2, '0');
+        const _footerYYYY = _ist.getUTCFullYear();
         const timestamp = `${_footerDD}/${_footerMo}/${_footerYYYY}, ${_footerHH}:${_footerMM}`;
 
         let pageNumber = 1;
@@ -81,9 +79,11 @@ export class PdfService {
           'logo.png',
         );
 
+        const logoExists = fs.existsSync(logoPath);
+
         // ================= WATERMARK =================
         const drawWatermark = () => {
-          if (!fs.existsSync(logoPath)) return;
+          if (!logoExists) return;
 
           const watermarkWidth = 320; // large watermark
           const centerX = (doc.page.width - watermarkWidth) / 2;
@@ -117,17 +117,15 @@ export class PdfService {
 
         // Format a Date to "DD/MM/YYYY, H:MM am/pm" (no seconds) in IST
         const formatDateHHMM = (d: Date): string => {
-          const ist = new Date(
-            d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-          );
-          const dd2 = String(ist.getDate()).padStart(2, '0');
-          const mo2 = String(ist.getMonth() + 1).padStart(2, '0');
-          const yy2 = ist.getFullYear();
-          let h = ist.getHours();
+          const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+          const dd2 = String(ist.getUTCDate()).padStart(2, '0');
+          const mo2 = String(ist.getUTCMonth() + 1).padStart(2, '0');
+          const yy2 = ist.getUTCFullYear();
+          let h = ist.getUTCHours();
           const ampm = h >= 12 ? 'pm' : 'am';
           h = h % 12 || 12;
           const hStr = String(h);
-          const mStr = String(ist.getMinutes()).padStart(2, '0');
+          const mStr = String(ist.getUTCMinutes()).padStart(2, '0');
           return `${dd2}/${mo2}/${yy2}, ${hStr}:${mStr} ${ampm}`;
         };
 
@@ -136,7 +134,7 @@ export class PdfService {
           const title = 'GBI Air Quality Monitor - Report';
 
           // Show logo on first page only — top-left, vertically centred with the title+date block
-          if (isFirstPage && fs.existsSync(logoPath)) {
+          if (isFirstPage && logoExists) {
             const logoSize = 50;
             const logoY = headerTop - 10;
             doc.image(logoPath, margin, logoY, {
@@ -208,10 +206,10 @@ export class PdfService {
         const columns = data.columns;
 
         // Compute total table width and center it on the page
-        const totalTableWidth = columns.reduce(
-          (sum, col) => sum + (COLUMN_WIDTHS[col] || 45),
-          0,
-        );
+        let totalTableWidth = 0;
+        for (let i = 0; i < columns.length; i++) {
+          totalTableWidth += COLUMN_WIDTHS[columns[i]] || 45;
+        }
         const tableStartX = (doc.page.width - totalTableWidth) / 2;
 
         const deviceId = data.deviceId;
@@ -266,7 +264,10 @@ export class PdfService {
 
           currentY += 30;
         } else {
-          for (const row of rows) {
+          doc.font('Helvetica').fontSize(9).fillColor('black');
+
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
             const rowHeight = 18;
 
             if (currentY + rowHeight > pageBreakThreshold) {
@@ -300,13 +301,15 @@ export class PdfService {
                 currentY += 9;
               }
               currentY = drawTableHeader(columns, currentY, tableStartX);
-            }
 
-            doc.font('Helvetica').fontSize(9).fillColor('black');
+              // Restore font after headers
+              doc.font('Helvetica').fontSize(9).fillColor('black');
+            }
 
             let currentX = tableStartX;
 
-            for (const col of columns) {
+            for (let j = 0; j < columns.length; j++) {
+              const col = columns[j];
               const width = COLUMN_WIDTHS[col] || 45;
 
               let val = row[col];

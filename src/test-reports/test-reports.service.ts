@@ -55,27 +55,26 @@ export class TestReportsService {
       dto.parameters.includes(p),
     );
 
-    const rows = rawRows.map((row) => {
+    const rows = new Array(rawRows.length);
+    for (let i = 0; i < rawRows.length; i++) {
+      const row = rawRows[i];
       const processedRow: any = { deviceId: row.deviceId };
 
       if (row.timestamp) {
-        const istDate = new Date(
-          new Date(row.timestamp).toLocaleString('en-US', {
-            timeZone: 'Asia/Kolkata',
-          }),
-        );
-        const dd = String(istDate.getDate()).padStart(2, '0');
-        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-        const yyyy = istDate.getFullYear();
+        const ts = new Date(row.timestamp);
+        const dd = String(ts.getUTCDate()).padStart(2, '0');
+        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = ts.getUTCFullYear();
 
-        const hours = String(istDate.getHours()).padStart(2, '0');
-        const minutes = String(istDate.getMinutes()).padStart(2, '0');
+        const hours = String(ts.getUTCHours()).padStart(2, '0');
+        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
 
         processedRow.Date = `${dd}-${mm}-${yyyy}`;
         processedRow.Time = `${hours}:${minutes}`;
       }
 
-      orderedParams.forEach((param) => {
+      for (let j = 0; j < orderedParams.length; j++) {
+        const param = orderedParams[j];
         if (row[param] !== null && row[param] !== undefined) {
           if (param === 'temperature') {
             processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
@@ -85,10 +84,10 @@ export class TestReportsService {
         } else {
           processedRow[param] = null;
         }
-      });
+      }
 
-      return processedRow;
-    });
+      rows[i] = processedRow;
+    }
 
     const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
     const totalCols = columns.length;
@@ -100,53 +99,56 @@ export class TestReportsService {
     };
 
     const formatHeaderDate = (d: Date) => {
-      const istDate = new Date(
-        new Date(d).toLocaleString('en-US', {
-          timeZone: 'Asia/Kolkata',
-        }),
-      );
+      const ts = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
 
-      const dd = String(istDate.getDate()).padStart(2, '0');
-      const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-      const yyyy = istDate.getFullYear();
+      const dd = String(ts.getUTCDate()).padStart(2, '0');
+      const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
+      const yyyy = ts.getUTCFullYear();
 
-      let hoursStr = istDate.getHours();
+      let hoursStr = ts.getUTCHours();
       const ampm = hoursStr >= 12 ? 'PM' : 'AM';
-      hoursStr = hoursStr % 12;
-      hoursStr = hoursStr ? hoursStr : 12;
+      hoursStr = hoursStr % 12 || 12;
       const hours = String(hoursStr).padStart(2, '0');
-      const minutes = String(istDate.getMinutes()).padStart(2, '0');
+      const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
 
       return `${dd}-${mm}-${yyyy} ${hours}:${minutes} ${ampm}`;
     };
 
     const dateRangeText = `${formatHeaderDate(start)} - ${formatHeaderDate(end)}`;
 
-    let csvContent = '';
-    csvContent += `${centerText('GBI Air Quality Monitor - Report (TESTING)')}\n`;
-    csvContent += `${','.repeat(totalCols - 1)}\n`;
-    csvContent += `${centerText(dateRangeText)}\n`;
-    csvContent += `${','.repeat(totalCols - 1)}\n`;
+    const lines: string[] = [];
+    lines.push(centerText('GBI Air Quality Monitor - Report (TESTING)'));
+    lines.push(','.repeat(totalCols - 1));
+    lines.push(centerText(dateRangeText));
+    lines.push(','.repeat(totalCols - 1));
 
     const deviceId = dto.deviceId;
-    csvContent += `${centerText(`Device - ${deviceId}`)}\n`;
-    csvContent += `${','.repeat(totalCols - 1)}\n`;
-    const headerRow = columns.map((col) => CSV_COLUMN_LABELS[col] ?? col);
-    csvContent += `${headerRow.join(',')}\n`;
+    lines.push(centerText(`Device - ${deviceId}`));
+    lines.push(','.repeat(totalCols - 1));
+
+    const headerRow = new Array(columns.length);
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+      headerRow[i] = CSV_COLUMN_LABELS[col] ?? col;
+    }
+    lines.push(headerRow.join(','));
 
     if (rows.length === 0) {
-      csvContent += `${','.repeat(totalCols - 1)}\n`;
+      lines.push(','.repeat(totalCols - 1));
     } else {
-      for (const row of rows) {
-        const rowData = columns.map((col) => {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowData = new Array(columns.length);
+        for (let j = 0; j < columns.length; j++) {
+          const col = columns[j];
           const val = row[col];
-          return val === null || val === undefined ? '' : String(val);
-        });
-        csvContent += `${rowData.join(',')}\n`;
+          rowData[j] = val === null || val === undefined ? '' : String(val);
+        }
+        lines.push(rowData.join(','));
       }
     }
 
-    return '\ufeff' + csvContent;
+    return '\ufeff' + lines.join('\n');
   }
 
   async generatePdf(dto: GenerateReportDto): Promise<Buffer> {
@@ -181,26 +183,25 @@ export class TestReportsService {
       dto.parameters.includes(p),
     );
 
-    const rows = rawRows.map((row) => {
+    const rows = new Array(rawRows.length);
+    for (let i = 0; i < rawRows.length; i++) {
+      const row = rawRows[i];
       const processedRow: any = { deviceId: row.deviceId };
 
       if (row.timestamp) {
-        const istDate = new Date(
-          new Date(row.timestamp).toLocaleString('en-US', {
-            timeZone: 'Asia/Kolkata',
-          }),
-        );
-        const dd = String(istDate.getDate()).padStart(2, '0');
-        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-        const yyyy = istDate.getFullYear();
-        const hours = String(istDate.getHours()).padStart(2, '0');
-        const minutes = String(istDate.getMinutes()).padStart(2, '0');
+        const ts = new Date(row.timestamp);
+        const dd = String(ts.getUTCDate()).padStart(2, '0');
+        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = ts.getUTCFullYear();
+        const hours = String(ts.getUTCHours()).padStart(2, '0');
+        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
 
         processedRow.Date = `${dd}-${mm}-${yyyy}`;
         processedRow.Time = `${hours}:${minutes}`;
       }
 
-      orderedParams.forEach((param) => {
+      for (let j = 0; j < orderedParams.length; j++) {
+        const param = orderedParams[j];
         if (row[param] !== null && row[param] !== undefined) {
           if (param === 'temperature') {
             processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
@@ -210,9 +211,9 @@ export class TestReportsService {
         } else {
           processedRow[param] = null;
         }
-      });
-      return processedRow;
-    });
+      }
+      rows[i] = processedRow;
+    }
 
     const rowsByDevice: Record<string, any[]> = {
       [dto.deviceId]: rows,
@@ -267,9 +268,9 @@ export class TestReportsService {
       rows = await this.prisma.$queryRaw(
         Prisma.sql`
         SELECT DISTINCT ON ("timestamp_bucket", "deviceId")
-          to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) AT TIME ZONE 'UTC' as "timestamp_bucket",
+          to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp_bucket",
           "deviceId",
-          "timestamp" as "original_timestamp",
+          "timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "original_timestamp",
           ${selectCols}
         FROM "DummyDeviceTelemetry"
         WHERE "deviceId" = ${deviceId}
@@ -278,6 +279,34 @@ export class TestReportsService {
           "timestamp_bucket" ASC,
           "deviceId" ASC,
           "timestamp" ASC
+      `,
+      );
+    } else if (interval === 1) {
+      const selectAgg = Prisma.join(
+        safeParams.map(
+          (param) =>
+            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+        ),
+        ', ',
+      );
+
+      rows = await this.prisma.$queryRaw(
+        Prisma.sql`
+        SELECT
+          date_trunc('minute', "timestamp") AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
+
+          "deviceId",
+
+          ${selectAgg}
+
+        FROM "DummyDeviceTelemetry"
+
+        WHERE "deviceId" = ${deviceId}
+        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
+
+        GROUP BY 1, "deviceId"
+
+        ORDER BY 1 ASC, "deviceId" ASC
       `,
       );
     } else {
@@ -296,7 +325,7 @@ export class TestReportsService {
             date_trunc('minute', "timestamp")
             - (extract(minute from "timestamp")::int % ${interval})
               * interval '1 minute'
-          ) as "timestamp",
+          ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
 
           "deviceId",
 
@@ -314,9 +343,9 @@ export class TestReportsService {
       );
     }
 
-    return rows.map((row) => ({
-      ...row,
-      timestamp: row.timestamp_bucket || row.timestamp,
-    }));
+    for (let i = 0; i < rows.length; i++) {
+      rows[i].timestamp = rows[i].timestamp_bucket || rows[i].timestamp;
+    }
+    return rows;
   }
 }
