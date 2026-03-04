@@ -23,6 +23,9 @@ export class UsersService {
       email: user.email,
       name: user.name,
       organization: user.organization,
+      phone: user.phone,
+      city: user.city,
+      isProfileComplete: user.isProfileComplete,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
     };
