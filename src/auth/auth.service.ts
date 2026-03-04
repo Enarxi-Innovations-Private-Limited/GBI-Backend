@@ -39,6 +39,8 @@ export interface AuthResponse {
     email: string;
     name: string | null;
     organization?: string | null;
+    phone?: string | null;
+    city?: string | null;
     emailVerified: boolean;
     phoneVerified: boolean;
     isProfileComplete: boolean;
@@ -163,6 +165,9 @@ export class AuthService {
         id: updatedUser.id,
         email: updatedUser.email,
         name: updatedUser.name,
+        organization: updatedUser.organization,
+        phone: updatedUser.phone,
+        city: updatedUser.city,
         emailVerified: updatedUser.emailVerified,
         phoneVerified: updatedUser.phoneVerified,
         isProfileComplete: updatedUser.isProfileComplete,
@@ -233,6 +238,9 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
+        organization: user.organization,
+        phone: user.phone,
+        city: user.city,
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
         isProfileComplete: user.isProfileComplete,
@@ -493,6 +501,8 @@ export class AuthService {
         email: updatedUser.email,
         name: updatedUser.name,
         organization: updatedUser.organization,
+        phone: updatedUser.phone,
+        city: updatedUser.city,
         emailVerified: updatedUser.emailVerified,
         phoneVerified: updatedUser.phoneVerified,
         isProfileComplete: updatedUser.isProfileComplete,
@@ -560,6 +570,8 @@ export class AuthService {
         email: user.email,
         name: user.name,
         organization: user.organization, // Return organization
+        phone: user.phone,
+        city: user.city,
         emailVerified: user.emailVerified,
         phoneVerified: user.phoneVerified,
         isProfileComplete: user.isProfileComplete,
@@ -620,6 +632,9 @@ export class AuthService {
         id: storedToken.user.id,
         email: storedToken.user.email,
         name: storedToken.user.name,
+        organization: storedToken.user.organization,
+        phone: storedToken.user.phone,
+        city: storedToken.user.city,
         emailVerified: storedToken.user.emailVerified,
         phoneVerified: storedToken.user.phoneVerified,
         isProfileComplete: storedToken.user.isProfileComplete,
