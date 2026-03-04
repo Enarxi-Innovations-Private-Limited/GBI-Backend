@@ -2,13 +2,14 @@ import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { ReportsService } from './reports.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../auth/guards';
+import { PremiumGuard } from '../subscription/subscription.guard';
 
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard, PremiumGuard)
   @Get('csv')
   async downloadCsv(
     @Req() req: any,
@@ -28,7 +29,7 @@ export class ReportsController {
       .send(csv);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard, PremiumGuard)
   @Get('pdf')
   async downloadPdf(
     @Req() req: any,

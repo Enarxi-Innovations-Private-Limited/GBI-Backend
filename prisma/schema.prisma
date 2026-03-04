@@ -27,6 +27,7 @@ model User {
   eventLogs         EventLog[]
   notifications     Notification[]
   refreshTokens     RefreshToken[]
+  subscriptions     Subscription[]
 }
 
 model Admin {
@@ -176,6 +177,53 @@ model RefreshToken {
 
   @@index([userId])
   @@index([token])
+}
+
+// ─── Premium Subscription ────────────────────────────────────────
+
+model SubscriptionPlan {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  amount        Float
+  currency      String         @default("INR")
+  durationDays  Int
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id          String           @id @default(uuid())
+  userId      String
+  planId      String
+  status      SubStatus        @default(ACTIVE)
+  activatedAt DateTime         @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  paymentId   String?
+  orderId     String?          @unique
+  method      SubMethod        @default(RAZORPAY)
+  amountPaid  Float?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderId])
+}
+
+enum SubStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum SubMethod {
+  RAZORPAY
+  PHONEPE
 }
 
 enum DeviceStatus {

@@ -85,6 +85,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.groupThreshold;
   }
 
+  get subscriptionPlan() {
+    return this.prisma.subscriptionPlan;
+  }
+
+  get subscription() {
+    return this.prisma.subscription;
+  }
+
   // Expose transaction and other Prisma methods
   get $transaction() {
     return this.prisma.$transaction.bind(this.prisma);

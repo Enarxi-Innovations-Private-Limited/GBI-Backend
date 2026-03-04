@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
@@ -22,8 +23,28 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post('login')
-  login(@Body() dto: AdminLoginDto) {
-    return this.adminService.login(dto);
+  async login(
+    @Body() dto: AdminLoginDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const result = await this.adminService.login(dto);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 12 * 60 * 60, // 12 hours
+    });
+
+    return result;
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('me')
+  getMe(@Req() req: any) {
+    return { ...req.user, role: 'ADMIN' };
   }
 
   @UseGuards(AdminGuard)

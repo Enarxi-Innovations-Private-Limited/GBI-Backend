@@ -206,8 +206,28 @@ export class AuthController {
    */
   @Post('verify-email-otp')
   @HttpCode(HttpStatus.OK)
-  async verifyEmailOtp(@Body() verifyEmailOtpDto: VerifyEmailOtpDto) {
-    return this.authService.verifyEmailOtp(verifyEmailOtpDto);
+  async verifyEmailOtp(@Body() verifyEmailOtpDto: VerifyEmailOtpDto, @Res({ passthrough: true }) res: any) {
+    const result = await this.authService.verifyEmailOtp(verifyEmailOtpDto);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Set tokens as HttpOnly cookies
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return result;
   }
 
   /**

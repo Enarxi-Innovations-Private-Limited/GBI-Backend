@@ -23,6 +23,7 @@ import {
   RequestPhoneOtpDto,
   VerifyEmailOtpDto,
 } from './dto';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 export interface JwtPayload {
   sub: string; // user id
@@ -44,6 +45,7 @@ export interface AuthResponse {
     emailVerified: boolean;
     phoneVerified: boolean;
     isProfileComplete: boolean;
+    isPremium: boolean;
   };
 }
 
@@ -54,6 +56,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   /**
@@ -159,20 +162,7 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
 
-    return {
-      ...tokens,
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        organization: updatedUser.organization,
-        phone: updatedUser.phone,
-        city: updatedUser.city,
-        emailVerified: updatedUser.emailVerified,
-        phoneVerified: updatedUser.phoneVerified,
-        isProfileComplete: updatedUser.isProfileComplete,
-      },
-    };
+    return this.buildAuthResponse(updatedUser, tokens);
   }
 
   /**
@@ -232,20 +222,7 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
 
-    return {
-      ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        organization: user.organization,
-        phone: user.phone,
-        city: user.city,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        isProfileComplete: user.isProfileComplete,
-      },
-    };
+    return this.buildAuthResponse(user, tokens);
   }
 
   /**
@@ -494,20 +471,7 @@ export class AuthService {
     // 5. Generate New Tokens (refresh claims)
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
 
-    return {
-      ...tokens,
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        organization: updatedUser.organization,
-        phone: updatedUser.phone,
-        city: updatedUser.city,
-        emailVerified: updatedUser.emailVerified,
-        phoneVerified: updatedUser.phoneVerified,
-        isProfileComplete: updatedUser.isProfileComplete,
-      },
-    };
+    return this.buildAuthResponse(updatedUser, tokens);
   }
 
   /**
@@ -563,20 +527,7 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
 
-    return {
-      ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        organization: user.organization, // Return organization
-        phone: user.phone,
-        city: user.city,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        isProfileComplete: user.isProfileComplete,
-      },
-    };
+    return this.buildAuthResponse(user, tokens);
   }
 
   /**
@@ -626,20 +577,7 @@ export class AuthService {
       storedToken.user.email,
     );
 
-    return {
-      ...tokens,
-      user: {
-        id: storedToken.user.id,
-        email: storedToken.user.email,
-        name: storedToken.user.name,
-        organization: storedToken.user.organization,
-        phone: storedToken.user.phone,
-        city: storedToken.user.city,
-        emailVerified: storedToken.user.emailVerified,
-        phoneVerified: storedToken.user.phoneVerified,
-        isProfileComplete: storedToken.user.isProfileComplete,
-      },
-    };
+    return this.buildAuthResponse(storedToken.user, tokens);
   }
 
   /**
@@ -811,5 +749,31 @@ export class AuthService {
         429,
       );
     }
+  }
+
+  /**
+   * Helper to build AuthResponse with premium status
+   */
+  private async buildAuthResponse(
+    user: any,
+    tokens: { accessToken: string; refreshToken: string },
+  ): Promise<AuthResponse> {
+    const isPremium = await this.subscriptionService.isPremium(user.id);
+
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organization: user.organization,
+        phone: user.phone,
+        city: user.city,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        isProfileComplete: user.isProfileComplete,
+        isPremium,
+      },
+    };
   }
 }

@@ -38,7 +38,14 @@ export class AdminService {
       expiresIn: '12h',
     });
 
-    return { accessToken: token };
+    return {
+      accessToken: token,
+      user: {
+        id: admin.id,
+        email: admin.email,
+        name: 'Administrator',
+      },
+    };
   }
 
   async createDevice(dto: CreateDeviceDto) {

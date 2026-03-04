@@ -3,6 +3,7 @@ import { UsersRepository } from './users.repository';
 import { BadRequestException, Inject, Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SubscriptionService } from '../../subscription/subscription.service';
 import Redis from 'ioredis';
 import { randomInt } from 'crypto';
 
@@ -11,12 +12,14 @@ export class UsersService {
   constructor(
     private readonly usersRepo: UsersRepository,
     private readonly authService: AuthService,
+    private readonly subscriptionService: SubscriptionService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
   async getProfile(userId: string) {
     const user = await this.usersRepo.findById(userId);
     if (!user) throw new NotFoundException('User not found');
+    const isPremium = await this.subscriptionService.isPremium(userId);
 
     return {
       id: user.id,
@@ -28,6 +31,7 @@ export class UsersService {
       isProfileComplete: user.isProfileComplete,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
+      isPremium,
     };
   }
 
