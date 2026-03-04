@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
-import { Parser } from 'json2csv';
 import { Prisma } from '@prisma/client';
 import { PdfService } from './pdf.service';
 
@@ -39,26 +38,7 @@ export class ReportsService {
     }
 
     // 1) Validate ownership
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId: dto.deviceId },
-      select: { id: true, deviceId: true },
-    });
-
-    if (!device) {
-      throw new ForbiddenException('No valid device found');
-    }
-
-    const assignment = await this.prisma.deviceAssignment.findFirst({
-      where: {
-        userId,
-        deviceId: device.id,
-        unassignedAt: null,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException('This device is not assigned to you');
-    }
+    const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
@@ -85,44 +65,7 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = new Array(rawRows.length);
-    for (let i = 0; i < rawRows.length; i++) {
-      const row = rawRows[i];
-      const processedRow: any = { deviceId: row.deviceId };
-
-      // Convert timestamp to IST and split into Date (DD:MM:YYYY) and Time
-      if (row.timestamp) {
-        const ts = new Date(row.timestamp);
-
-        const dd = String(ts.getUTCDate()).padStart(2, '0');
-        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0'); // January is 0!
-        const yyyy = ts.getUTCFullYear();
-
-        const hours = String(ts.getUTCHours()).padStart(2, '0');
-        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
-
-        processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}`;
-      }
-
-      // Round parameters (in canonical order)
-      for (let j = 0; j < orderedParams.length; j++) {
-        const param = orderedParams[j];
-        if (row[param] !== null && row[param] !== undefined) {
-          if (param === 'temperature') {
-            // Keep 1 decimal place for temperature
-            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
-          } else {
-            // Drop to 0 decimal places for all others
-            processedRow[param] = Math.round(Number(row[param]));
-          }
-        } else {
-          processedRow[param] = null;
-        }
-      }
-
-      rows[i] = processedRow;
-    }
+    const rows = this.formatTelemetryRows(rawRows, orderedParams);
 
     // 4) Build Custom CSV String
     const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
@@ -221,26 +164,7 @@ export class ReportsService {
     }
 
     // 1) Validate ownership
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId: dto.deviceId },
-      select: { id: true, deviceId: true },
-    });
-
-    if (!device) {
-      throw new ForbiddenException('No valid device found');
-    }
-
-    const assignment = await this.prisma.deviceAssignment.findFirst({
-      where: {
-        userId,
-        deviceId: device.id,
-        unassignedAt: null,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException('This device is not assigned to you');
-    }
+    const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
@@ -269,38 +193,7 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = new Array(rawRows.length);
-    for (let i = 0; i < rawRows.length; i++) {
-      const row = rawRows[i];
-      const processedRow: any = { deviceId: row.deviceId };
-
-      if (row.timestamp) {
-        const ts = new Date(row.timestamp);
-        const dd = String(ts.getUTCDate()).padStart(2, '0');
-        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
-        const yyyy = ts.getUTCFullYear();
-        const hours = String(ts.getUTCHours()).padStart(2, '0');
-        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
-
-        processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}`;
-      }
-
-      // Round using orderedParams (canonical order)
-      for (let j = 0; j < orderedParams.length; j++) {
-        const param = orderedParams[j];
-        if (row[param] !== null && row[param] !== undefined) {
-          if (param === 'temperature') {
-            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
-          } else {
-            processedRow[param] = Math.round(Number(row[param]));
-          }
-        } else {
-          processedRow[param] = null;
-        }
-      }
-      rows[i] = processedRow;
-    }
+    const rows = this.formatTelemetryRows(rawRows, orderedParams);
 
     // 4) Group rows by deviceId
     const rowsByDevice: Record<string, any[]> = {};
@@ -464,6 +357,73 @@ export class ReportsService {
     for (let i = 0; i < rows.length; i++) {
       rows[i].timestamp = rows[i].timestamp_bucket || rows[i].timestamp;
       rows[i].deviceId = deviceIdMap.get(rows[i].deviceId);
+    }
+    return rows;
+  }
+
+  // --- Shared Private Helpers ---
+
+  private async validateAndGetDevice(userId: string, deviceId: string) {
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId },
+      select: { id: true, deviceId: true },
+    });
+
+    if (!device) {
+      throw new ForbiddenException('No valid device found');
+    }
+
+    const assignment = await this.prisma.deviceAssignment.findFirst({
+      where: {
+        userId,
+        deviceId: device.id,
+        unassignedAt: null,
+      },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException('This device is not assigned to you');
+    }
+
+    return device;
+  }
+
+  private formatTelemetryRows(rawRows: any[], orderedParams: string[]): any[] {
+    const rows = new Array(rawRows.length);
+    for (let i = 0; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      const processedRow: any = { deviceId: row.deviceId };
+
+      if (row.timestamp) {
+        const ts = new Date(row.timestamp);
+
+        const dd = String(ts.getUTCDate()).padStart(2, '0');
+        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0'); // January is 0!
+        const yyyy = ts.getUTCFullYear();
+
+        const hours = String(ts.getUTCHours()).padStart(2, '0');
+        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
+
+        processedRow.Date = `${dd}-${mm}-${yyyy}`;
+        processedRow.Time = `${hours}:${minutes}`;
+      }
+
+      for (let j = 0; j < orderedParams.length; j++) {
+        const param = orderedParams[j];
+        if (row[param] !== null && row[param] !== undefined) {
+          if (param === 'temperature') {
+            // Keep 1 decimal place for temperature
+            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
+          } else {
+            // Drop to 0 decimal places for all others
+            processedRow[param] = Math.round(Number(row[param]));
+          }
+        } else {
+          processedRow[param] = null;
+        }
+      }
+
+      rows[i] = processedRow;
     }
     return rows;
   }
