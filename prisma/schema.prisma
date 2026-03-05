@@ -27,6 +27,36 @@ model User {
   eventLogs         EventLog[]
   notifications     Notification[]
   refreshTokens     RefreshToken[]
+
+  isPremium     Boolean   @default(false)     // For Phase 2 gating
+  premiumExpiry DateTime?                    // For Expiry Logic
+  transactions  PaymentTransaction[]
+}
+
+model SubscriptionPlan {
+  id            String   @id @default(uuid())
+  name          String   @unique             // e.g., "Premium Monthly"
+  price         Float                        // Admin Pricing Control
+  durationDays  Int                          // Expiry Logic helper
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+model PaymentTransaction {
+  id                    String            @id @default(uuid())
+  merchantTransactionId String            @unique 
+  amount                Float
+  status                TransactionStatus @default(PENDING)
+  provider              String             // "RAZORPAY" or "PHONEPE"
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id])
+  createdAt             DateTime          @default(now())
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
 }
 
 model Admin {
@@ -102,9 +132,8 @@ model DeviceTelemetry {
   humidity    Float?
   noise       Int?
   aqi         Int?
-  device      Device @relation(fields: [deviceId], references: [id])
+  device      Device   @relation(fields: [deviceId], references: [id])
 
-  @@unique([deviceId, messageId])
   @@index([deviceId, timestamp])
 }
 
@@ -180,7 +209,6 @@ model RefreshToken {
 
 enum DeviceStatus {
   ACTIVE
-  ONLINE
   WARNING
   OFFLINE
 }
