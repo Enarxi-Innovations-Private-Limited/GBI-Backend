@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
-import { Parser } from 'json2csv';
 import { Prisma } from '@prisma/client';
 import { PdfService } from './pdf.service';
 
@@ -39,26 +38,7 @@ export class ReportsService {
     }
 
     // 1) Validate ownership
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId: dto.deviceId },
-      select: { id: true, deviceId: true },
-    });
-
-    if (!device) {
-      throw new ForbiddenException('No valid device found');
-    }
-
-    const assignment = await this.prisma.deviceAssignment.findFirst({
-      where: {
-        userId,
-        deviceId: device.id,
-        unassignedAt: null,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException('This device is not assigned to you');
-    }
+    const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
@@ -85,46 +65,7 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = rawRows.map((row) => {
-      const processedRow: any = { deviceId: row.deviceId };
-
-      // Convert timestamp to IST and split into Date (DD:MM:YYYY) and Time
-      if (row.timestamp) {
-        const istDate = new Date(
-          new Date(row.timestamp).toLocaleString('en-US', {
-            timeZone: 'Asia/Kolkata',
-          }),
-        );
-
-        const dd = String(istDate.getDate()).padStart(2, '0');
-        const mm = String(istDate.getMonth() + 1).padStart(2, '0'); // January is 0!
-        const yyyy = istDate.getFullYear();
-
-        const hours = String(istDate.getHours()).padStart(2, '0');
-        const minutes = String(istDate.getMinutes()).padStart(2, '0');
-        const seconds = String(istDate.getSeconds()).padStart(2, '0');
-
-        processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}`;
-      }
-
-      // Round parameters (in canonical order)
-      orderedParams.forEach((param) => {
-        if (row[param] !== null && row[param] !== undefined) {
-          if (param === 'temperature') {
-            // Keep 1 decimal place for temperature
-            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
-          } else {
-            // Drop to 0 decimal places for all others
-            processedRow[param] = Math.round(Number(row[param]));
-          }
-        } else {
-          processedRow[param] = null;
-        }
-      });
-
-      return processedRow;
-    });
+    const rows = this.formatTelemetryRows(rawRows, orderedParams);
 
     // 4) Build Custom CSV String
     const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
@@ -139,41 +80,37 @@ export class ReportsService {
 
     // Format start/end strings for the header manually to avoid commas
     const formatHeaderDate = (d: Date) => {
-      const istDate = new Date(
-        new Date(d).toLocaleString('en-US', {
-          timeZone: 'Asia/Kolkata',
-        }),
-      );
+      const ts = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
 
-      const dd = String(istDate.getDate()).padStart(2, '0');
-      const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-      const yyyy = istDate.getFullYear();
+      const dd = String(ts.getUTCDate()).padStart(2, '0');
+      const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
+      const yyyy = ts.getUTCFullYear();
 
-      let hoursStr = istDate.getHours();
+      let hoursStr = ts.getUTCHours();
       const ampm = hoursStr >= 12 ? 'PM' : 'AM';
-      hoursStr = hoursStr % 12;
-      hoursStr = hoursStr ? hoursStr : 12; // the hour '0' should be '12'
+      hoursStr = hoursStr % 12 || 12;
       const hours = String(hoursStr).padStart(2, '0');
-      const minutes = String(istDate.getMinutes()).padStart(2, '0');
+      const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
 
       return `${dd}-${mm}-${yyyy} ${hours}:${minutes} ${ampm}`;
     };
     const dateRangeText = `${formatHeaderDate(start)} - ${formatHeaderDate(end)}`;
 
-    let csvContent = '';
+    const lines: string[] = [];
 
     // Row 1: Main Title
-    csvContent += `${centerText('GBI Air Quality Monitor - Report')}\n`;
+    lines.push(centerText('GBI Air Quality Monitor - Report'));
     // Row 2: Empty
-    csvContent += `${','.repeat(totalCols - 1)}\n`;
+    lines.push(','.repeat(totalCols - 1));
     // Row 3: Date Range
-    csvContent += `${centerText(dateRangeText)}\n`;
+    lines.push(centerText(dateRangeText));
     // Row 4: Empty
-    csvContent += `${','.repeat(totalCols - 1)}\n`;
+    lines.push(','.repeat(totalCols - 1));
 
     // Group rows by deviceId to add spacing and device headers
     const rowsByDevice: Record<string, any[]> = {};
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       if (!rowsByDevice[row.deviceId]) {
         rowsByDevice[row.deviceId] = [];
       }
@@ -184,30 +121,37 @@ export class ReportsService {
     const deviceId = dto.deviceId;
 
     // Row 5 (or dynamically placed): Device Name Title
-    csvContent += `${centerText(`Device - ${deviceId}`)}\n`;
+    lines.push(centerText(`Device - ${deviceId}`));
     // Row 6: Empty
-    csvContent += `${','.repeat(totalCols - 1)}\n`;
+    lines.push(','.repeat(totalCols - 1));
     // Row 7: Column Headers
-    const headerRow = columns.map((col) => CSV_COLUMN_LABELS[col] ?? col);
-    csvContent += `${headerRow.join(',')}\n`;
+    const headerRow = new Array(columns.length);
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+      headerRow[i] = CSV_COLUMN_LABELS[col] ?? col;
+    }
+    lines.push(headerRow.join(','));
 
     // Data Rows
     const deviceRows = rowsByDevice[deviceId] || [];
 
     if (deviceRows.length === 0) {
       // Print empty row to show column headers but no data
-      csvContent += `${','.repeat(totalCols - 1)}\n`;
+      lines.push(','.repeat(totalCols - 1));
     } else {
-      for (const row of deviceRows) {
-        const rowData = columns.map((col) => {
+      for (let i = 0; i < deviceRows.length; i++) {
+        const row = deviceRows[i];
+        const rowData = new Array(columns.length);
+        for (let j = 0; j < columns.length; j++) {
+          const col = columns[j];
           const val = row[col];
-          return val === null || val === undefined ? '' : String(val);
-        });
-        csvContent += `${rowData.join(',')}\n`;
+          rowData[j] = val === null || val === undefined ? '' : String(val);
+        }
+        lines.push(rowData.join(','));
       }
     }
 
-    return '\ufeff' + csvContent;
+    return '\ufeff' + lines.join('\n');
   }
 
   async generatePdf(userId: string, dto: GenerateReportDto): Promise<Buffer> {
@@ -220,26 +164,7 @@ export class ReportsService {
     }
 
     // 1) Validate ownership
-    const device = await this.prisma.device.findUnique({
-      where: { deviceId: dto.deviceId },
-      select: { id: true, deviceId: true },
-    });
-
-    if (!device) {
-      throw new ForbiddenException('No valid device found');
-    }
-
-    const assignment = await this.prisma.deviceAssignment.findFirst({
-      where: {
-        userId,
-        deviceId: device.id,
-        unassignedAt: null,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException('This device is not assigned to you');
-    }
+    const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.queryBucketedTelemetry(
@@ -268,44 +193,12 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = rawRows.map((row) => {
-      const processedRow: any = { deviceId: row.deviceId };
-
-      if (row.timestamp) {
-        const istDate = new Date(
-          new Date(row.timestamp).toLocaleString('en-US', {
-            timeZone: 'Asia/Kolkata',
-          }),
-        );
-        const dd = String(istDate.getDate()).padStart(2, '0');
-        const mm = String(istDate.getMonth() + 1).padStart(2, '0');
-        const yyyy = istDate.getFullYear();
-        const hours = String(istDate.getHours()).padStart(2, '0');
-        const minutes = String(istDate.getMinutes()).padStart(2, '0');
-        const seconds = String(istDate.getSeconds()).padStart(2, '0');
-
-        processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}`;
-      }
-
-      // Round using orderedParams (canonical order)
-      orderedParams.forEach((param) => {
-        if (row[param] !== null && row[param] !== undefined) {
-          if (param === 'temperature') {
-            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
-          } else {
-            processedRow[param] = Math.round(Number(row[param]));
-          }
-        } else {
-          processedRow[param] = null;
-        }
-      });
-      return processedRow;
-    });
+    const rows = this.formatTelemetryRows(rawRows, orderedParams);
 
     // 4) Group rows by deviceId
     const rowsByDevice: Record<string, any[]> = {};
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       if (!rowsByDevice[row.deviceId]) {
         rowsByDevice[row.deviceId] = [];
       }
@@ -375,41 +268,163 @@ export class ReportsService {
 
     if (!safeParams.length) return [];
 
-    const selectAgg = Prisma.join(
-      safeParams.map(
-        (param) =>
-          Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
-      ),
-      ', ',
-    );
+    let rows: any[] = [];
 
-    const rows: any[] = await this.prisma.$queryRaw(
-      Prisma.sql`
-      SELECT
-        (
-          date_trunc('minute', "timestamp")
-          - (extract(minute from "timestamp")::int % ${interval})
-            * interval '1 minute'
-        ) as "timestamp",
+    if (interval === 60 || interval === 360) {
+      const selectCols = Prisma.join(
+        safeParams.map((param) => Prisma.sql`"${Prisma.raw(param)}"`),
+        ', ',
+      );
 
-        "deviceId",
+      rows = await this.prisma.$queryRaw(
+        Prisma.sql`
+        SELECT DISTINCT ON ("timestamp_bucket", "deviceId")
+          to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp_bucket",
+          "deviceId",
+          "timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "original_timestamp",
+          ${selectCols}
+        FROM "DeviceTelemetry"
+        WHERE "deviceId" IN (${Prisma.join(uuidList)})
+        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
+        ORDER BY
+          "timestamp_bucket" ASC,
+          "deviceId" ASC,
+          "timestamp" ASC
+      `,
+      );
+    } else if (interval === 1) {
+      const selectAgg = Prisma.join(
+        safeParams.map(
+          (param) =>
+            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+        ),
+        ', ',
+      );
 
-        ${selectAgg}
+      rows = await this.prisma.$queryRaw(
+        Prisma.sql`
+        SELECT
+          date_trunc('minute', "timestamp") AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
 
-      FROM "DeviceTelemetry"
+          "deviceId",
 
-      WHERE "deviceId" IN (${Prisma.join(uuidList)})
-      AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
+          ${selectAgg}
 
-      GROUP BY 1, "deviceId"
+        FROM "DeviceTelemetry"
 
-      ORDER BY 1 ASC, "deviceId" ASC
-    `,
-    );
+        WHERE "deviceId" IN (${Prisma.join(uuidList)})
+        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
 
-    return rows.map((row) => ({
-      ...row,
-      deviceId: deviceIdMap.get(row.deviceId),
-    }));
+        GROUP BY 1, "deviceId"
+
+        ORDER BY 1 ASC, "deviceId" ASC
+      `,
+      );
+    } else {
+      const selectAgg = Prisma.join(
+        safeParams.map(
+          (param) =>
+            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+        ),
+        ', ',
+      );
+
+      rows = await this.prisma.$queryRaw(
+        Prisma.sql`
+        SELECT
+          (
+            date_trunc('minute', "timestamp")
+            - (extract(minute from "timestamp")::int % ${interval})
+              * interval '1 minute'
+          ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
+
+          "deviceId",
+
+          ${selectAgg}
+
+        FROM "DeviceTelemetry"
+
+        WHERE "deviceId" IN (${Prisma.join(uuidList)})
+        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
+
+        GROUP BY 1, "deviceId"
+
+        ORDER BY 1 ASC, "deviceId" ASC
+      `,
+      );
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      rows[i].timestamp = rows[i].timestamp_bucket || rows[i].timestamp;
+      rows[i].deviceId = deviceIdMap.get(rows[i].deviceId);
+    }
+    return rows;
+  }
+
+  // --- Shared Private Helpers ---
+
+  private async validateAndGetDevice(userId: string, deviceId: string) {
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId },
+      select: { id: true, deviceId: true },
+    });
+
+    if (!device) {
+      throw new ForbiddenException('No valid device found');
+    }
+
+    const assignment = await this.prisma.deviceAssignment.findFirst({
+      where: {
+        userId,
+        deviceId: device.id,
+        unassignedAt: null,
+      },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException('This device is not assigned to you');
+    }
+
+    return device;
+  }
+
+  private formatTelemetryRows(rawRows: any[], orderedParams: string[]): any[] {
+    const rows = new Array(rawRows.length);
+    for (let i = 0; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      const processedRow: any = { deviceId: row.deviceId };
+
+      if (row.timestamp) {
+        const ts = new Date(row.timestamp);
+
+        const dd = String(ts.getUTCDate()).padStart(2, '0');
+        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0'); // January is 0!
+        const yyyy = ts.getUTCFullYear();
+
+        const hours = String(ts.getUTCHours()).padStart(2, '0');
+        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
+
+        processedRow.Date = `${dd}-${mm}-${yyyy}`;
+        processedRow.Time = `${hours}:${minutes}`;
+      }
+
+      for (let j = 0; j < orderedParams.length; j++) {
+        const param = orderedParams[j];
+        if (row[param] !== null && row[param] !== undefined) {
+          if (param === 'temperature') {
+            // Keep 1 decimal place for temperature
+            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
+          } else {
+            // Drop to 0 decimal places for all others
+            processedRow[param] = Math.round(Number(row[param]));
+          }
+        } else {
+          processedRow[param] = null;
+        }
+      }
+
+      rows[i] = processedRow;
+    }
+    return rows;
   }
 }

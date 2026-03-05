@@ -137,6 +137,7 @@ model DeviceTelemetry {
   @@index([deviceId, timestamp])
 }
 
+
 model GroupThreshold {
   id         String      @id @default(uuid())
   groupId    String      @unique
