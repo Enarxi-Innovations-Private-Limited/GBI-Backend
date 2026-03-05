@@ -37,10 +37,13 @@ async function bootstrap() {
     },
   });
 
-  // Explicitly allow the frontend URL with all required methods and headers
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  // Explicitly allow the frontend URLs (comma-separated in .env)
+  const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000')
+    .split(',')
+    .map((url) => url.trim());
+
   app.enableCors({
-    origin: [frontendUrl],
+    origin: frontendUrls,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: [
       'Content-Type',

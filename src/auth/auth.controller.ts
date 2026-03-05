@@ -46,7 +46,10 @@ export class AuthController {
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: any) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
     const result = await this.authService.login(loginDto);
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -91,7 +94,9 @@ export class AuthController {
       // Process Google login
       const result = await this.authService.googleLogin(req.user);
 
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000')
+        .split(',')[0]
+        .trim();
       const isProduction = process.env.NODE_ENV === 'production';
 
       // Set tokens as HttpOnly cookies — JS cannot access these
@@ -118,8 +123,12 @@ export class AuthController {
       return res.status(302).redirect(callbackUrl);
     } catch (error) {
       console.error('Google OAuth Error:', error);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      return res.status(302).redirect(`${frontendUrl}/login?error=oauth_failed`);
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000')
+        .split(',')[0]
+        .trim();
+      return res
+        .status(302)
+        .redirect(`${frontendUrl}/login?error=oauth_failed`);
     }
   }
 
@@ -129,9 +138,14 @@ export class AuthController {
    */
   @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
-  async refreshTokens(@Req() req: any, @Res({ passthrough: true }) res: any, @Body() refreshTokenDto: RefreshTokenDto) {
+  async refreshTokens(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+    @Body() refreshTokenDto: RefreshTokenDto,
+  ) {
     // Read refresh token from HttpOnly cookie first, fallback to body
-    const refreshToken = req.cookies?.refreshToken || refreshTokenDto?.refreshToken;
+    const refreshToken =
+      req.cookies?.refreshToken || refreshTokenDto?.refreshToken;
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token provided');
     }
@@ -216,8 +230,13 @@ export class AuthController {
    */
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Req() req: any, @Res({ passthrough: true }) res: any, @Body() refreshTokenDto: RefreshTokenDto) {
-    const refreshToken = req.cookies?.refreshToken || refreshTokenDto?.refreshToken;
+  async logout(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+    @Body() refreshTokenDto: RefreshTokenDto,
+  ) {
+    const refreshToken =
+      req.cookies?.refreshToken || refreshTokenDto?.refreshToken;
 
     if (refreshToken) {
       await this.authService.logout(refreshToken);
