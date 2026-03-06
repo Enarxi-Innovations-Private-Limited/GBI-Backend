@@ -7,7 +7,7 @@ import {
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -24,6 +24,8 @@ import { GroupsModule } from './groups/groups.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
+import { BullModule } from '@nestjs/bullmq';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -43,6 +45,24 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     ReportsModule,
     RealtimeModule,
     GroupsModule,
+    MailModule,
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        const redisUrl = configService.get<string>('REDIS_URL');
+        const isTls = redisUrl?.startsWith('rediss://');
+        return {
+          connection: {
+            url: redisUrl,
+            family: 0, // Crucial for IPv6 / Upstash
+            ...(isTls ? { tls: { rejectUnauthorized: false } } : {}), // Crucial for self-signed or strict TLS in BullMQ
+            maxRetriesPerRequest: null, // Required by BullMQ to prevent max retries crashing on Upstash disconnecting
+            enableReadyCheck: false,
+          },
+        };
+      },
+      inject: [ConfigService],
+    }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {

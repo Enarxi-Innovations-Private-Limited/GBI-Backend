@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { MqttService } from './mqtt.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
@@ -19,6 +24,7 @@ import { DeviceStatus } from '@prisma/client';
 @Injectable()
 export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
   private logFilePath: string;
+  private readonly logger = new Logger(MqttConsumer.name);
 
   constructor(
     private readonly mqttService: MqttService,
@@ -63,10 +69,10 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
           this.logError(errorLog);
 
           // Log to console
-          console.error('❌ Invalid JSON received on topic:', topic);
-          console.error('   Device ID:', deviceId);
-          console.error('   Full Payload:', payloadString);
-          console.error('   Parse Error:', parseError.message);
+          this.logger.error('❌ Invalid JSON received on topic:', topic);
+          this.logger.error('   Device ID:', deviceId);
+          this.logger.error('   Full Payload:', payloadString);
+          this.logger.error('   Parse Error:', parseError.message);
 
           return; // Skip this message
         }
@@ -75,7 +81,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
           await this.handleTelemetry(deviceId, data);
         }
       } catch (error) {
-        console.error('MQTT message error:', error.message);
+        this.logger.error('MQTT message error:', error.message);
 
         // Log general errors to file
         this.logError({
@@ -89,11 +95,11 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy() {
-    console.log(`🛑 [PID: ${process.pid}] MQTT Consumer shutting down...`);
+    this.logger.log(`🛑 [PID: ${process.pid}] MQTT Consumer shutting down...`);
     const client = this.mqttService.getClient();
     if (client) {
       client.end(true, () => {
-        console.log(`🛑 [PID: ${process.pid}] MQTT Client disconnected.`);
+        this.logger.log(`🛑 [PID: ${process.pid}] MQTT Client disconnected.`);
       });
     }
   }

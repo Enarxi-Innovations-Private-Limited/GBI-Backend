@@ -1,10 +1,12 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as os from 'os';
+import * as url from 'url';
 import * as mqtt from 'mqtt';
 
 @Injectable()
 export class MqttService implements OnModuleInit {
   private client: mqtt.MqttClient;
+  private readonly logger = new Logger(MqttService.name);
 
   onModuleInit() {
     // Skip MQTT if broker URL is not configured
@@ -31,16 +33,19 @@ export class MqttService implements OnModuleInit {
 
       // For mqtts:// connections, enable TLS
       if (process.env.MQTT_BROKER_URL?.startsWith('mqtts://')) {
-        options.rejectUnauthorized = true; // Verify server certificate
+        const parsedUrl = new url.URL(process.env.MQTT_BROKER_URL);
+        options.rejectUnauthorized = false; // Accept self-signed / missing root CA for testing Serverless broker
+        // Crucial for Serverless brokers (EMQX, HiveMQ) using SNI (Server Name Indication)
+        options.servername = parsedUrl.hostname;
       }
 
-      console.log(
+      this.logger.log(
         `🔄 Initializing MQTT connection to ${process.env.MQTT_BROKER_URL}...`,
       );
       this.client = mqtt.connect(process.env.MQTT_BROKER_URL, options);
 
       this.client.on('connect', () => {
-        console.log(
+        this.logger.log(
           `✅ MQTT connected successfully as client: ${options.clientId}`,
         );
 
@@ -53,12 +58,12 @@ export class MqttService implements OnModuleInit {
 
         this.client.subscribe(sharedTopic, { qos: 1 }, (err) => {
           if (err) {
-            console.error(
+            this.logger.error(
               `❌ Failed to subscribe to shared telemetry topic: ${sharedTopic}`,
-              err,
+              err.stack,
             );
           } else {
-            console.log(
+            this.logger.log(
               `📡 Subscribed to shared telemetry topic: ${sharedTopic} (QoS 1)`,
             );
           }
@@ -66,18 +71,19 @@ export class MqttService implements OnModuleInit {
       });
 
       this.client.on('reconnect', () => {
-        console.warn('⚠️ MQTT attempting to reconnect...');
+        this.logger.warn('⚠️ MQTT attempting to reconnect...');
       });
 
       this.client.on('close', () => {
-        console.warn('🔴 MQTT connection closed.');
+        this.logger.warn('🔴 MQTT connection closed.');
       });
 
-      this.client.on('error', (err) => {
-        console.error('❌ MQTT error:', err.message);
+      this.client.on('error', (err: any) => {
+        this.logger.error('❌ MQTT error:', err?.message || err);
+        // Do not throw the error here to prevent the entire NextJS/NestJS process from crashing
       });
     } catch (error) {
-      console.error('❌ Failed to initialize MQTT:', error.message);
+      this.logger.error('❌ Failed to initialize MQTT:', error.message);
     }
   }
 

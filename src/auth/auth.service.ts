@@ -6,6 +6,7 @@ import {
   Inject,
   NotFoundException,
   HttpException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ import { randomBytes, randomInt } from 'crypto';
 import { Cron } from '@nestjs/schedule';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import {
   SignupDto,
   LoginDto,
@@ -49,10 +51,13 @@ export interface AuthResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailService: MailService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
@@ -106,7 +111,10 @@ export class AuthService {
     // Generate EMAIL OTP
     const otp = randomInt(100000, 999999).toString();
     await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
-    console.log(`[AUTH] Email Verification OTP for ${email}: ${otp}`);
+
+    // Enqueue email asynchronously
+    await this.mailService.enqueueOtpEmail(email, otp, name);
+    this.logger?.log(`[AUTH] Enqueued Email Verification OTP for ${email}`);
 
     return {
       message: 'User registered successfully. Please verify your email.',
@@ -219,8 +227,15 @@ export class AuthService {
       // Generate EMAIL OTP
       const otp = randomInt(100000, 999999).toString();
       await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
-      console.log(
-        `[AUTH] Email Verification OTP for ${email} (Login Attempt): ${otp}`,
+
+      // Enqueue email asynchronously
+      await this.mailService.enqueueOtpEmail(
+        email,
+        otp,
+        user.name || undefined,
+      );
+      this.logger?.log(
+        `[AUTH] Enqueued Email Verification OTP for ${email} (Login Attempt)`,
       );
 
       throw new ConflictException('Email not verified. OTP sent.'); // Using Conflict (409) or Forbidden (403) to distinguish
@@ -321,8 +336,8 @@ export class AuthService {
     await this.redis.set(`reset_otp:${email}`, otp, 'EX', 600);
 
     // TODO: Send via Email/SMS Provider
-    // For now, log to console
-    console.log(`[AUTH] Password Reset OTP for ${email}: ${otp}`);
+    // await this.mailService.enqueuePasswordResetEmail(email, otp);
+    this.logger?.log(`[AUTH] Generated Password Reset OTP for ${email}`);
 
     return { message: 'OTP sent successfully' };
   }

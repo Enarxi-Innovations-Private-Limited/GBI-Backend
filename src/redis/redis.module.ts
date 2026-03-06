@@ -1,4 +1,3 @@
-
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
@@ -17,6 +16,9 @@ import Redis from 'ioredis';
           tls: {
             rejectUnauthorized: false,
           },
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          family: 0,
         });
       },
       inject: [ConfigService],
