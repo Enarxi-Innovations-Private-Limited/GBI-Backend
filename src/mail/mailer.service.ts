@@ -81,7 +81,8 @@ export class MailerService implements OnModuleInit {
       // Log the preview URL for Ethereal test emails
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
-        this.logger.log(`✉️ [TESTING] Preview your email here: ${previewUrl}`);
+        this.logger.log(`✉️ [TESTING] Preview your email here:`);
+        this.logger.log(previewUrl);
       }
       return true;
     } catch (error) {

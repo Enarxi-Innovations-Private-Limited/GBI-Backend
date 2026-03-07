@@ -1,49 +1,101 @@
-import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+  Param,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { FastifyReply } from 'fastify';
 import { ReportsService } from './reports.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { createReadStream, existsSync } from 'fs';
+import * as path from 'path';
 
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @UseGuards(AuthGuard('jwt'))
-  @Get('csv')
-  async downloadCsv(
-    @Req() req: any,
-    @Query() dto: GenerateReportDto,
-    @Res() reply: FastifyReply,
-  ) {
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('csv')
+  async enqueueCsv(@Req() req: any, @Query() dto: GenerateReportDto) {
     const userId = req.user.id;
-
-    const csv = await this.reportsService.generateCsv(userId, dto);
-
-    reply
-      .header('Content-Type', 'text/csv')
-      .header(
-        'Content-Disposition',
-        `attachment; filename="GBI-Air-Quality-Monitor-report.csv"`,
-      )
-      .send(csv);
+    return this.reportsService.enqueueReport(userId, 'csv', dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
-  @Get('pdf')
-  async downloadPdf(
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('pdf')
+  async enqueuePdf(@Req() req: any, @Query() dto: GenerateReportDto) {
+    const userId = req.user.id;
+    return this.reportsService.enqueueReport(userId, 'pdf', dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @SkipThrottle()
+  @Get('status/:jobId')
+  async getStatus(@Req() req: any, @Param('jobId') jobId: string) {
+    const userId = req.user.id;
+    return this.reportsService.getReportStatus(userId, jobId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('download/:jobId')
+  async downloadReport(
     @Req() req: any,
-    @Query() dto: GenerateReportDto,
-    @Res() reply: FastifyReply,
+    @Param('jobId') jobId: string,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
     const userId = req.user.id;
-    const pdfBuffer = await this.reportsService.generatePdf(userId, dto);
 
-    reply
-      .header('Content-Type', 'application/pdf')
-      .header(
-        'Content-Disposition',
-        `attachment; filename="GBI-Air-Quality-Monitor-report.pdf"`,
-      )
-      .send(pdfBuffer);
+    // 1. Verify status and grab fileKey
+    const { status, fileKey, error } =
+      await this.reportsService.getReportStatus(userId, jobId);
+
+    if (status !== 'completed' || !fileKey) {
+      throw new BadRequestException(
+        error || 'Report is not ready for download yet.',
+      );
+    }
+
+    // 2. Resolve logical fileKey to absolute path (Phase 1 storage)
+    const absolutePath = path.join(
+      process.cwd(),
+      'generated-reports',
+      path.basename(fileKey),
+    );
+
+    if (!existsSync(absolutePath)) {
+      throw new NotFoundException(
+        'Report file not found on server or expired.',
+      );
+    }
+
+    // 3. Set headers and stream
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const extension = fileKey.endsWith('.pdf') ? '.pdf' : '.csv';
+    const filename = `GBI-Air-Quality-Monitor-Report-${dateStr}${extension}`;
+    const contentType = fileKey.endsWith('.pdf')
+      ? 'application/pdf'
+      : 'text/csv';
+
+    reply.header('Content-Type', contentType);
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const file = createReadStream(absolutePath);
+    return reply.send(file);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get()
+  async listUserReports(@Req() req: any) {
+    return this.reportsService.getUserReports(req.user.id);
   }
 }

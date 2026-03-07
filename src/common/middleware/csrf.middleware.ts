@@ -45,6 +45,15 @@ export class CsrfMiddleware implements NestMiddleware {
 
     if (stateChangingMethods.includes(method)) {
       const headerToken = req.headers['x-xsrf-token'];
+      const isPostman = req.headers['user-agent']
+        ?.toLowerCase()
+        .includes('postman');
+      const isDev = process.env.NODE_ENV !== 'production';
+
+      // Allow Postman bypass in development for easy testing
+      if (isPostman && isDev) {
+        return next();
+      }
 
       if (!headerToken || headerToken !== token) {
         throw new ForbiddenException('Invalid or missing CSRF token');

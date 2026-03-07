@@ -7,6 +7,9 @@ import { MailerService } from './mailer.service';
 
 // Import templates
 import { OtpEmail } from './templates/otp.email';
+import { WelcomeEmail } from './templates/welcome.email';
+import { VerificationEmail } from './templates/verification.email';
+import { ForgotPasswordEmail } from './templates/forgot-password.email';
 
 @Processor('mail')
 export class MailProcessor extends WorkerHost {
@@ -23,10 +26,21 @@ export class MailProcessor extends WorkerHost {
     const data = job.data;
 
     try {
-      if (data.type === 'otp') {
-        await this.handleOtpEmail(data);
-      } else {
-        this.logger.warn(`Unknown mail job type: ${(data as any).type}`);
+      switch (data.type) {
+        case 'otp':
+          await this.handleOtpEmail(data);
+          break;
+        case 'welcome':
+          await this.handleWelcomeEmail(data);
+          break;
+        case 'verification':
+          await this.handleVerificationEmail(data);
+          break;
+        case 'forgot-password':
+          await this.handleForgotPasswordEmail(data);
+          break;
+        default:
+          this.logger.warn(`Unknown mail job type: ${(data as any).type}`);
       }
 
       this.logger.log(`Mail job ${job.id} completed successfully`);
@@ -42,6 +56,37 @@ export class MailProcessor extends WorkerHost {
   private async handleOtpEmail(data: Extract<MailJobData, { type: 'otp' }>) {
     const html = await render(OtpEmail({ otp: data.otp, name: data.name }));
     const subject = 'Your GBI Verification Code';
+    await this.mailerService.sendHtmlEmail(data.to, subject, html);
+  }
+
+  private async handleWelcomeEmail(
+    data: Extract<MailJobData, { type: 'welcome' }>,
+  ) {
+    const html = await render(WelcomeEmail({ name: data.name }));
+    const subject = 'Welcome to GreenBreathe Innovations';
+    await this.mailerService.sendHtmlEmail(data.to, subject, html);
+  }
+
+  private async handleVerificationEmail(
+    data: Extract<MailJobData, { type: 'verification' }>,
+  ) {
+    const html = await render(
+      VerificationEmail({
+        verificationLink: data.verificationLink,
+        name: data.name,
+      }),
+    );
+    const subject = 'Verify your GBI Email Address';
+    await this.mailerService.sendHtmlEmail(data.to, subject, html);
+  }
+
+  private async handleForgotPasswordEmail(
+    data: Extract<MailJobData, { type: 'forgot-password' }>,
+  ) {
+    const html = await render(
+      ForgotPasswordEmail({ resetLink: data.resetLink, name: data.name }),
+    );
+    const subject = 'Reset your GBI account password';
     await this.mailerService.sendHtmlEmail(data.to, subject, html);
   }
 }

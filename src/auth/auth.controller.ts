@@ -20,6 +20,8 @@ import {
   RequestPhoneOtpDto,
   CompleteProfileDto,
   VerifyEmailOtpDto,
+  RequestEmailOtpDto,
+  ChangePasswordDto,
 } from './dto';
 import { GoogleAuthGuard, JwtAuthGuard } from './guards';
 import { CurrentUser } from './decorators';
@@ -70,7 +72,7 @@ export class AuthController {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return result;
+    return { user: result.user };
   }
 
   /**
@@ -116,9 +118,8 @@ export class AuthController {
         maxAge: 30 * 24 * 60 * 60, // 30 days (seconds)
       });
 
-      // Only pass non-sensitive user profile info in URL (NOT tokens)
-      const user = encodeURIComponent(JSON.stringify(result.user));
-      const callbackUrl = `${frontendUrl}/auth/callback?user=${user}`;
+      // Redirect to frontend without sensitive data in URL
+      const callbackUrl = `${frontendUrl}/auth/callback`;
 
       return res.status(302).redirect(callbackUrl);
     } catch (error) {
@@ -170,7 +171,7 @@ export class AuthController {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return result;
+    return { user: result.user };
   }
 
   /**
@@ -195,6 +196,31 @@ export class AuthController {
   }
 
   /**
+   * POST /auth/change-password
+   * Change current password (requires valid session)
+   */
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @CurrentUser() user: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const result = await this.authService.changePassword(
+      user.id,
+      changePasswordDto.oldPassword,
+      changePasswordDto.newPassword,
+    );
+
+    // Clear HttpOnly cookies to force re-login with new credentials
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+
+    return result;
+  }
+
+  /**
    * POST /auth/request-phone-otp
    * Request OTP for phone verification
    */
@@ -205,13 +231,51 @@ export class AuthController {
   }
 
   /**
+   * POST /auth/request-email-otp
+   * Request OTP for email verification
+   */
+  @Post('request-email-otp')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 requests per 15 minutes
+  async requestEmailOtp(@Body() requestEmailOtpDto: RequestEmailOtpDto) {
+    return this.authService.requestEmailOtp(requestEmailOtpDto);
+  }
+
+  /**
    * POST /auth/complete-profile
    * Complete user profile with phone verification
    */
   @Post('complete-profile')
   @HttpCode(HttpStatus.OK)
-  async completeProfile(@Body() completeProfileDto: CompleteProfileDto) {
-    return this.authService.completeProfile(completeProfileDto);
+  @UseGuards(JwtAuthGuard)
+  async completeProfile(
+    @CurrentUser() user: any,
+    @Body() completeProfileDto: CompleteProfileDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const result = await this.authService.completeProfile(
+      completeProfileDto,
+      user.email,
+    );
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return { user: result.user };
   }
 
   /**
@@ -220,8 +284,30 @@ export class AuthController {
    */
   @Post('verify-email-otp')
   @HttpCode(HttpStatus.OK)
-  async verifyEmailOtp(@Body() verifyEmailOtpDto: VerifyEmailOtpDto) {
-    return this.authService.verifyEmailOtp(verifyEmailOtpDto);
+  async verifyEmailOtp(
+    @Body() verifyEmailOtpDto: VerifyEmailOtpDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const result = await this.authService.verifyEmailOtp(verifyEmailOtpDto);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return { user: result.user };
   }
 
   /**

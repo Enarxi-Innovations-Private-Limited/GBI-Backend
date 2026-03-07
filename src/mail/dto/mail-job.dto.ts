@@ -16,8 +16,14 @@ export interface VerificationMailJob extends BaseMailJob {
   name?: string;
 }
 
+export interface ForgotPasswordMailJob extends BaseMailJob {
+  resetLink: string;
+  name?: string;
+}
+
 // Sum type for the queue
 export type MailJobData =
   | ({ type: 'otp' } & OtpMailJob)
   | ({ type: 'welcome' } & WelcomeMailJob)
-  | ({ type: 'verification' } & VerificationMailJob);
+  | ({ type: 'verification' } & VerificationMailJob)
+  | ({ type: 'forgot-password' } & ForgotPasswordMailJob);

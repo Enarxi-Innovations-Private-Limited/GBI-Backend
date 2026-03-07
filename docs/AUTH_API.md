@@ -1,76 +1,81 @@
 # Authentication API Documentation
 
 ## Overview
-The GBI Backend implements a comprehensive authentication system with:
-- **Email/Password** authentication
-- **Google OAuth 2.0** social login
-- **JWT Access Tokens** (short-lived, 15 minutes)
-- **Refresh Tokens** (long-lived, 30 days) with token rotation
-- Secure session management
+
+The GBI Backend implements a comprehensive and highly secure authentication system featuring:
+
+- **Email/Password** authentication with mandatory Email OTP verification.
+- **Google OAuth 2.0** social login.
+- **Optional Phone (SMS) OTP** verification for profile completion.
+- **Password Reset Flow** via Email OTP.
+- **JWT Access Tokens** (short-lived, 15 minutes).
+- **Refresh Tokens** (long-lived, 30 days) with token rotation.
+- **HttpOnly Cookies** for secure token delivery to browsers.
+- **Rate Limiting** to prevent brute-force attacks.
+- **Account Lockout & CSRF Protection**.
 
 ## Architecture
 
-### Token Strategy
-1. **Access Token (JWT)**
-   - Short-lived (15 minutes by default)
-   - Used for API authorization via `Authorization: Bearer <token>` header
-   - Contains user ID and email in payload
-   - Stateless validation
+### Token Strategy & Delivery
 
+1. **Access Token (JWT)**
+   - Short-lived (15 mins by default).
+   - Delivered in response body AND as an `HttpOnly`, `Secure`, `SameSite=Strict` cookie (`accessToken`).
+   - Used for API authorization via `Authorization: Bearer <token>` header, or automatically sent by browser via cookie.
 2. **Refresh Token**
-   - Long-lived (30 days by default)
-   - Stored securely in database
-   - Used to obtain new access tokens
-   - Token rotation on refresh (old token revoked, new token issued)
-   - Can be revoked for logout
+   - Long-lived (30 days by default).
+   - Delivered in response body AND as an `HttpOnly`, `Secure`, `SameSite=Strict` cookie (`refreshToken`), scoped to `/api/auth` path.
+   - Rotated on every use (old token revoked, new token issued).
+
+---
+
+## Complete Authentication Flows
+
+### Flow A: Standard Email/Password Registration
+
+1. Frontend calls `POST /auth/signup`. Backend creates an unverified user and automatically emails a 6-digit OTP.
+2. Frontend prompts user for the OTP sent to their email.
+3. Frontend calls `POST /auth/request-email-otp` to **resend** the OTP if needed.
+4. Frontend calls `POST /auth/verify-email-otp`. If successful, backend returns the `user` object and sets HttpOnly cookies.
+
+### Flow B: Standard Email/Password Login
+
+1. Frontend calls `POST /auth/login`.
+2. If email is verified: Backend returns the `user` object and sets HttpOnly cookies.
+3. If email is **NOT** verified: Backend returns `409 Conflict`. No OTP is automatically sent.
+4. Frontend prompts user that verification is required and calls `POST /auth/request-email-otp` to generate an OTP.
+5. Frontend calls `POST /auth/verify-email-otp` with the OTP.
+
+### Flow C: Google OAuth
+
+1. Frontend redirects user to `GET /auth/google`.
+2. User authenticates on Google.
+3. Google redirects back to `GET /auth/google/callback`.
+4. Backend sets HttpOnly session cookies, and redirects back to the Frontend (e.g. `http://localhost:3000/auth/callback`) without exposing tokens or user data in the URL.
+5. Frontend calls `GET /auth/me` to fetch the current user session securely.
+
+### Flow D: Profile Completion & Optional Phone Verification
+
+If `REQUIRE_PHONE_VERIFICATION=true` in backend `.env`:
+
+1. Frontend calls `POST /auth/request-phone-otp` to get a 6-digit SMS OTP.
+2. Frontend calls `POST /auth/complete-profile` with the received OTP.
+   If `REQUIRE_PHONE_VERIFICATION=false`:
+3. Frontend calls `POST /auth/request-phone-otp`. Backend responds with `{ isOtpRequired: false }`.
+4. Frontend skips OTP input and directly calls `POST /auth/complete-profile` without the OTP.
+
+---
 
 ## API Endpoints
 
 ### 1. Signup (Email/Password)
+
 **POST** `/auth/signup`
 
-Register a new user with email and password.
+Registers a new user (with `emailVerified: false`). Automatically triggers an email with a 6-digit verification code.
 
 **Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!",
-  "name": "John Doe",
-  "organization": "GBI Corp",
-  "phone": "+1234567890",
-  "city": "New York"
-}
-```
 
-**Response (201):**
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "3f5a8c9d2e1b4f7a6e9c8d7b5a4e3f2a1b...",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "emailVerified": false,
-    "phoneVerified": false
-  }
-}
-```
-
-**Validation Rules:**
-- Email must be valid format
-- Password minimum 8 characters
-- Name, organization, phone, city are optional
-
----
-
-### 2. Login (Email/Password)
-**POST** `/auth/login`
-
-Login with email and password.
-
-**Request Body:**
 ```json
 {
   "email": "user@example.com",
@@ -78,378 +83,308 @@ Login with email and password.
 }
 ```
 
-**Response (200):**
+**Response (201):**
+
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "3f5a8c9d2e1b4f7a6e9c8d7b5a4e3f2a1b...",
+  "message": "User registered successfully. Please verify your email with the OTP sent.",
+  "email": "user@example.com"
+}
+```
+
+---
+
+### 2. Request Email OTP
+
+**POST** `/auth/request-email-otp`
+
+Triggers an email with a 6-digit verification code.
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "OTP sent successfully"
+}
+```
+
+---
+
+### 3. Verify Email OTP
+
+**POST** `/auth/verify-email-otp`
+
+Verifies the 6-digit OTP sent to the user. Sets HttpOnly cookies upon success.
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+```
+
+**Response (200) - Success:**
+Backend automatically sets `Set-Cookie` headers for `accessToken` and `refreshToken`.
+
+```json
+{
   "user": {
     "id": "uuid",
     "email": "user@example.com",
-    "name": "John Doe",
     "emailVerified": true,
-    "phoneVerified": true
+    "phoneVerified": false,
+    "isProfileComplete": false
   }
 }
 ```
 
-**Error Responses:**
-- `401 Unauthorized` - Invalid credentials
-- `401 Unauthorized` - Account restricted (user banned by admin)
+---
+
+### 4. Login
+
+**POST** `/auth/login`
+
+Login with email and password. Generates HttpOnly cookies and JSON response.
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123!"
+}
+```
+
+**Response (200) - Success:** Returns the identical `{ "user": { ... } }` JSON object as `/auth/verify-email-otp` along with HttpOnly `Set-Cookie` headers. No JWTs are exposed in the JSON body.
+
+**Response (409 Conflict) - Unverified:** `"Email not verified. Please request an OTP."` Frontend must call `POST /auth/request-email-otp` explicitly to trigger an email, then redirect to OTP verification.
 
 ---
 
-### 3. Google OAuth Login
+### 5. Google OAuth Login
+
 **GET** `/auth/google`
 
 Initiates Google OAuth flow. Redirects user to Google consent screen.
 
-**Flow:**
-1. Frontend redirects user to `/auth/google`
-2. User authenticates with Google
-3. Google redirects to `/auth/google/callback`
-4. Backend processes login and returns tokens
-
----
-
-### 4. Google OAuth Callback
 **GET** `/auth/google/callback`
 
-Google OAuth callback endpoint (handled automatically by Passport).
-
-**Response (200):**
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "3f5a8c9d2e1b4f7a6e9c8d7b5a4e3f2a1b...",
-  "user": {
-    "id": "uuid",
-    "email": "user@gmail.com",
-    "name": "John Doe",
-    "emailVerified": true,
-    "phoneVerified": false
-  }
-}
-```
-
-**Notes:**
-- If user exists with same email, links Google account
-- If new user, creates account with `emailVerified: true`
-- **Organization**: Automatically extracted from GSuite/Workspace domains (e.g., `enarxi.com`). Public domains (e.g., `gmail.com`) result in `organization: null`.
-- In production, should redirect to frontend with tokens in URL params
+Callback from Google. The backend processes the Google profile, sets HttpOnly cookies, and redirects back to the frontend application url without any sensitive URL parameters. Frontends should immediately call `/auth/me` to read the session state.
 
 ---
 
-### 5. Refresh Access Token
-**POST** `/auth/refresh`
+### 6. Forgot Password Request
 
-Get a new access token using refresh token.
+**POST** `/auth/forgot-password`
+
+Initiates the password reset flow. Generates a reset OTP, stores it in Redis, and asynchronously emails a reset link using BullMQ.
 
 **Request Body:**
+
 ```json
 {
-  "refreshToken": "3f5a8c9d2e1b4f7a6e9c8d7b5a4e3f2a1b..."
+  "email": "user@example.com"
 }
 ```
 
 **Response (200):**
+
+```json
+{ "message": "OTP sent successfully" }
+```
+
+_(Always returns success to prevent user enumeration attacks)._
+
+---
+
+### 7. Reset Password
+
+**POST** `/auth/reset-password`
+
+Consume the OTP (from the email link) to set a new password. Revokes all existing sessions/tokens for security.
+
+**Request Body:**
+
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "new-refresh-token-here...",
+  "email": "user@example.com",
+  "otp": "123456",
+  "newPassword": "NewSecurePassword123!"
+}
+```
+
+**Response (200):**
+
+```json
+{ "message": "Password reset successfully" }
+```
+
+---
+
+### 8. Change Password
+
+**POST** `/auth/change-password`
+
+Change the current password for an authenticated user. Requires a valid session (`accessToken` cookie or `Authorization: Bearer` header). On success, the backend will clear all existing tokens, requiring the user to log in again with their new password.
+
+**Request Body:**
+
+```json
+{
+  "oldPassword": "CurrentPassword123!",
+  "newPassword": "NewSecurePassword123!"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+---
+
+### 9. Request Phone OTP
+
+**POST** `/auth/request-phone-otp`
+
+Request an SMS OTP for phone verification. Useful for profile completion.
+
+**Request Body:**
+
+```json
+{
+  "phone": "+1234567890"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "OTP sent to mobile number",
+  "isOtpRequired": true
+}
+```
+
+_Note: If `REQUIRE_PHONE_VERIFICATION=false` in `.env`, `isOtpRequired` will be `false`._
+
+---
+
+### 9. Complete Profile
+
+**POST** `/auth/complete-profile`
+
+Complete the user's profile and optionally verify the phone number. Returns the updated `{ "user": {...} }` and sets new HttpOnly cookies with fresh claims. **Requires an active session (valid `accessToken` cookie or `Authorization: Bearer` header) as the user's email is extracted from their JWT.**
+
+**Request Body:**
+
+```json
+{
+  "name": "John Doe",
+  "organization": "GBI Corp",
+  "city": "New York",
+  "phone": "+1234567890",
+  "otp": "123456"
+}
+```
+
+**Response (200):**
+
+```json
+{
   "user": {
     "id": "uuid",
     "email": "user@example.com",
     "name": "John Doe",
+    "city": "New York",
+    "phone": "+1234567890",
     "emailVerified": true,
-    "phoneVerified": false
+    "phoneVerified": true,
+    "isProfileComplete": true
   }
 }
 ```
 
-**Error Responses:**
-- `401 Unauthorized` - Refresh token invalid, expired, or revoked
-
-**Token Rotation:**
-- Old refresh token is automatically revoked
-- New refresh token is issued
-- Enhances security by preventing token reuse
+_Note: `otp` is only required if `/request-phone-otp` returned `isOtpRequired: true`._
 
 ---
 
-### 6. Logout
+### 10. Refresh Token
+
+**POST** `/auth/refresh-token`
+
+Get a new access token. Automatically rotates the refresh token.
+
+**Request Body:** _(Optional if HttpOnly cookies are enabled)_
+
+```json
+{
+  "refreshToken": "3f5a8c9d2..."
+}
+```
+
+---
+
+### 11. Logout
+
 **POST** `/auth/logout`
 
-Revoke refresh token (logout user from this session).
+Revokes the refresh token from the database and instructs the browser to clear HttpOnly cookies.
 
-**Request Body:**
+**Request Body:** _(Optional if HttpOnly cookies are enabled)_
+
 ```json
 {
-  "refreshToken": "3f5a8c9d2e1b4f7a6e9c8d7b5a4e3f2a1b..."
-}
-```
-
-**Response (200):**
-```json
-{
-  "message": "Logged out successfully"
+  "refreshToken": "3f5a8c9d2..."
 }
 ```
 
 ---
 
-### 7. Get Current User
+### 12. Get Current User
+
 **GET** `/auth/me`
 
-Get currently authenticated user details.
-
-**Headers:**
-```
-Authorization: Bearer <accessToken>
-```
-
-**Response (200):**
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "name": "John Doe",
-  "organization": "GBI Corp",
-  "phone": "+1234567890",
-  "city": "New York",
-  "emailVerified": true,
-  "phoneVerified": false,
-  "isRestricted": false,
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z"
-}
-```
-
-**Error Responses:**
-- `401 Unauthorized` - No token provided or invalid token
-- `401 Unauthorized` - User account restricted
+Get currently authenticated user details. Must include valid `Authorization: Bearer <token>` OR an active session cookie.
 
 ---
 
-## Protected Routes
+## Security Best Practices
 
-To protect any route, use the `@UseGuards(JwtAuthGuard)` decorator:
+- **Account Lockout:** Failed OTP or password attempts (e.g., 5 failures in 15 minutes) result in a temporary Redis-backed IP/Account lockout (`423 Locked`).
+- **Rate Limiting:** Distinct Throttle limits exist for `/signup` (5/hr) and `/forgot-password` (3/hr).
+- **CSRF Protection (Crucial for Frontend):** All state-changing methods (`POST`, `PUT`, `DELETE`) require a valid `X-XSRF-TOKEN` header to prevent Cross-Site Request Forgery.
 
-```typescript
-@Get('protected')
-@UseGuards(JwtAuthGuard)
-async protectedRoute(@CurrentUser() user: any) {
-  return { message: 'This is protected', user };
-}
+### How to handle the initial CSRF Token
+
+Because `POST /auth/signup` and `POST /auth/login` are state-changing requests, they **strictly require** the `X-XSRF-TOKEN` header to succeed.
+
+1. **The Initial "Handshake":** Before the frontend makes its _very first_ `POST` request to the API, it must make a simple `GET` request to any non-protected endpoint (e.g., `GET /api/health` or `GET /`).
+2. **The Cookie:** The backend's `CsrfMiddleware` will intercept this `GET` request, generate a secure token, and attach a `Set-Cookie: XSRF-TOKEN=<token>; Path=/; SameSite=Lax` header to the response. **Note: This cookie is intentionally NOT HttpOnly so JS can read it.**
+3. **The Interceptor:** Your frontend HTTP client (e.g., Axios) must be configured to automatically read the `XSRF-TOKEN` cookie and attach its value to the `X-XSRF-TOKEN` header on all subsequent `POST`/`PUT`/`DELETE` requests.
+
+**Example Axios config:**
+
+```javascript
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'https://api.yourdomain.com',
+  withCredentials: true, // MUST be true for cookies to be sent/received
+  xsrfCookieName: 'XSRF-TOKEN', // The name of the cookie the backend sets
+  xsrfHeaderName: 'X-XSRF-TOKEN', // The header the backend expects
+});
 ```
-
-The `@CurrentUser()` decorator extracts the authenticated user from the request.
-
----
-
-## Environment Variables
-
-Required in `.env`:
-
-```bash
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRES_IN=15m
-
-# Refresh Token Configuration (days)
-REFRESH_TOKEN_EXPIRES_IN=30
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
-```
-
----
-
-## Security Features
-
-1. **Password Hashing**: bcrypt with 12 salt rounds
-2. **Token Rotation**: Refresh tokens rotated on each use
-3. **Account Restriction**: Admin can restrict user accounts
-4. **Token Expiration**: Short-lived access tokens
-5. **Database-backed Sessions**: Refresh tokens stored in DB, can be revoked
-6. **Input Validation**: All inputs validated using class-validator
-7. **SQL Injection Protection**: Prisma ORM with parameterized queries
-8. **Rate Limiting**: Redis-backed limits on sensitive endpoints (e.g., OTP generation)
-
----
-
-## Frontend Integration Example
-
-```typescript
-// Signup
-const signup = async (email: string, password: string) => {
-  const response = await fetch('/auth/signup', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await response.json();
-  
-  // Store tokens securely
-  localStorage.setItem('accessToken', data.accessToken);
-  localStorage.setItem('refreshToken', data.refreshToken);
-  
-  return data;
-};
-
-// Login
-const login = async (email: string, password: string) => {
-  const response = await fetch('/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await response.json();
-  
-  localStorage.setItem('accessToken', data.accessToken);
-  localStorage.setItem('refreshToken', data.refreshToken);
-  
-  return data;
-};
-
-// Make authenticated request
-const getProtectedData = async () => {
-  const accessToken = localStorage.getItem('accessToken');
-  
-  const response = await fetch('/api/protected', {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
-  
-  if (response.status === 401) {
-    // Access token expired, refresh it
-    await refreshAccessToken();
-    // Retry request
-    return getProtectedData();
-  }
-  
-  return response.json();
-};
-
-// Refresh access token
-const refreshAccessToken = async () => {
-  const refreshToken = localStorage.getItem('refreshToken');
-  
-  const response = await fetch('/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-  
-  const data = await response.json();
-  
-  localStorage.setItem('accessToken', data.accessToken);
-  localStorage.setItem('refreshToken', data.refreshToken);
-};
-
-// Logout
-const logout = async () => {
-  const refreshToken = localStorage.getItem('refreshToken');
-  
-  await fetch('/auth/logout', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-  
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-};
-```
-
----
-
-## Database Schema
-
-### User Table
-```prisma
-model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String?
-  googleId      String?  @unique
-  name          String?
-  organization  String?
-  phone         String?
-  city          String?
-  emailVerified Boolean  @default(false)
-  phoneVerified Boolean  @default(false)
-  isRestricted  Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  refreshTokens RefreshToken[]
-}
-```
-
-### RefreshToken Table
-```prisma
-model RefreshToken {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  revokedAt DateTime?
-  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-```
-
----
-
-## Testing with cURL
-
-### Signup
-```bash
-curl -X POST http://localhost:3000/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123",
-    "name": "Test User"
-  }'
-```
-
-### Login
-```bash
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
-```
-
-### Get Current User
-```bash
-curl -X GET http://localhost:3000/auth/me \
-  -H "Authorization: Bearer <your-access-token>"
-```
-
-### Refresh Token
-```bash
-curl -X POST http://localhost:3000/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{
-    "refreshToken": "<your-refresh-token>"
-  }'
-```
-
----
-
-## Next Steps
-
-1. **Email OTP Verification**: Implement OTP service for email verification
-2. **Mobile OTP Verification**: Implement SMS service for phone verification
-3. **Password Reset**: Add forgot password flow
-4. **Admin Authentication**: Separate admin login with hardcoded credentials
-5. **Rate Limiting**: Add rate limiting to prevent brute force attacks

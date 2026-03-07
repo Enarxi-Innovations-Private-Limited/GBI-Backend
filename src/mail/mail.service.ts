@@ -90,4 +90,33 @@ export class MailService {
       return false;
     }
   }
+
+  /**
+   * Enqueues a Forgot Password email to be sent asynchronously
+   */
+  async enqueueForgotPasswordEmail(
+    to: string,
+    resetLink: string,
+    name?: string,
+  ): Promise<boolean> {
+    try {
+      await this.mailQueue.add(
+        'send-forgot-password',
+        { type: 'forgot-password', to, resetLink, name },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+          removeOnComplete: true,
+        },
+      );
+      this.logger.log(`Enqueued Forgot Password email job for ${to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to enqueue Forgot Password email for ${to}`,
+        error.stack,
+      );
+      return false;
+    }
+  }
 }
