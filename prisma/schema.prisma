@@ -27,36 +27,8 @@ model User {
   eventLogs         EventLog[]
   notifications     Notification[]
   refreshTokens     RefreshToken[]
-
-  isPremium     Boolean   @default(false)     // For Phase 2 gating
-  premiumExpiry DateTime?                    // For Expiry Logic
-  transactions  PaymentTransaction[]
-}
-
-model SubscriptionPlan {
-  id            String   @id @default(uuid())
-  name          String   @unique             // e.g., "Premium Monthly"
-  price         Float                        // Admin Pricing Control
-  durationDays  Int                          // Expiry Logic helper
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-}
-
-model PaymentTransaction {
-  id                    String            @id @default(uuid())
-  merchantTransactionId String            @unique 
-  amount                Float
-  status                TransactionStatus @default(PENDING)
-  provider              String             // "RAZORPAY" or "PHONEPE"
-  userId                String
-  user                  User              @relation(fields: [userId], references: [id])
-  createdAt             DateTime          @default(now())
-}
-
-enum TransactionStatus {
-  PENDING
-  SUCCESS
-  FAILED
+  Subscription      Subscription[]
+  generatedReports  GeneratedReport[]
 }
 
 model Admin {
@@ -119,11 +91,9 @@ model UserDevice {
 }
 
 model DeviceTelemetry {
-  id        BigInt   @id @default(autoincrement())
-  deviceId  String
-  timestamp DateTime @default(now())
-  messageId String
-
+  id          BigInt   @id @default(autoincrement())
+  deviceId    String
+  timestamp   DateTime @default(now())
   pm25        Int?
   pm10        Int?
   tvoc        Int?
@@ -132,11 +102,10 @@ model DeviceTelemetry {
   humidity    Float?
   noise       Int?
   aqi         Int?
-  device      Device   @relation(fields: [deviceId], references: [id])
+  device      Device @relation(fields: [deviceId], references: [id])
 
   @@index([deviceId, timestamp])
 }
-
 
 model GroupThreshold {
   id         String      @id @default(uuid())
@@ -208,8 +177,72 @@ model RefreshToken {
   @@index([token])
 }
 
+model Subscription {
+  id               String           @id
+  userId           String
+  planId           String
+  status           SubStatus        @default(ACTIVE)
+  activatedAt      DateTime         @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  paymentId        String?
+  orderId          String?          @unique
+  method           SubMethod        @default(RAZORPAY)
+  amountPaid       Float?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime
+  SubscriptionPlan SubscriptionPlan @relation(fields: [planId], references: [id])
+  User             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([userId])
+}
+
+model SubscriptionPlan {
+  id           String         @id
+  name         String         @unique
+  amount       Float
+  currency     String         @default("INR")
+  durationDays Int
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  Subscription Subscription[]
+}
+
 enum DeviceStatus {
   ACTIVE
   WARNING
   OFFLINE
+  ONLINE
+}
+
+enum SubMethod {
+  RAZORPAY
+  PHONEPE
+}
+
+enum SubStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum ReportType {
+  CSV
+  PDF
+}
+
+model GeneratedReport {
+  id        String     @id // = BullMQ job.id (auto-generated)
+  userId    String
+  type      ReportType
+  fileKey   String?    // logical key e.g. "reports/{id}.pdf" — path-agnostic for S3 migration
+  createdAt DateTime   @default(now())
+  expiresAt DateTime   // 24 hours from creation; cleanup scheduler removes expired files
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

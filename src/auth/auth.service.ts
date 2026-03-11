@@ -6,6 +6,7 @@ import {
   Inject,
   NotFoundException,
   HttpException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ import { randomBytes, randomInt } from 'crypto';
 import { Cron } from '@nestjs/schedule';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import {
   SignupDto,
   LoginDto,
@@ -22,6 +24,7 @@ import {
   CompleteProfileDto,
   RequestPhoneOtpDto,
   VerifyEmailOtpDto,
+  RequestEmailOtpDto,
 } from './dto';
 
 export interface JwtPayload {
@@ -49,10 +52,13 @@ export interface AuthResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailService: MailService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
@@ -62,11 +68,10 @@ export class AuthService {
   async signup(
     signupDto: SignupDto,
   ): Promise<{ message: string; email: string }> {
-    let { email, password, name, organization, phone, city } = signupDto;
+    let { email, password } = signupDto;
 
     // Normalize identifiers
     email = email.trim().toLowerCase();
-    if (phone) phone = phone.trim().replace(/[^\d+]/g, '');
 
     // 1. Fail-fast lock check
     await this.checkLockout(email);
@@ -86,32 +91,70 @@ export class AuthService {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
-    // NOTE: Auto-verifying email and phone since we're using mock providers
-    // When real email/SMS providers are integrated, set these to false
-    // and implement proper OTP verification flow
+    // Create user (unverified by default)
     const user = await this.prisma.user.create({
       data: {
         email,
         passwordHash,
-        name,
-        organization,
-        phone,
-        city,
-        emailVerified: false, // Default: false (User must verify)
-        phoneVerified: false, // Default: false (User must verify)
+        emailVerified: false,
+        phoneVerified: false,
       },
     });
 
     // Generate EMAIL OTP
     const otp = randomInt(100000, 999999).toString();
     await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
-    console.log(`[AUTH] Email Verification OTP for ${email}: ${otp}`);
+
+    // Enqueue email asynchronously
+    await this.mailService.enqueueOtpEmail(email, otp);
+    this.logger?.log(`[AUTH] Enqueued Email Verification OTP for ${email}`);
 
     return {
-      message: 'User registered successfully. Please verify your email.',
+      message:
+        'User registered successfully. Please verify your email with the OTP sent.',
       email: user.email,
     };
+  }
+
+  /**
+   * Request Email OTP for Verification
+   */
+  async requestEmailOtp(
+    requestEmailOtpDto: RequestEmailOtpDto,
+  ): Promise<{ message: string }> {
+    let { email } = requestEmailOtpDto;
+
+    // Normalize
+    email = email.trim().toLowerCase();
+
+    // 1. Fail-fast lock check
+    await this.checkLockout(email);
+
+    // 2. Account level rate limit (OTP Requests: max 3 per 15 minutes)
+    await this.checkAccountRateLimit('email_otp_requests', email, 3, 900);
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal user existence, just return success
+      return { message: 'If the email is registered, an OTP has been sent.' };
+    }
+
+    if (user.emailVerified) {
+      throw new ConflictException('Email is already verified');
+    }
+
+    // Generate EMAIL OTP
+    const otp = randomInt(100000, 999999).toString();
+    await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
+
+    // Enqueue email asynchronously
+    await this.mailService.enqueueOtpEmail(email, otp, user.name || undefined);
+    this.logger?.log(`[AUTH] Enqueued Email Verification OTP for ${email}`);
+
+    return { message: 'OTP sent successfully' };
   }
 
   /**
@@ -159,19 +202,24 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
 
+    // Omit null values for incomplete profiles
+    const returnUser: any = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      emailVerified: updatedUser.emailVerified,
+      phoneVerified: updatedUser.phoneVerified,
+      isProfileComplete: updatedUser.isProfileComplete,
+    };
+
+    if (updatedUser.name) returnUser.name = updatedUser.name;
+    if (updatedUser.organization)
+      returnUser.organization = updatedUser.organization;
+    if (updatedUser.phone) returnUser.phone = updatedUser.phone;
+    if (updatedUser.city) returnUser.city = updatedUser.city;
+
     return {
       ...tokens,
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        organization: updatedUser.organization,
-        phone: updatedUser.phone,
-        city: updatedUser.city,
-        emailVerified: updatedUser.emailVerified,
-        phoneVerified: updatedUser.phoneVerified,
-        isProfileComplete: updatedUser.isProfileComplete,
-      },
+      user: returnUser,
     };
   }
 
@@ -215,15 +263,7 @@ export class AuthService {
     // Check if email is verified
     if (!user.emailVerified) {
       await this.clearFailures(email); // Successful identity verification, clear failures
-
-      // Generate EMAIL OTP
-      const otp = randomInt(100000, 999999).toString();
-      await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
-      console.log(
-        `[AUTH] Email Verification OTP for ${email} (Login Attempt): ${otp}`,
-      );
-
-      throw new ConflictException('Email not verified. OTP sent.'); // Using Conflict (409) or Forbidden (403) to distinguish
+      throw new ConflictException('Email not verified. Please request an OTP.');
     }
 
     // On Success: Clear failure counters
@@ -232,19 +272,23 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
 
+    // Omit null values for incomplete profiles
+    const returnUser: any = {
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      phoneVerified: user.phoneVerified,
+      isProfileComplete: user.isProfileComplete,
+    };
+
+    if (user.name) returnUser.name = user.name;
+    if (user.organization) returnUser.organization = user.organization;
+    if (user.phone) returnUser.phone = user.phone;
+    if (user.city) returnUser.city = user.city;
+
     return {
       ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        organization: user.organization,
-        phone: user.phone,
-        city: user.city,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        isProfileComplete: user.isProfileComplete,
-      },
+      user: returnUser,
     };
   }
 
@@ -255,7 +299,7 @@ export class AuthService {
     userId: string,
     oldPassword: string,
     newPassword: string,
-  ): Promise<{ success: true }> {
+  ): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -285,7 +329,7 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    return { success: true };
+    return { message: 'Password changed successfully' };
   }
 
   /**
@@ -320,9 +364,18 @@ export class AuthService {
     // Store in Redis (expires in 10 minutes)
     await this.redis.set(`reset_otp:${email}`, otp, 'EX', 600);
 
-    // TODO: Send via Email/SMS Provider
-    // For now, log to console
-    console.log(`[AUTH] Password Reset OTP for ${email}: ${otp}`);
+    // Enqueue Forgot Password Email
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const resetLink = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}&otp=${otp}`;
+
+    await this.mailService.enqueueForgotPasswordEmail(
+      email,
+      resetLink,
+      user.name || undefined,
+    );
+
+    this.logger?.log(`[AUTH] Enqueued Forgot Password Email for ${email}`);
 
     return { message: 'OTP sent successfully' };
   }
@@ -422,12 +475,12 @@ export class AuthService {
    */
   async completeProfile(
     completeProfileDto: CompleteProfileDto,
+    userEmail: string,
   ): Promise<AuthResponse> {
-    let { email, name, organization, city, phone, otp, password } =
-      completeProfileDto;
+    let { name, organization, city, phone, otp, password } = completeProfileDto;
 
     // Normalize
-    email = email.trim().toLowerCase();
+    let email = userEmail.trim().toLowerCase();
     if (phone) phone = phone.trim().replace(/[^\d+]/g, '');
 
     const requirePhoneVerif =
@@ -494,19 +547,23 @@ export class AuthService {
     // 5. Generate New Tokens (refresh claims)
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
 
+    const returnUser: any = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      emailVerified: updatedUser.emailVerified,
+      phoneVerified: updatedUser.phoneVerified,
+      isProfileComplete: updatedUser.isProfileComplete,
+    };
+
+    if (updatedUser.name) returnUser.name = updatedUser.name;
+    if (updatedUser.organization)
+      returnUser.organization = updatedUser.organization;
+    if (updatedUser.phone) returnUser.phone = updatedUser.phone;
+    if (updatedUser.city) returnUser.city = updatedUser.city;
+
     return {
       ...tokens,
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        organization: updatedUser.organization,
-        phone: updatedUser.phone,
-        city: updatedUser.city,
-        emailVerified: updatedUser.emailVerified,
-        phoneVerified: updatedUser.phoneVerified,
-        isProfileComplete: updatedUser.isProfileComplete,
-      },
+      user: returnUser,
     };
   }
 
@@ -563,19 +620,22 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
 
+    const returnUser: any = {
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      phoneVerified: user.phoneVerified,
+      isProfileComplete: user.isProfileComplete,
+    };
+
+    if (user.name) returnUser.name = user.name;
+    if (user.organization) returnUser.organization = user.organization;
+    if (user.phone) returnUser.phone = user.phone;
+    if (user.city) returnUser.city = user.city;
+
     return {
       ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        organization: user.organization, // Return organization
-        phone: user.phone,
-        city: user.city,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        isProfileComplete: user.isProfileComplete,
-      },
+      user: returnUser,
     };
   }
 
@@ -626,19 +686,23 @@ export class AuthService {
       storedToken.user.email,
     );
 
+    const returnUser: any = {
+      id: storedToken.user.id,
+      email: storedToken.user.email,
+      emailVerified: storedToken.user.emailVerified,
+      phoneVerified: storedToken.user.phoneVerified,
+      isProfileComplete: storedToken.user.isProfileComplete,
+    };
+
+    if (storedToken.user.name) returnUser.name = storedToken.user.name;
+    if (storedToken.user.organization)
+      returnUser.organization = storedToken.user.organization;
+    if (storedToken.user.phone) returnUser.phone = storedToken.user.phone;
+    if (storedToken.user.city) returnUser.city = storedToken.user.city;
+
     return {
       ...tokens,
-      user: {
-        id: storedToken.user.id,
-        email: storedToken.user.email,
-        name: storedToken.user.name,
-        organization: storedToken.user.organization,
-        phone: storedToken.user.phone,
-        city: storedToken.user.city,
-        emailVerified: storedToken.user.emailVerified,
-        phoneVerified: storedToken.user.phoneVerified,
-        isProfileComplete: storedToken.user.isProfileComplete,
-      },
+      user: returnUser,
     };
   }
 
@@ -670,6 +734,7 @@ export class AuthService {
         emailVerified: true,
         phoneVerified: true,
         isRestricted: true,
+        isProfileComplete: true,
         createdAt: true,
         updatedAt: true,
       },

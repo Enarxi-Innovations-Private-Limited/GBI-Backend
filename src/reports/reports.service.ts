@@ -5,8 +5,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, ReportType } from '@prisma/client';
 import { PdfService } from './pdf.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 const CSV_COLUMN_LABELS: Record<string, string> = {
   Date: 'Date',
@@ -26,7 +28,109 @@ export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pdfService: PdfService,
+    @InjectQueue('reports') private readonly reportsQueue: Queue,
   ) {}
+
+  // --- Async Report Flow ---
+
+  async enqueueReport(
+    userId: string,
+    type: 'csv' | 'pdf',
+    dto: GenerateReportDto,
+  ) {
+    // 1) Validate ownership before enqueueing
+    await this.validateAndGetDevice(userId, dto.deviceId);
+
+    // 2) Add job to BullMQ
+    const job = await this.reportsQueue.add(
+      type,
+      { type, userId, dto },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true, // we track completion in Prisma
+        removeOnFail: false, // useful for debugging failed jobs
+      },
+    );
+
+    // 3) Create Prisma metadata record using BullMQ's generated job.id
+    if (!job.id) {
+      throw new BadRequestException('Failed to generate report job ID');
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // Expires in 24h
+
+    await this.prisma.generatedReport.create({
+      data: {
+        id: job.id,
+        userId,
+        type: type === 'csv' ? ReportType.CSV : ReportType.PDF,
+        expiresAt,
+      },
+    });
+
+    return { jobId: job.id };
+  }
+
+  async getReportStatus(userId: string, jobId: string) {
+    // 1) Verify ownership
+    const reportMetadata = await this.prisma.generatedReport.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!reportMetadata) {
+      throw new BadRequestException('Report job not found');
+    }
+
+    if (reportMetadata.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // 2) Source of Truth: BullMQ
+    const job = await this.reportsQueue.getJob(jobId);
+
+    if (!job) {
+      // If job isn't in BullMQ, it's either completed (and removed) or expired.
+      if (reportMetadata.fileKey) {
+        return { status: 'completed', fileKey: reportMetadata.fileKey };
+      }
+      return { status: 'failed', error: 'Job disappeared before completion' };
+    }
+
+    const state = await job.getState();
+
+    if (state === 'completed') {
+      // It might take a millisec for Prisma to update after completion
+      if (reportMetadata.fileKey) {
+        return { status: 'completed', fileKey: reportMetadata.fileKey };
+      }
+      return { status: 'processing' };
+    }
+
+    if (state === 'failed') {
+      return { status: 'failed', error: job.failedReason };
+    }
+
+    // waiting, active, delayed, etc.
+    return { status: 'processing', rawState: state };
+  }
+
+  async getUserReports(userId: string) {
+    return this.prisma.generatedReport.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        type: true,
+        createdAt: true,
+        expiresAt: true,
+        fileKey: true,
+      },
+    });
+  }
+
+  // --- Internal Generation Methods (Called by Processor) ---
 
   async generateCsv(userId: string, dto: GenerateReportDto): Promise<string> {
     const interval = Number(dto.intervalMinutes ?? 5);

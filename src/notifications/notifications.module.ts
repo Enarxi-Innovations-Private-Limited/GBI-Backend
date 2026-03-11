@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { NotificationService } from './notification.service';
-import { MockEmailProvider, MockSmsProvider } from './providers';
-import { IEmailProvider, ISmsProvider } from './interfaces';
+import { MockSmsProvider } from './providers';
+import { ISmsProvider } from './interfaces';
+import { MailModule } from '../mail/mail.module';
+import { MailService } from '../mail/mail.service';
 
 /**
  * Notifications Module
- * 
+ *
  * Currently uses Mock providers (logs to console)
- * 
+ *
  * To switch to AWS SES/SNS:
  * 1. Install AWS SDKs: pnpm install @aws-sdk/client-ses @aws-sdk/client-sns
  * 2. Uncomment AWS provider imports
@@ -17,13 +19,9 @@ import { IEmailProvider, ISmsProvider } from './interfaces';
  * 5. Set environment variables: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, MailModule],
   providers: [
     NotificationService,
-    {
-      provide: 'IEmailProvider',
-      useClass: MockEmailProvider, // Change to AwsSesEmailProvider when ready
-    },
     {
       provide: 'ISmsProvider',
       useClass: MockSmsProvider, // Change to AwsSnsSmsProvider when ready
@@ -31,10 +29,10 @@ import { IEmailProvider, ISmsProvider } from './interfaces';
     // Inject the providers into NotificationService
     {
       provide: NotificationService,
-      useFactory: (emailProvider: IEmailProvider, smsProvider: ISmsProvider) => {
-        return new NotificationService(emailProvider, smsProvider);
+      useFactory: (mailService: MailService, smsProvider: ISmsProvider) => {
+        return new NotificationService(mailService, smsProvider);
       },
-      inject: ['IEmailProvider', 'ISmsProvider'],
+      inject: [MailService, 'ISmsProvider'],
     },
   ],
   exports: [NotificationService],

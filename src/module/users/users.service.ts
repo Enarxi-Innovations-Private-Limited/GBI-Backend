@@ -1,6 +1,14 @@
 import { AuthService } from 'src/auth/auth.service';
 import { UsersRepository } from './users.repository';
-import { BadRequestException, Inject, Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import Redis from 'ioredis';
@@ -8,6 +16,8 @@ import { randomInt } from 'crypto';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly usersRepo: UsersRepository,
     private readonly authService: AuthService,
@@ -48,7 +58,8 @@ export class UsersService {
   async requestEmailVerification(userId: string) {
     const user = await this.usersRepo.findById(userId);
     if (!user) throw new NotFoundException('User not found');
-    if (user.emailVerified) throw new BadRequestException('Email already verified');
+    if (user.emailVerified)
+      throw new BadRequestException('Email already verified');
 
     // Rate Limit Check
     await this.checkRateLimit(userId, 'email');
@@ -61,7 +72,7 @@ export class UsersService {
 
     // TODO: Replace with real email service (SendGrid/AWS SES)
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[MOCK EMAIL] OTP for user ${userId}: ${otp}`);
+      this.logger.log(`[MOCK EMAIL] OTP for user ${userId}: ${otp}`);
     }
 
     return { message: 'OTP sent to email (check server logs)' };
@@ -86,7 +97,8 @@ export class UsersService {
   async requestPhoneVerification(userId: string) {
     const user = await this.usersRepo.findById(userId);
     if (!user) throw new NotFoundException('User not found');
-    if (user.phoneVerified) throw new BadRequestException('Phone already verified');
+    if (user.phoneVerified)
+      throw new BadRequestException('Phone already verified');
 
     // Rate Limit Check
     await this.checkRateLimit(userId, 'phone');
@@ -98,7 +110,7 @@ export class UsersService {
 
     // TODO: Replace with real SMS service (Twilio/SNS)
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[MOCK SMS] OTP for user ${userId}: ${otp}`);
+      this.logger.log(`[MOCK SMS] OTP for user ${userId}: ${otp}`);
     }
 
     return { message: 'OTP sent to phone (check server logs)' };

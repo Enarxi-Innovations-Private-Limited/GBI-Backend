@@ -1,17 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { IEmailProvider, ISmsProvider } from './interfaces';
+import type { ISmsProvider } from './interfaces';
+import { MailService } from '../mail/mail.service';
 
 /**
  * Notification Service
- * Central service for sending emails and SMS
- * Uses configured providers (Mock, AWS, etc.)
+ * Central service for sending emails (via queues) and SMS
+ * Uses MailService (BullMQ) for async emails and configured providers for SMS
  */
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
   constructor(
-    private readonly emailProvider: IEmailProvider,
+    private readonly mailService: MailService,
     private readonly smsProvider: ISmsProvider,
   ) {}
 
@@ -24,21 +25,14 @@ export class NotificationService {
     name?: string;
   }): Promise<boolean> {
     try {
-      const result = await this.emailProvider.sendOTP({
-        to: params.email,
-        otp: params.otp,
-        name: params.name,
-      });
-
-      if (!result.success) {
-        this.logger.error(`Failed to send email OTP: ${result.error}`);
-        return false;
-      }
-
-      this.logger.log(`Email OTP sent successfully to ${params.email}`);
-      return true;
+      // Async: push to BullMQ queue
+      return await this.mailService.enqueueOtpEmail(
+        params.email,
+        params.otp,
+        params.name,
+      );
     } catch (error) {
-      this.logger.error(`Error sending email OTP: ${error.message}`);
+      this.logger.error(`Error enqueueing email OTP: ${error.message}`);
       return false;
     }
   }
@@ -46,10 +40,7 @@ export class NotificationService {
   /**
    * Send SMS OTP
    */
-  async sendSmsOTP(params: {
-    phone: string;
-    otp: string;
-  }): Promise<boolean> {
+  async sendSmsOTP(params: { phone: string; otp: string }): Promise<boolean> {
     try {
       const result = await this.smsProvider.sendOTP({
         to: params.phone,
@@ -78,21 +69,16 @@ export class NotificationService {
     name?: string;
   }): Promise<boolean> {
     try {
-      const result = await this.emailProvider.sendVerificationEmail({
-        to: params.email,
-        verificationLink: params.verificationLink,
-        name: params.name,
-      });
-
-      if (!result.success) {
-        this.logger.error(`Failed to send verification email: ${result.error}`);
-        return false;
-      }
-
-      this.logger.log(`Verification email sent successfully to ${params.email}`);
-      return true;
+      // Async: push to BullMQ queue
+      return await this.mailService.enqueueVerificationEmail(
+        params.email,
+        params.verificationLink,
+        params.name,
+      );
     } catch (error) {
-      this.logger.error(`Error sending verification email: ${error.message}`);
+      this.logger.error(
+        `Error enqueueing verification email: ${error.message}`,
+      );
       return false;
     }
   }
@@ -107,17 +93,15 @@ export class NotificationService {
     html?: string;
   }): Promise<boolean> {
     try {
-      const result = await this.emailProvider.sendEmail(params);
-
-      if (!result.success) {
-        this.logger.error(`Failed to send email: ${result.error}`);
-        return false;
-      }
-
-      this.logger.log(`Email sent successfully to ${params.to}`);
-      return true;
+      // For general custom emails not currently supported by template,
+      // we log a warning. In a real system you'd either create a generic
+      // HTML template job in MailService or fallback. For now, just logging:
+      this.logger.warn(
+        `Custom generic HTML emails not supported via queue yet for ${params.to}`,
+      );
+      return false;
     } catch (error) {
-      this.logger.error(`Error sending email: ${error.message}`);
+      this.logger.error(`Error handling custom email: ${error.message}`);
       return false;
     }
   }

@@ -55,8 +55,6 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.deviceTelemetry;
   }
 
-
-
   get alertState() {
     return this.prisma.alertState;
   }
@@ -83,6 +81,18 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   get groupThreshold() {
     return this.prisma.groupThreshold;
+  }
+
+  get generatedReport() {
+    return this.prisma.generatedReport;
+  }
+
+  get subscription() {
+    return this.prisma.subscription;
+  }
+
+  get subscriptionPlan() {
+    return this.prisma.subscriptionPlan;
   }
 
   // Expose transaction and other Prisma methods
