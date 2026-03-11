@@ -4,13 +4,19 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
   Param,
   Patch,
   Post,
   Query,
   Req,
+  Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import type { FastifyRequest } from 'fastify';
 import { AdminService } from './admin.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
@@ -22,8 +28,88 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post('login')
-  login(@Body() dto: AdminLoginDto) {
-    return this.adminService.login(dto);
+  async login(
+    @Body() dto: AdminLoginDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const result = await this.adminService.login(dto);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Set admin tokens as HttpOnly cookies
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60, // 15 minutes
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/admin', // Scoped to admin endpoints
+      maxAge: 3 * 24 * 60 * 60, // 3 days
+    });
+
+    return result;
+  }
+
+  @Post('refresh-token')
+  @HttpCode(HttpStatus.OK)
+  async refreshTokens(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const oldRefreshToken = req.cookies?.refreshToken;
+    if (!oldRefreshToken) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
+
+    const result = await this.adminService.refreshTokens(oldRefreshToken);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Set new tokens as HttpOnly cookies (Rotation)
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api/admin',
+      maxAge: 3 * 24 * 60 * 60,
+    });
+
+    return result;
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const refreshToken = req.cookies?.refreshToken;
+    await this.adminService.logout(refreshToken);
+
+    // Clear HttpOnly cookies
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/api/admin' });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('me')
+  getMe(@Req() req: any) {
+    // AdminGuard already populated req.user with the payload
+    return req.user;
   }
 
   @UseGuards(AdminGuard)
@@ -84,10 +170,12 @@ export class AdminController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('status') status?: 'ASSIGNED' | 'UNASSIGNED' | 'ALL',
   ) {
     const pageNumber = page ? parseInt(page, 10) : 1;
     const limitNumber = limit ? parseInt(limit, 10) : 10;
-    return this.adminService.getDevices(search, pageNumber, limitNumber);
+    const assignmentStatus = status === 'ALL' ? undefined : status;
+    return this.adminService.getDevices(search, pageNumber, limitNumber, assignmentStatus);
   }
 
   @UseGuards(AdminGuard)

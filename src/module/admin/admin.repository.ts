@@ -10,6 +10,10 @@ export class AdminRepository {
     return this.prisma.admin.findUnique({ where: { email } });
   }
 
+  findById(id: string) {
+    return this.prisma.admin.findUnique({ where: { id } });
+  }
+
   findDevice(deviceId: string) {
     return this.prisma.device.findUnique({ where: { deviceId } });
   }
@@ -24,10 +28,10 @@ export class AdminRepository {
     });
   }
 
-  async getDevices(search?: string, page: number = 1, limit: number = 10) {
+  async getDevices(search?: string, page: number = 1, limit: number = 10, assignmentStatus?: 'ASSIGNED' | 'UNASSIGNED') {
     const skip = (page - 1) * limit;
 
-    const where = {
+    const baseWhere: any = {
       isDeleted: false,
       ...(search
         ? {
@@ -39,21 +43,49 @@ export class AdminRepository {
         : {}),
     };
 
-    const [data, total] = await Promise.all([
+    if (assignmentStatus === 'ASSIGNED') {
+      baseWhere.assignments = { some: { unassignedAt: null } };
+    } else if (assignmentStatus === 'UNASSIGNED') {
+      baseWhere.assignments = { none: { unassignedAt: null } };
+    }
+
+    const where = baseWhere;
+
+    const [devices, total] = await Promise.all([
       this.prisma.device.findMany({
         where,
         orderBy: { addedAt: 'desc' },
         skip,
         take: limit,
-        select: {
-          id: true,
-          deviceId: true,
-          status: true,
-          addedAt: true,
+        include: {
+          assignments: {
+            where: { unassignedAt: null },
+            include: {
+              user: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.device.count({ where }),
     ]);
+
+    // Fetch UserDevice meta for these devices to get city and pincode
+    const deviceStringIds = devices.map((d) => d.deviceId);
+    const metaList = await this.prisma.userDevice.findMany({
+      where: { deviceId: { in: deviceStringIds } },
+    });
+
+    const data = devices.map((device) => {
+      const meta = metaList.find((m) => m.deviceId === device.deviceId);
+      return {
+        ...device,
+        meta: meta || null,
+      };
+    });
 
     return {
       data,
@@ -179,14 +211,36 @@ export class AdminRepository {
       throw new NotFoundException('Device not found');
     }
 
-    return this.prisma.device.update({
-      where: { deviceId },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-        status: DeviceStatus.OFFLINE,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Mark device as soft-deleted
+      await tx.device.update({
+        where: { deviceId },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          status: DeviceStatus.OFFLINE,
+        },
+      });
+
+      // 2. Force unassign from any active users
+      await tx.deviceAssignment.updateMany({
+        where: { deviceId: device.id, unassignedAt: null },
+        data: { unassignedAt: new Date() },
+      });
+
+      // 3. Purge user-provided device metadata (City, Pincode, custom name)
+      // This fulfills "all the data related to this device is also deleted" from user perspective
+      await tx.userDevice.deleteMany({
+        where: { deviceId: device.deviceId },
+      });
+
+      // 4. Clear any specific thresholds
+      await tx.deviceThreshold.deleteMany({
+        where: { deviceId: device.id },
+      });
     });
+
+    return { message: 'Device deleted successfully' };
   }
 
   async getStats() {

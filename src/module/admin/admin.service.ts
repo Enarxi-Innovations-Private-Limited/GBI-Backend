@@ -4,7 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AdminLoginDto } from './dto/admin-login.dto';
@@ -12,13 +14,18 @@ import * as bcrypt from 'bcrypt';
 import { CreateDeviceDto, DeviceType } from './dto/create-device.dto';
 import * as ExcelJS from 'exceljs';
 import { Readable } from 'stream';
+import Redis from 'ioredis';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly repo: AdminRepository,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
   async login(dto: AdminLoginDto) {
@@ -33,12 +40,65 @@ export class AdminService {
       type: 'admin',
     };
 
-    const token = this.jwt.sign(payload, {
+    const accessToken = this.jwt.sign(payload, {
       secret: this.config.get('ADMIN_JWT_SECRET'),
-      expiresIn: '12h',
+      expiresIn: '15m', // Short-lived access token
     });
 
-    return { accessToken: token };
+    // Generate refresh token (random string)
+    const refreshToken = randomBytes(64).toString('hex');
+
+    // Store in Redis (3 days TTL) -- Key: admin_rt:<token> Value: <adminId>
+    await this.redis.set(`admin_rt:${refreshToken}`, admin.id, 'EX', 3 * 24 * 60 * 60);
+
+    const { passwordHash, ...adminData } = admin;
+    return {
+      accessToken,
+      refreshToken,
+      user: adminData,
+    };
+  }
+
+  async logout(refreshToken: string) {
+    if (refreshToken) {
+      await this.redis.del(`admin_rt:${refreshToken}`);
+    }
+    return { success: true };
+  }
+
+  async refreshTokens(oldRefreshToken: string) {
+    // 1. Search for the token in Redis
+    const adminId = await this.redis.get(`admin_rt:${oldRefreshToken}`);
+    if (!adminId) {
+      this.logger.warn(`Invalid or expired refresh token attempt: ${oldRefreshToken}`);
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const admin = await this.repo.findById(adminId);
+    if (!admin) {
+      await this.redis.del(`admin_rt:${oldRefreshToken}`);
+      throw new UnauthorizedException('Admin not found');
+    }
+
+    // 2. Token Rotation: Delete old token
+    await this.redis.del(`admin_rt:${oldRefreshToken}`);
+
+    // 3. Generate new tokens
+    const payload = { sub: admin.id, type: 'admin' };
+    const accessToken = this.jwt.sign(payload, {
+      secret: this.config.get('ADMIN_JWT_SECRET'),
+      expiresIn: '15m',
+    });
+
+    const newRefreshToken = randomBytes(64).toString('hex');
+    await this.redis.set(`admin_rt:${newRefreshToken}`, admin.id, 'EX', 3 * 24 * 60 * 60);
+
+    const { passwordHash, ...adminData } = admin;
+    return {
+      accessToken,
+      refreshToken: newRefreshToken,
+      user: adminData,
+    };
   }
 
   async createDevice(dto: CreateDeviceDto) {
@@ -143,8 +203,8 @@ export class AdminService {
     };
   }
 
-  async getDevices(search?: string, page: number = 1, limit: number = 10) {
-    return this.repo.getDevices(search, page, limit);
+  async getDevices(search?: string, page: number = 1, limit: number = 10, assignmentStatus?: 'ASSIGNED' | 'UNASSIGNED') {
+    return this.repo.getDevices(search, page, limit, assignmentStatus);
   }
 
   async forceUnassign(deviceId: string) {

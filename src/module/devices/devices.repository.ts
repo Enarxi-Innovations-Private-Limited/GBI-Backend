@@ -169,4 +169,21 @@ export class DevicesRepository {
       where: { deviceId },
     });
   }
+
+  async getLatestTelemetry(deviceIdStr: string, minutes: number = 30) {
+    const device = await this.getDeviceByStringId(deviceIdStr);
+    if (!device) return [];
+    
+    const startTime = new Date(Date.now() - minutes * 60000);
+    const rows = await this.prisma.deviceTelemetry.findMany({
+      where: {
+        deviceId: device.id,
+        timestamp: { gte: startTime }
+      },
+      orderBy: { timestamp: 'asc' }
+    });
+    
+    // Remove BigInt 'id' to prevent JSON serialization errors
+    return rows.map(({ id, ...rest }) => rest);
+  }
 }

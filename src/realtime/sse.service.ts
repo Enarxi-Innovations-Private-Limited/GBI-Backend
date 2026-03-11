@@ -1,29 +1,33 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Response } from 'express';
-import { Subject } from 'rxjs';
+import type { ServerResponse } from 'http';
 
 /**
  * Service to manage Server-Sent Events (SSE) connections.
- * pushes real-time notifications to connected clients.
+ * Pushes real-time notifications to connected clients.
+ *
+ * Uses Node.js raw `ServerResponse` instead of Express `Response`
+ * because the backend runs on Fastify.
  */
 @Injectable()
 export class SseService {
   private readonly logger = new Logger(SseService.name);
-  private clients = new Map<string, Response[]>();
+  private clients = new Map<string, ServerResponse[]>();
 
   /**
    * Add a new client connection for a specific user.
    * @param userId The ID of the authenticated user
-   * @param res The Express Response object
+   * @param res The raw Node.js ServerResponse (from Fastify reply.raw)
    */
-  addClient(userId: string, res: Response) {
+  addClient(userId: string, res: ServerResponse) {
     if (!this.clients.has(userId)) {
       this.clients.set(userId, []);
     }
     const userClients = this.clients.get(userId);
     if (userClients) {
       userClients.push(res);
-      this.logger.log(`Client connected: ${userId} (Total: ${userClients.length})`);
+      this.logger.log(
+        `Client connected: ${userId} (Total: ${userClients.length})`,
+      );
     }
 
     // Remove client on close
@@ -35,7 +39,7 @@ export class SseService {
   /**
    * Remove a client connection.
    */
-  private removeClient(userId: string, res: Response) {
+  private removeClient(userId: string, res: ServerResponse) {
     const userClients = this.clients.get(userId);
     if (!userClients) return;
 
@@ -63,7 +67,10 @@ export class SseService {
     const formattedData = `data: ${JSON.stringify(data)}\n\n`;
 
     recipients.forEach((client) => {
-      client.write(formattedData);
+      // Only write if the connection is still writable
+      if (!client.writableEnded) {
+        client.write(formattedData);
+      }
     });
   }
 }

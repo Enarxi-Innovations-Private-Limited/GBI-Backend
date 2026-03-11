@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -70,5 +71,18 @@ export class DevicesController {
     @Param('id') deviceId: string,
   ) {
     return this.devicesService.removeDeviceThreshold(user.id, deviceId);
+  }
+
+  @Get(':id/telemetry')
+  getDeviceTelemetry(
+    @CurrentUser() user: any,
+    @Param('id') deviceId: string,
+    @Query('minutes') minutes?: string,
+  ) {
+    return this.devicesService.getDeviceTelemetry(
+      user.id,
+      deviceId,
+      minutes ? parseInt(minutes, 10) : 30,
+    );
   }
 }

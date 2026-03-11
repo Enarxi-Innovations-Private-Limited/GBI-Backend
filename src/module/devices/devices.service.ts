@@ -88,4 +88,15 @@ export class DevicesService {
     await this.repo.removeDeviceThreshold(device.id);
     return { message: 'Device threshold removed' };
   }
+
+  async getDeviceTelemetry(userId: string, deviceStringId: string, minutes: number = 30) {
+    // Validate ownership before returning generic device telemetry
+    const assignments = await this.repo.getUserDevices(userId);
+    const assigned = assignments.find((a) => a.device.deviceId === deviceStringId);
+    if (!assigned) {
+      throw new NotFoundException('Device not found or not assigned to user');
+    }
+
+    return this.repo.getLatestTelemetry(deviceStringId, minutes);
+  }
 }
