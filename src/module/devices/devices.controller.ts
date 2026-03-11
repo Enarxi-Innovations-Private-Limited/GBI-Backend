@@ -71,4 +71,9 @@ export class DevicesController {
   ) {
     return this.devicesService.removeDeviceThreshold(user.id, deviceId);
   }
+
+  @Get(':id/latest')
+  getLatestTelemetry(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.devicesService.getLatestTelemetry(user.id, id);
+  }
 }

@@ -155,6 +155,32 @@ Removes the individual threshold for a device (fallback to Group threshold if ap
 
 ---
 
+### 5. Get Latest Telemetry
+
+**GET** `/devices/:id/latest`
+
+Fetches the most recent telemetry data for a device from the live cache (Redis). This is the primary endpoint for dashboard real-time polling.
+
+**Response (200):**
+
+```json
+{
+  "messageId": "msg-123",
+  "timestamp": "2026-02-27T08:15:00.000Z",
+  "status": "ONLINE",
+  "pm25": 12.5,
+  "pm10": 20.1,
+  "tvoc": 0.5,
+  "co2": 450.0,
+  "temperature": 24.5,
+  "humidity": 60.2,
+  "noise": 45.0,
+  "aqi": 52
+}
+```
+
+---
+
 ### 6. Unclaim Device
 
 **DELETE** `/devices/:id`

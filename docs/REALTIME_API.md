@@ -15,9 +15,50 @@ Events are delivered for:
 - New in-app notifications (threshold breaches, offline alerts)
 - Custom server-side broadcasts to a specific user
 
+## Real-time Strategy
+
+The system uses a hybrid approach for real-time updates:
+
+1.  **SSE (Server-Sent Events)**: For low-frequency, critical events like **In-App Notifications** and Alerts.
+2.  **HTTP Polling**: For high-frequency data like **Latest Telemetry** (Dashboard updates). Fetch the latest state from the Redis-backed cache.
+
 ---
 
-## Connecting (Frontend)
+## 1. Latest Telemetry Polling
+
+**Endpoint:** `GET /devices/:id/latest`
+
+This endpoint provides the absolute latest data received from the device, served directly from a high-performance Redis cache.
+
+**Recommended Polling Interval:** 30–60 seconds.
+
+**Example Request:**
+
+```http
+GET /devices/GBI-DEV-001/latest
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+
+```json
+{
+  "timestamp": "2026-03-11T08:15:00.000Z",
+  "status": "ONLINE",
+  "pm25": 12.5,
+  "pm10": 20.1,
+  "tvoc": 0.5,
+  "co2": 450,
+  "temperature": 24.5,
+  "humidity": 60.2,
+  "noise": 45.0,
+  "aqi": 42
+}
+```
+
+---
+
+## 2. Notification Stream (SSE)
 
 ```javascript
 const token = 'YOUR_JWT_ACCESS_TOKEN'; // from /auth/login

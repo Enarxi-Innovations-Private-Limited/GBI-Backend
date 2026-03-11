@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Redis } from 'ioredis';
+
 import { DevicesRepository } from './devices.repository';
 import { ClaimDeviceDto } from './dto/claim-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 
 @Injectable()
 export class DevicesService {
-  constructor(private readonly repo: DevicesRepository) {}
+  constructor(
+    private readonly repo: DevicesRepository,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  ) {}
 
   /**
    * Claim a device for the authenticated user.
@@ -87,5 +92,29 @@ export class DevicesService {
 
     await this.repo.removeDeviceThreshold(device.id);
     return { message: 'Device threshold removed' };
+  }
+
+  async getLatestTelemetry(userId: string, deviceStringId: string) {
+    const device = await this.repo.getDeviceByStringId(deviceStringId);
+    if (!device) throw new NotFoundException('Device not found');
+
+    // Ownership check (similar to setDeviceThreshold logic if we had one there, but getMyDevices uses it)
+    // For simplicity and consistency with other endpoints, we check if the user is assigned to this device.
+    const assignments = await this.repo.getUserDevices(userId);
+    if (!assignments.find((a) => a.device.deviceId === deviceStringId)) {
+      const { ForbiddenException } = await import('@nestjs/common');
+      throw new ForbiddenException('You do not have access to this device');
+    }
+
+    const redisKey = `device:${deviceStringId}:latest`;
+    const data = await this.redis.get(redisKey);
+
+    if (!data) {
+      throw new NotFoundException(
+        'No recent telemetry data available for this device',
+      );
+    }
+
+    return JSON.parse(data);
   }
 }
