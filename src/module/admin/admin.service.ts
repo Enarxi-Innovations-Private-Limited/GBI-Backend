@@ -143,8 +143,13 @@ export class AdminService {
     };
   }
 
-  async getDevices(search?: string, page: number = 1, limit: number = 10) {
-    return this.repo.getDevices(search, page, limit);
+  async getDevices(
+    search?: string,
+    page: number = 1,
+    limit: number = 10,
+    assignmentStatus?: 'assigned' | 'unassigned',
+  ) {
+    return this.repo.getDevices(search, page, limit, assignmentStatus);
   }
 
   async forceUnassign(deviceId: string) {

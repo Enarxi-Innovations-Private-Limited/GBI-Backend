@@ -84,10 +84,16 @@ export class AdminController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('assignmentStatus') assignmentStatus?: 'assigned' | 'unassigned',
   ) {
     const pageNumber = page ? parseInt(page, 10) : 1;
     const limitNumber = limit ? parseInt(limit, 10) : 10;
-    return this.adminService.getDevices(search, pageNumber, limitNumber);
+    return this.adminService.getDevices(
+      search,
+      pageNumber,
+      limitNumber,
+      assignmentStatus,
+    );
   }
 
   @UseGuards(AdminGuard)

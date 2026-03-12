@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -75,5 +76,26 @@ export class DevicesController {
   @Get(':id/latest')
   getLatestTelemetry(@CurrentUser() user: any, @Param('id') id: string) {
     return this.devicesService.getLatestTelemetry(user.id, id);
+  }
+
+  @Get(':id/telemetry')
+  getDeviceTelemetry(
+    @CurrentUser() user: any,
+    @Param('id') deviceId: string,
+    @Query('metric') metric: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    if (!metric) {
+      const { BadRequestException } = require('@nestjs/common');
+      throw new BadRequestException('metric query parameter is required');
+    }
+    return this.devicesService.getDeviceTelemetry(
+      user.id,
+      deviceId,
+      metric,
+      startDate,
+      endDate,
+    );
   }
 }

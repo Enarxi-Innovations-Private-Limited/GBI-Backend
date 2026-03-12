@@ -169,4 +169,65 @@ export class DevicesRepository {
       where: { deviceId },
     });
   }
+
+  async getDeviceTelemetry(
+    deviceStringId: string,
+    metric: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId: deviceStringId },
+    });
+
+    if (!device) throw new NotFoundException('Device not found');
+
+    const where: Prisma.DeviceTelemetryWhereInput = {
+      deviceId: device.id,
+    };
+
+    if (startDate || endDate) {
+      where.timestamp = {};
+      if (startDate) {
+        where.timestamp.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.timestamp.lte = new Date(endDate);
+      }
+    } else {
+      // Default to last 24 hours if no dates provided
+      const yesterday = new Date();
+      yesterday.setHours(yesterday.getHours() - 24);
+      where.timestamp = { gte: yesterday };
+    }
+
+    const rows = await this.prisma.deviceTelemetry.findMany({
+      where,
+      orderBy: { timestamp: 'asc' },
+      select: {
+        timestamp: true,
+        [metric]: true, // Select the specific metric requested
+      },
+    });
+
+    // Format for frontend ApexCharts: { timestamp, time, value }
+    return rows.map((row) => {
+      const ts = row.timestamp as Date;
+      let timeLabel = ts.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      // If the range is > 24 hours, maybe include date, but frontend usually handles it or just wants a string.
+      // We'll provide standard ISO string for timestamp and a readable time label.
+
+      return {
+        timestamp: ts.toISOString(),
+        time: timeLabel,
+        value:
+          row[metric as keyof typeof row] !== null
+            ? Number(row[metric as keyof typeof row])
+            : 0,
+      };
+    });
+  }
 }

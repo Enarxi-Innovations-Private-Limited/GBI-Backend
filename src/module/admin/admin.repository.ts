@@ -24,10 +24,15 @@ export class AdminRepository {
     });
   }
 
-  async getDevices(search?: string, page: number = 1, limit: number = 10) {
+  async getDevices(
+    search?: string,
+    page: number = 1,
+    limit: number = 10,
+    assignmentStatus?: 'assigned' | 'unassigned',
+  ) {
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: any = {
       isDeleted: false,
       ...(search
         ? {
@@ -38,6 +43,12 @@ export class AdminRepository {
           }
         : {}),
     };
+
+    if (assignmentStatus === 'assigned') {
+      where.userDevice = { some: {} };
+    } else if (assignmentStatus === 'unassigned') {
+      where.userDevice = { none: {} };
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.device.findMany({

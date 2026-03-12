@@ -117,4 +117,28 @@ export class DevicesService {
 
     return JSON.parse(data);
   }
+
+  async getDeviceTelemetry(
+    userId: string,
+    deviceStringId: string,
+    metric: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    // Validate ownership
+    const assignments = await this.repo.getUserDevices(userId);
+    const assigned = assignments.find(
+      (a) => a.device.deviceId === deviceStringId,
+    );
+    if (!assigned) {
+      throw new NotFoundException('Device not found or not assigned to user');
+    }
+
+    return this.repo.getDeviceTelemetry(
+      deviceStringId,
+      metric,
+      startDate,
+      endDate,
+    );
+  }
 }
