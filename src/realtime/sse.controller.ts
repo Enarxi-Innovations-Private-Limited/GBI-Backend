@@ -1,4 +1,5 @@
 import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SseService } from './sse.service';
@@ -12,6 +13,7 @@ import { SseService } from './sse.service';
  */
 @Controller('events')
 @UseGuards(JwtAuthGuard)
+@SkipThrottle()
 export class SseController {
   constructor(private readonly sseService: SseService) {}
 

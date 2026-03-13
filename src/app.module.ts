@@ -67,7 +67,7 @@ import { MailModule } from './mail/mail.module';
     ThrottlerModule.forRoot([
       {
         ttl: 15 * 60 * 1000, // 15 minutes
-        limit: 1000, // Increased from 100 to allow dashboard polling
+        limit: 300, // Adjusted to 300 (safe balance for polling)
       },
     ]),
   ],
