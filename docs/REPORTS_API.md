@@ -14,6 +14,8 @@ The Reports module generates downloadable telemetry reports in two formats:
 
 > **Ownership Enforcement:** Only devices actively assigned to the requesting user can be included in a report. Unauthorized device IDs return `403 Forbidden`.
 
+> **Frontend Implementation:** For details on how the frontend should securely download these asynchronously generated files once they are ready, please see the [**Async Download Guide**](./reports/ASYNC_DOWNLOAD_GUIDE.md).
+
 ---
 
 ## Shared Query Parameters
