@@ -9,6 +9,8 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
@@ -21,9 +23,88 @@ import { AdminGuard } from 'src/auth/guards/admin.guard';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @UseGuards(AdminGuard)
+  @Get('me')
+  getMe(@Req() req: FastifyRequest & { user: any }) {
+    return this.adminService.getMe(req.user.sub);
+  }
+
   @Post('login')
-  login(@Body() dto: AdminLoginDto) {
-    return this.adminService.login(dto);
+  async login(
+    @Body() dto: AdminLoginDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const result = await this.adminService.login(dto);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Set tokens as HttpOnly cookies
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60, // 15 mins
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/', // Changed from /api/admin to ensure proxy compatibility if needed
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+    });
+
+    return { user: result.user };
+  }
+
+  @Post('refresh-token')
+  async refreshTokens(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
+
+    const result = await this.adminService.refreshTokens(refreshToken);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.setCookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60,
+    });
+
+    res.setCookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return { user: result.user };
+  }
+
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) res: any) {
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
+    return this.adminService.logout();
+  }
+
+
+
+  @UseGuards(AdminGuard)
+  @Get('users/:userId/impersonate')
+  impersonateUser(
+    @Param('userId') userId: string,
+    @Req() req: FastifyRequest & { user: any },
+  ) {
+    return this.adminService.impersonateUser(req.user.sub, userId);
   }
 
   @UseGuards(AdminGuard)

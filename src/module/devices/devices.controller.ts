@@ -12,6 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { ReadonlyGuard } from '../../auth/guards/readonly.guard';
+import { ReadonlyBlocked } from '../../auth/decorators/readonly.decorator';
 import { DevicesService } from './devices.service';
 import { ClaimDeviceDto } from './dto/claim-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
@@ -23,6 +25,8 @@ import { SetDeviceThresholdDto } from './dto/set-device-threshold.dto';
 export class DevicesController {
   constructor(private readonly devicesService: DevicesService) {}
 
+  @UseGuards(ReadonlyGuard)
+  @ReadonlyBlocked()
   @Post('claim')
   claim(@CurrentUser() user: any, @Body() dto: ClaimDeviceDto) {
     return this.devicesService.claimDevice(user.id, dto);
@@ -33,6 +37,8 @@ export class DevicesController {
     return this.devicesService.getMyDevices(user.id);
   }
 
+  @UseGuards(ReadonlyGuard)
+  @ReadonlyBlocked()
   @Patch(':id')
   update(
     @CurrentUser() user: any,
@@ -52,6 +58,8 @@ export class DevicesController {
     throw new ForbiddenException('Unassign feature is currently disabled');
   }
 
+  @UseGuards(ReadonlyGuard)
+  @ReadonlyBlocked()
   @Post(':id/threshold')
   setDeviceThreshold(
     @CurrentUser() user: any,
@@ -65,6 +73,8 @@ export class DevicesController {
     );
   }
 
+  @UseGuards(ReadonlyGuard)
+  @ReadonlyBlocked()
   @Delete(':id/threshold')
   removeDeviceThreshold(
     @CurrentUser() user: any,

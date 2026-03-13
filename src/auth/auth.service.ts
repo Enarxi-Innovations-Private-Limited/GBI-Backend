@@ -32,6 +32,9 @@ export interface JwtPayload {
   email: string;
   iat?: number;
   exp?: number;
+  // Impersonation claims (only present in admin view-as-user tokens)
+  readonly?: boolean;
+  impersonatedBy?: string; // admin id
 }
 
 export interface AuthResponse {

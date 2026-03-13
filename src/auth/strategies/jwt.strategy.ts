@@ -34,9 +34,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload) {
     // Validate user exists and is not restricted
     const user = await this.authService.validateUser(payload.sub);
-    
+
     if (!user) {
       throw new UnauthorizedException('User not found');
+    }
+
+    // Pass through impersonation claims so ReadonlyGuard can act on them
+    if (payload.readonly) {
+      (user as any).readonly = true;
+      (user as any).impersonatedBy = payload.impersonatedBy ?? null;
     }
 
     return user;

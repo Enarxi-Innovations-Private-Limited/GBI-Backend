@@ -28,17 +28,112 @@ export class AdminService {
     const isValid = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!isValid) throw new UnauthorizedException('Invalid credentials');
 
+    const tokens = await this.generateTokens(admin.id);
+    return {
+      ...tokens,
+      user: {
+        id: admin.id,
+        email: admin.email,
+        role: 'ADMIN',
+      },
+    };
+  }
+
+  async generateTokens(adminId: string) {
     const payload = {
-      sub: admin.id,
+      sub: adminId,
       type: 'admin',
     };
 
-    const token = this.jwt.sign(payload, {
-      secret: this.config.get('ADMIN_JWT_SECRET'),
-      expiresIn: '12h',
+    const secret = this.config.get('ADMIN_JWT_SECRET');
+    
+    const accessToken = this.jwt.sign(payload, {
+      secret,
+      expiresIn: '15m',
     });
 
-    return { accessToken: token };
+    const refreshToken = this.jwt.sign(
+      { ...payload, isRefreshToken: true },
+      {
+        secret,
+        expiresIn: '30d',
+      },
+    );
+
+    return { accessToken, refreshToken };
+  }
+
+  async refreshTokens(refreshToken: string) {
+    try {
+      const secret = this.config.get('ADMIN_JWT_SECRET');
+      const payload = this.jwt.verify(refreshToken, { secret });
+
+      if (payload.type !== 'admin' || !payload.isRefreshToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const tokens = await this.generateTokens(payload.sub);
+      const admin = await this.repo.findById(payload.sub);
+      if (!admin) throw new UnauthorizedException('Admin not found');
+
+      return {
+        ...tokens,
+        user: {
+          id: admin.id,
+          email: admin.email,
+          role: 'ADMIN',
+        },
+      };
+    } catch (e) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+  }
+
+  async logout() {
+    // For JWT-based refresh tokens, logout is handled by clearing cookies on the frontend.
+    // If we wanted to supports server-side revocation, we'd need a blacklist in Redis.
+    return { message: 'Logged out successfully' };
+  }
+
+  async getMe(id: string) {
+    const admin = await this.repo.findById(id);
+    if (!admin) throw new UnauthorizedException('Admin not found');
+    return admin;
+  }
+
+  async impersonateUser(adminId: string, userId: string) {
+    const user = await this.repo.findUserById(userId);
+    if (!user) throw new BadRequestException('User not found');
+    if (user.isRestricted) {
+      throw new BadRequestException(
+        'Cannot impersonate a restricted user account',
+      );
+    }
+
+    // Sign a JWT with the USER secret so it passes JwtAuthGuard.
+    // readonly: true tells ReadonlyGuard to block write operations.
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      readonly: true,
+      impersonatedBy: adminId,
+    };
+
+    const token = this.jwt.sign(payload, {
+      secret: this.config.get('JWT_SECRET'),
+      expiresIn: '30m',
+    });
+
+    return {
+      token,
+      expiresIn: 1800, // seconds
+      targetUser: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organization: user.organization,
+      },
+    };
   }
 
   async createDevice(dto: CreateDeviceDto) {

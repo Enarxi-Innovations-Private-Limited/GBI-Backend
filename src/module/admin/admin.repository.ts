@@ -10,6 +10,30 @@ export class AdminRepository {
     return this.prisma.admin.findUnique({ where: { email } });
   }
 
+  findById(id: string) {
+    return this.prisma.admin.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  findUserById(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        organization: true,
+        isRestricted: true,
+      },
+    });
+  }
+
   findDevice(deviceId: string) {
     return this.prisma.device.findUnique({ where: { deviceId } });
   }
