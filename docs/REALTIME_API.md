@@ -60,26 +60,26 @@ Authorization: Bearer <token>
 
 ## 2. Notification Stream (SSE)
 
+> **IMPORTANT:** See the complete [**SSE Implementation Guide**](./realtime/SSE_IMPLEMENTATION_GUIDE.md) for detailed instructions on CORS resolution, Next.js buffering bypass, and the resilient frontend React component architecture.
+
+### Frontend Integration Example (`useSSE` hook)
+
+Do not use native `EventSource`. We utilize a custom `fetch`-based React hook implementation with exponential backoff that connects directly to the backend to prevent Next.js proxy response buffering:
+
 ```javascript
-const token = 'YOUR_JWT_ACCESS_TOKEN'; // from /auth/login
+import { useSSE } from '@/hooks/useSSE';
 
-const source = new EventSource(`http://localhost:4000/events/stream`, {
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-});
+function Dashboard() {
+  useSSE((event) => {
+    console.log('Received real-time event:', event);
+    if (event.type === 'NOTIFICATION') {
+      // Trigger toast, update unread count, etc.
+    }
+  }, true /* enabled flag */);
 
-source.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('Received event:', data);
-};
-
-source.onerror = () => {
-  console.error('SSE connection error');
-};
+  // ...
+}
 ```
-
-> **Note:** Native browser `EventSource` does not support custom headers. Use the [`eventsource`](https://www.npmjs.com/package/eventsource) npm package or `fetch`-based SSE libraries in React/Next.js apps.
 
 ---
 

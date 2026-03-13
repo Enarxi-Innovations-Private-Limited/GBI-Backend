@@ -20,6 +20,27 @@ export class SseController {
     const userId = (req as any).user?.id as string;
     const raw = reply.raw; // Node.js ServerResponse
 
+    // ── Copy Fastify CORS headers to raw response ─────────────────────────
+    const corsHeaders = [
+      'access-control-allow-origin',
+      'access-control-allow-credentials',
+      'access-control-allow-headers',
+      'access-control-expose-headers',
+      'vary',
+    ];
+    for (const header of corsHeaders) {
+      const val = reply.getHeader(header);
+      if (val) {
+        raw.setHeader(header, val);
+      }
+    }
+
+    // Fallback if Fastify CORS plugin hasn't attached headers yet
+    if (!raw.getHeader('access-control-allow-origin') && req.headers.origin) {
+      raw.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+      raw.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
     // ── SSE Headers ───────────────────────────────────────────────────────
     raw.setHeader('Content-Type', 'text/event-stream');
     raw.setHeader('Cache-Control', 'no-cache, no-transform');
