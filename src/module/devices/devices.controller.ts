@@ -52,10 +52,11 @@ export class DevicesController {
    * Unassign feature is intentionally disabled at the application layer.
    * DB schema and internal service logic are preserved for future re-enablement.
    */
+  @UseGuards(ReadonlyGuard)
+  @ReadonlyBlocked()
   @Delete(':id')
-  @HttpCode(403)
-  unclaimDevice(): never {
-    throw new ForbiddenException('Unassign feature is currently disabled');
+  unclaimDevice(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.devicesService.unclaimDevice(user.id, id);
   }
 
   @UseGuards(ReadonlyGuard)

@@ -49,11 +49,20 @@ export class DevicesService {
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
 
+    // Ownership check: Verify the user has an active assignment for this device
+    const assignments = await this.repo.getUserDevices(userId);
+    if (!assignments.find((a) => a.device.deviceId === deviceStringId)) {
+      const { ForbiddenException } = await import('@nestjs/common');
+      throw new ForbiddenException('You do not have access to this device');
+    }
+
     return this.repo.updateDeviceMeta(
       userId,
       deviceStringId,
       dto.name,
       dto.location,
+      dto.city,
+      dto.pincode,
     );
   }
 
@@ -64,6 +73,14 @@ export class DevicesService {
   async unclaimDevice(userId: string, deviceStringId: string) {
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
+
+    // Ownership check
+    const assignments = await this.repo.getUserDevices(userId);
+    if (!assignments.find((a) => a.device.deviceId === deviceStringId)) {
+      const { ForbiddenException } = await import('@nestjs/common');
+      throw new ForbiddenException('You do not have access to this device');
+    }
+
     await this.repo.unclaimDevice(userId, device.id);
     return { success: true };
   }

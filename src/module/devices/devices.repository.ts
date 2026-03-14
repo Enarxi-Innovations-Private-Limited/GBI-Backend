@@ -117,15 +117,37 @@ export class DevicesRepository {
   }
 
   async unclaimDevice(userId: string, deviceInternalId: string) {
-    await this.prisma.deviceAssignment.updateMany({
-      where: {
-        userId,
-        deviceId: deviceInternalId,
-        unassignedAt: null,
-      },
-      data: {
-        unassignedAt: new Date(),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Delete all telemetry for this device
+      await tx.deviceTelemetry.deleteMany({
+        where: { deviceId: deviceInternalId },
+      });
+
+      // 2. Mark assignment as finished
+      await tx.deviceAssignment.updateMany({
+        where: {
+          userId,
+          deviceId: deviceInternalId,
+          unassignedAt: null,
+        },
+        data: {
+          unassignedAt: new Date(),
+        },
+      });
+
+      // 3. Delete metadata for this user/device
+      // We look up the device display string first to target UserDevice
+      const device = await tx.device.findUnique({
+        where: { id: deviceInternalId },
+      });
+      if (device) {
+        await tx.userDevice.deleteMany({
+          where: {
+            userId,
+            deviceId: device.deviceId,
+          },
+        });
+      }
     });
   }
 
@@ -137,22 +159,27 @@ export class DevicesRepository {
     city?: string,
     pincode?: string,
   ) {
-    return this.prisma.userDevice.upsert({
-      where: { deviceId: deviceDisplayId },
-      create: {
-        userId,
+    const result = await this.prisma.userDevice.updateMany({
+      where: {
         deviceId: deviceDisplayId,
-        name: name || deviceDisplayId,
-        location: location || '',
-        city: city || '',
-        pincode: pincode || '',
+        userId: userId,
       },
-      update: {
+      data: {
         name,
         location,
         city,
         pincode,
       },
+    });
+
+    if (result.count === 0) {
+      throw new NotFoundException(
+        'Device metadata not found or ownership not verified',
+      );
+    }
+
+    return this.prisma.userDevice.findUnique({
+      where: { deviceId: deviceDisplayId },
     });
   }
 
