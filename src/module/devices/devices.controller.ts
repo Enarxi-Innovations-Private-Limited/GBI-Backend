@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ReadonlyGuard } from '../../auth/guards/readonly.guard';
@@ -35,6 +36,56 @@ export class DevicesController {
   @Get()
   getMyDevices(@CurrentUser() user: any) {
     return this.devicesService.getMyDevices(user.id);
+  }
+
+  /**
+   * GET /devices/chart-data
+   * Returns time-bucketed telemetry for one or more devices for charting.
+   *
+   * Query params:
+   *   deviceIds  - comma-separated display IDs, e.g. "GBIAIR1000,GBIAIR1001"
+   *   parameter  - metric key, e.g. "pm25"
+   *   start      - ISO 8601 start timestamp
+   *   end        - ISO 8601 end timestamp
+   *   intervalMinutes (optional) - bucket size in minutes; auto-computed if omitted
+   */
+  @Get('chart-data')
+  async getChartData(
+    @CurrentUser() user: any,
+    @Query('deviceIds') rawDeviceIds: string,
+    @Query('parameter') parameter: string,
+    @Query('start') start: string,
+    @Query('end') end: string,
+    @Query('intervalMinutes') intervalMinutes?: string,
+  ) {
+    if (!rawDeviceIds || !parameter || !start || !end) {
+      throw new BadRequestException(
+        'deviceIds, parameter, start, and end are all required',
+      );
+    }
+
+    const deviceIds = rawDeviceIds.split(',').map((id) => id.trim()).filter(Boolean);
+    if (!deviceIds.length) {
+      throw new BadRequestException('deviceIds must contain at least one ID');
+    }
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new BadRequestException('Invalid start or end timestamp');
+    }
+
+    const interval = intervalMinutes ? parseInt(intervalMinutes, 10) : undefined;
+
+    return this.devicesService.getChartData(
+      user.id,
+      deviceIds,
+      parameter,
+      startDate,
+      endDate,
+      interval,
+    );
   }
 
   @UseGuards(ReadonlyGuard)

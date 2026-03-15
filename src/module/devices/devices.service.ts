@@ -4,12 +4,14 @@ import { Redis } from 'ioredis';
 import { DevicesRepository } from './devices.repository';
 import { ClaimDeviceDto } from './dto/claim-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
+import { TelemetryQueryService } from '../../telemetry/telemetry-query.service';
 
 @Injectable()
 export class DevicesService {
   constructor(
     private readonly repo: DevicesRepository,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private readonly telemetryQuery: TelemetryQueryService,
   ) {}
 
   /**
@@ -157,5 +159,91 @@ export class DevicesService {
       startDate,
       endDate,
     );
+  }
+
+  /**
+   * Get time-bucketed chart data for one or more devices.
+   * Used by the Analytics page (single-device and device-comparison modes)
+   * and the Historical Comparison section (period A vs period B).
+   */
+  async getChartData(
+    userId: string,
+    deviceIds: string[],
+    parameter: string,
+    start: Date,
+    end: Date,
+    intervalMinutes?: number,
+  ) {
+    if (!deviceIds.length) {
+      throw new NotFoundException('At least one deviceId is required');
+    }
+
+    // Validate ownership for every requested device
+    const assignments = await this.repo.getUserDevices(userId);
+    const assignedIds = new Set(assignments.map((a) => a.device.deviceId));
+
+    const devices: { id: string; deviceId: string }[] = [];
+    for (const displayId of deviceIds) {
+      if (!assignedIds.has(displayId)) {
+        const { ForbiddenException } = await import('@nestjs/common');
+        throw new ForbiddenException(
+          `You do not have access to device ${displayId}`,
+        );
+      }
+      const assignment = assignments.find(
+        (a) => a.device.deviceId === displayId,
+      )!;
+      devices.push({
+        id: assignment.device.id,
+        deviceId: assignment.device.deviceId,
+      });
+    }
+
+    // Get user-friendly names for each device
+    const metaList = await this.repo.getUserDeviceMeta(userId);
+    const nameMap = new Map(
+      metaList.map((m) => [m.deviceId, m.name || m.deviceId]),
+    );
+
+    // Auto-compute interval if not provided
+    const interval =
+      intervalMinutes ?? TelemetryQueryService.autoInterval(start, end);
+
+    // Query bucketed data for all devices at once
+    const rows = await this.telemetryQuery.queryBucketedTelemetry(
+      devices,
+      [parameter],
+      start,
+      end,
+      interval,
+    );
+
+    // Group by deviceId
+    const grouped = new Map<string, { timestamp: string; value: number | null }[]>();
+    for (const id of deviceIds) {
+      grouped.set(id, []);
+    }
+    for (const row of rows) {
+      const ts = new Date(row.timestamp);
+      const bucket = grouped.get(row.deviceId);
+      if (bucket) {
+        const rawValue = row[parameter];
+        bucket.push({
+          timestamp: ts.toISOString(),
+          value: rawValue !== null && rawValue !== undefined
+            ? parameter === 'temperature'
+              ? Math.round(Number(rawValue) * 10) / 10
+              : Math.round(Number(rawValue))
+            : null,
+        });
+      }
+    }
+
+    // Build response array
+    return deviceIds.map((displayId) => ({
+      deviceId: displayId,
+      deviceName: nameMap.get(displayId) || displayId,
+      data: grouped.get(displayId) || [],
+    }));
   }
 }
