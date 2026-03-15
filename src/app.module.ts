@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { UsersModule } from './module/users/users.module';
 import { AdminModule } from './module/admin/admin.module';
+import { PremiumModule } from './module/premium/premium.module';
 import { RedisModule } from './redis/redis.module';
 import { DevicesModule } from './module/devices/devices.module';
 import { MqttModule } from './mqtt/mqtt.module';
@@ -37,6 +38,7 @@ import { MailModule } from './mail/mail.module';
     NotificationsModule,
     UsersModule,
     AdminModule,
+    PremiumModule,
     RedisModule,
     DevicesModule,
     MqttModule,
@@ -55,8 +57,19 @@ import { MailModule } from './mail/mail.module';
             url: redisUrl,
             family: 0, // Crucial for IPv6 / Upstash
             tls: { rejectUnauthorized: false }, // Always enable TLS (matches redis.module.ts)
-            maxRetriesPerRequest: null, // Required by BullMQ to prevent max retries crashing on Upstash disconnecting
+            maxRetriesPerRequest: null, // Required by BullMQ — it manages its own command retries
             enableReadyCheck: false,
+
+            // --- Upstash request-limit protection ---
+            // When Upstash rejects commands (rate limit / disconnect) ioredis
+            // will keep reconnecting. Without a cap this creates an infinite
+            // retry storm that floods the terminal and consumes the daily quota.
+            // Exponential backoff: 500 ms → 1 s → 1.5 s → … → 5 s max.
+            // After 10 failed reconnect attempts the client stops trying.
+            retryStrategy: (times: number) => {
+              if (times > 10) return null; // give up — avoids runaway log spam
+              return Math.min(times * 500, 5000);
+            },
           },
         };
       },
