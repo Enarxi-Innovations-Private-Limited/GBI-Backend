@@ -50,12 +50,11 @@ import { MailModule } from './mail/mail.module';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const redisUrl = configService.get<string>('REDIS_URL');
-        const isTls = redisUrl?.startsWith('rediss://');
         return {
           connection: {
             url: redisUrl,
             family: 0, // Crucial for IPv6 / Upstash
-            ...(isTls ? { tls: { rejectUnauthorized: false } } : {}), // Crucial for self-signed or strict TLS in BullMQ
+            tls: { rejectUnauthorized: false }, // Always enable TLS (matches redis.module.ts)
             maxRetriesPerRequest: null, // Required by BullMQ to prevent max retries crashing on Upstash disconnecting
             enableReadyCheck: false,
           },

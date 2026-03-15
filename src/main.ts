@@ -65,8 +65,8 @@ async function bootstrap() {
     }),
   );
   app.useGlobalInterceptors(new BigIntInterceptor());
-  const port = process.env.PORT ?? 3000;
-  await app.listen({ port: Number(process.env.PORT) || 3000, host: '0.0.0.0' });
+  const port = process.env.PORT ?? 4000;
+  await app.listen({ port: Number(process.env.PORT) || 4000, host: '0.0.0.0' });
   Logger.log(`Server running on http://localhost:${port}`);
   Logger.log('Application Adapter: ' + app.getHttpAdapter().getType());
 }
