@@ -6,10 +6,12 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { BullModule } from '@nestjs/bullmq';
 import { ReportsProcessor } from './reports.processor';
 import { ReportsScheduler } from './reports.scheduler';
+import { TelemetryModule } from 'src/telemetry/telemetry.module';
 
 @Module({
   imports: [
     PrismaModule,
+    TelemetryModule,
     BullModule.registerQueue({
       name: 'reports',
       defaultJobOptions: {

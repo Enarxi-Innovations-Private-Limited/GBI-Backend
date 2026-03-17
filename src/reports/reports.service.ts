@@ -9,6 +9,7 @@ import { Prisma, ReportType } from '@prisma/client';
 import { PdfService } from './pdf.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { TelemetryQueryService } from 'src/telemetry/telemetry-query.service';
 
 const CSV_COLUMN_LABELS: Record<string, string> = {
   Date: 'Date',
@@ -29,6 +30,7 @@ export class ReportsService {
     private readonly prisma: PrismaService,
     private readonly pdfService: PdfService,
     @InjectQueue('reports') private readonly reportsQueue: Queue,
+    private readonly telemetryQuery: TelemetryQueryService,
   ) {}
 
   // --- Async Report Flow ---
@@ -145,7 +147,7 @@ export class ReportsService {
     const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
     // 2) Query telemetry using bucketing (raw SQL)
-    const rawRows: any[] = await this.queryBucketedTelemetry(
+    const rawRows: any[] = await this.telemetryQuery.queryBucketedTelemetry(
       [device],
       dto.parameters,
       start,
@@ -169,7 +171,7 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = this.formatTelemetryRows(rawRows, orderedParams);
+    const rows = this.telemetryQuery.formatTelemetryRows(rawRows, orderedParams);
 
     // 4) Build Custom CSV String
     const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
@@ -271,7 +273,7 @@ export class ReportsService {
     const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
     // 2) Query telemetry using bucketing (raw SQL)
-    const rawRows: any[] = await this.queryBucketedTelemetry(
+    const rawRows: any[] = await this.telemetryQuery.queryBucketedTelemetry(
       [device],
       dto.parameters,
       start,
@@ -297,7 +299,7 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = this.formatTelemetryRows(rawRows, orderedParams);
+    const rows = this.telemetryQuery.formatTelemetryRows(rawRows, orderedParams);
 
     // 4) Group rows by deviceId
     const rowsByDevice: Record<string, any[]> = {};
@@ -344,129 +346,6 @@ export class ReportsService {
     });
   }
 
-  private async queryBucketedTelemetry(
-    devices: { id: string; deviceId: string }[],
-    params: string[],
-    start: Date,
-    end: Date,
-    interval: number,
-  ) {
-    if (!devices.length || !params.length) return [];
-
-    const uuidList = devices.map((d) => d.id);
-
-    const deviceIdMap = new Map(devices.map((d) => [d.id, d.deviceId]));
-
-    const allowedParams = [
-      'pm25',
-      'pm10',
-      'temperature',
-      'humidity',
-      'co2',
-      'tvoc',
-      'noise',
-      'aqi',
-    ];
-
-    const safeParams = params.filter((p) => allowedParams.includes(p));
-
-    if (!safeParams.length) return [];
-
-    let rows: any[] = [];
-
-    if (interval === 60 || interval === 360) {
-      const selectCols = Prisma.join(
-        safeParams.map((param) => Prisma.sql`"${Prisma.raw(param)}"`),
-        ', ',
-      );
-
-      rows = await this.prisma.$queryRaw(
-        Prisma.sql`
-        SELECT DISTINCT ON ("timestamp_bucket", "deviceId")
-          to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp_bucket",
-          "deviceId",
-          "timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "original_timestamp",
-          ${selectCols}
-        FROM "DeviceTelemetry"
-        WHERE "deviceId" IN (${Prisma.join(uuidList)})
-        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
-        ORDER BY
-          "timestamp_bucket" ASC,
-          "deviceId" ASC,
-          "timestamp" ASC
-      `,
-      );
-    } else if (interval === 1) {
-      const selectAgg = Prisma.join(
-        safeParams.map(
-          (param) =>
-            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
-        ),
-        ', ',
-      );
-
-      rows = await this.prisma.$queryRaw(
-        Prisma.sql`
-        SELECT
-          date_trunc('minute', "timestamp") AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
-
-          "deviceId",
-
-          ${selectAgg}
-
-        FROM "DeviceTelemetry"
-
-        WHERE "deviceId" IN (${Prisma.join(uuidList)})
-        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
-
-        GROUP BY 1, "deviceId"
-
-        ORDER BY 1 ASC, "deviceId" ASC
-      `,
-      );
-    } else {
-      const selectAgg = Prisma.join(
-        safeParams.map(
-          (param) =>
-            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
-        ),
-        ', ',
-      );
-
-      rows = await this.prisma.$queryRaw(
-        Prisma.sql`
-        SELECT
-          (
-            date_trunc('minute', "timestamp")
-            - (extract(minute from "timestamp")::int % ${interval})
-              * interval '1 minute'
-          ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
-
-          "deviceId",
-
-          ${selectAgg}
-
-        FROM "DeviceTelemetry"
-
-        WHERE "deviceId" IN (${Prisma.join(uuidList)})
-        AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
-
-        GROUP BY 1, "deviceId"
-
-        ORDER BY 1 ASC, "deviceId" ASC
-      `,
-      );
-    }
-
-    for (let i = 0; i < rows.length; i++) {
-      rows[i].timestamp = rows[i].timestamp_bucket || rows[i].timestamp;
-      rows[i].deviceId = deviceIdMap.get(rows[i].deviceId);
-    }
-    return rows;
-  }
-
-  // --- Shared Private Helpers ---
-
   private async validateAndGetDevice(userId: string, deviceId: string) {
     const device = await this.prisma.device.findUnique({
       where: { deviceId },
@@ -492,43 +371,5 @@ export class ReportsService {
     return device;
   }
 
-  private formatTelemetryRows(rawRows: any[], orderedParams: string[]): any[] {
-    const rows = new Array(rawRows.length);
-    for (let i = 0; i < rawRows.length; i++) {
-      const row = rawRows[i];
-      const processedRow: any = { deviceId: row.deviceId };
-
-      if (row.timestamp) {
-        const ts = new Date(row.timestamp);
-
-        const dd = String(ts.getUTCDate()).padStart(2, '0');
-        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0'); // January is 0!
-        const yyyy = ts.getUTCFullYear();
-
-        const hours = String(ts.getUTCHours()).padStart(2, '0');
-        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
-
-        processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}`;
-      }
-
-      for (let j = 0; j < orderedParams.length; j++) {
-        const param = orderedParams[j];
-        if (row[param] !== null && row[param] !== undefined) {
-          if (param === 'temperature') {
-            // Keep 1 decimal place for temperature
-            processedRow[param] = Math.round(Number(row[param]) * 10) / 10;
-          } else {
-            // Drop to 0 decimal places for all others
-            processedRow[param] = Math.round(Number(row[param]));
-          }
-        } else {
-          processedRow[param] = null;
-        }
-      }
-
-      rows[i] = processedRow;
-    }
-    return rows;
-  }
 }
+
