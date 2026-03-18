@@ -240,7 +240,7 @@ export class DevicesRepository {
     // Format for frontend ApexCharts: { timestamp, time, value }
     return rows.map((row) => {
       const ts = row.timestamp as Date;
-      let timeLabel = ts.toLocaleTimeString([], {
+      const timeLabel = ts.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       });
@@ -251,9 +251,10 @@ export class DevicesRepository {
         timestamp: ts.toISOString(),
         time: timeLabel,
         value:
-          row[metric as keyof typeof row] !== null
+          row[metric as keyof typeof row] !== null &&
+          row[metric as keyof typeof row] !== undefined
             ? Number(row[metric as keyof typeof row])
-            : 0,
+            : null,
       };
     });
   }
