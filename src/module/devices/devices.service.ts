@@ -113,7 +113,7 @@ export class DevicesService {
     return { message: 'Device threshold removed' };
   }
 
-  async getLatestTelemetry(userId: string, deviceStringId: string) {
+  async getLatestTelemetry(userId: string, deviceStringId: string, lastTimestamp?: string) {
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
 
@@ -125,24 +125,35 @@ export class DevicesService {
       throw new ForbiddenException('You do not have access to this device');
     }
 
-    const redisKey = `device:${deviceStringId}:latest`;
-    const data = await this.redis.get(redisKey);
-
-    if (!data) {
-      throw new NotFoundException(
-        'No recent telemetry data available for this device',
-      );
+    const latestDbRecord = await this.repo.getLatestTelemetrySince(deviceStringId, lastTimestamp);
+    
+    if (!latestDbRecord) {
+      return null;
     }
 
-    return JSON.parse(data);
+    return {
+      isNew: true,
+      timestamp: latestDbRecord.timestamp.toISOString(),
+      data: {
+        pm25: latestDbRecord.pm25 !== null ? Number(latestDbRecord.pm25) : null,
+        pm10: latestDbRecord.pm10 !== null ? Number(latestDbRecord.pm10) : null,
+        tvoc: latestDbRecord.tvoc !== null ? Number(latestDbRecord.tvoc) : null,
+        co2: latestDbRecord.co2 !== null ? Number(latestDbRecord.co2) : null,
+        temperature: latestDbRecord.temperature !== null ? Number(latestDbRecord.temperature) : null,
+        humidity: latestDbRecord.humidity !== null ? Number(latestDbRecord.humidity) : null,
+        noise: latestDbRecord.noise !== null ? Number(latestDbRecord.noise) : null,
+        aqi: latestDbRecord.aqi !== null ? Number(latestDbRecord.aqi) : null,
+      }
+    };
   }
 
   async getDeviceTelemetry(
     userId: string,
     deviceStringId: string,
-    metric: string,
+    metric?: string,
     startDate?: string,
     endDate?: string,
+    minutes?: string,
   ) {
     // Validate ownership
     const assignments = await this.repo.getUserDevices(userId);
@@ -158,6 +169,7 @@ export class DevicesService {
       metric,
       startDate,
       endDate,
+      minutes,
     );
   }
 

@@ -136,28 +136,30 @@ export class DevicesController {
   }
 
   @Get(':id/latest')
-  getLatestTelemetry(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.devicesService.getLatestTelemetry(user.id, id);
+  getLatestTelemetry(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Query('lastTimestamp') lastTimestamp?: string,
+  ) {
+    return this.devicesService.getLatestTelemetry(user.id, id, lastTimestamp);
   }
 
   @Get(':id/telemetry')
   getDeviceTelemetry(
     @CurrentUser() user: any,
     @Param('id') deviceId: string,
-    @Query('metric') metric: string,
+    @Query('metric') metric?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('minutes') minutes?: string,
   ) {
-    if (!metric) {
-      const { BadRequestException } = require('@nestjs/common');
-      throw new BadRequestException('metric query parameter is required');
-    }
     return this.devicesService.getDeviceTelemetry(
       user.id,
       deviceId,
       metric,
       startDate,
       endDate,
+      minutes,
     );
   }
 }

@@ -434,6 +434,23 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         this.realtimeService.emitDeviceStatus(device.deviceId, newStatus);
       }
 
+      // Write ONLINE event log when device recovers from OFFLINE
+      if (device.status === DeviceStatus.OFFLINE && newStatus === DeviceStatus.ONLINE) {
+        const assignments = await this.prisma.deviceAssignment.findMany({
+          where: { deviceId: device.id, unassignedAt: null },
+          select: { userId: true },
+        });
+        for (const a of assignments) {
+          await this.prisma.eventLog.create({
+            data: {
+              deviceId: device.id,
+              userId: a.userId,
+              eventType: 'ONLINE',
+            },
+          });
+        }
+      }
+
       await this.alertsService.evaluate(device.id, dto);
 
       // 4) Set latest state in Redis (TTL = 2 * Offline Timeout)

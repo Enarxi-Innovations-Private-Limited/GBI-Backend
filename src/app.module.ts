@@ -22,6 +22,7 @@ import { InAppNotificationsModule } from './in-app-notifications/in-app-notifica
 import { ReportsModule } from './reports/reports.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { GroupsModule } from './groups/groups.module';
+import { EventLogsModule } from './event-logs/event-logs.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
@@ -47,6 +48,7 @@ import { MailModule } from './mail/mail.module';
     ReportsModule,
     RealtimeModule,
     GroupsModule,
+    EventLogsModule,
     MailModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],

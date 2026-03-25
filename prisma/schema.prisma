@@ -158,14 +158,15 @@ model EventLog {
 }
 
 model Notification {
-  id        String    @id @default(uuid())
-  userId    String
-  deviceId  String?
-  message   String
-  createdAt DateTime  @default(now())
-  isRead    Boolean   @default(false)
-  readAt    DateTime?
-  user      User      @relation(fields: [userId], references: [id])
+  id             String    @id @default(uuid())
+  userId         String
+  deviceId       String?
+  message        String
+  thresholdValue Float?
+  createdAt      DateTime  @default(now())
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  user           User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([userId, isRead])
