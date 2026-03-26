@@ -15,14 +15,17 @@ import type { FastifyReply } from 'fastify';
 import { ReportsService } from './reports.service';
 import { GenerateReportDto } from './dto/generate-report.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { PremiumGuard } from 'src/auth/guards/premium.guard';
+import { RequiresPremium } from 'src/auth/decorators/premium.decorator';
 import { createReadStream, existsSync } from 'fs';
 import * as path from 'path';
 
 @Controller('reports')
+@UseGuards(AuthGuard('jwt'), PremiumGuard)
+@RequiresPremium()
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  @UseGuards(AuthGuard('jwt'))
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('csv')
   async enqueueCsv(@Req() req: any, @Query() dto: GenerateReportDto) {
@@ -30,7 +33,6 @@ export class ReportsController {
     return this.reportsService.enqueueReport(userId, 'csv', dto);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('pdf')
   async enqueuePdf(@Req() req: any, @Query() dto: GenerateReportDto) {
@@ -38,7 +40,6 @@ export class ReportsController {
     return this.reportsService.enqueueReport(userId, 'pdf', dto);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @SkipThrottle()
   @Get('status/:jobId')
   async getStatus(@Req() req: any, @Param('jobId') jobId: string) {
@@ -46,7 +47,6 @@ export class ReportsController {
     return this.reportsService.getReportStatus(userId, jobId);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @Get('download/:jobId')
   async downloadReport(
     @Req() req: any,
@@ -93,7 +93,6 @@ export class ReportsController {
     return reply.send(file);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @Get()
   async listUserReports(@Req() req: any) {
     return this.reportsService.getUserReports(req.user.id);

@@ -1,5 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PremiumGuard } from 'src/auth/guards/premium.guard';
+import { RequiresPremium } from 'src/auth/decorators/premium.decorator';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { EventLogsService } from './event-logs.service';
 
@@ -32,6 +34,8 @@ export class EventLogsController {
    * Returns paginated sensor threshold breach history for the authenticated user.
    */
   @Get('sensors')
+  @UseGuards(PremiumGuard)
+  @RequiresPremium()
   getSensorEvents(
     @CurrentUser() user: any,
     @Query('page') page?: string,
