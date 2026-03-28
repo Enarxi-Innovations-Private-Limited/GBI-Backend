@@ -54,8 +54,13 @@ import { MailModule } from './mail/mail.module';
           connection: {
             url: redisUrl,
             family: 0, // Crucial for IPv6 / Upstash
+<<<<<<< Updated upstream
             tls: { rejectUnauthorized: false }, // Always enable TLS (matches redis.module.ts)
             maxRetriesPerRequest: null, // Required by BullMQ to prevent max retries crashing on Upstash disconnecting
+=======
+            tls: redisUrl?.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+            maxRetriesPerRequest: null, // Required by BullMQ — it manages its own command retries
+>>>>>>> Stashed changes
             enableReadyCheck: false,
           },
         };

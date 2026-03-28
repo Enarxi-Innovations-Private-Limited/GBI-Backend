@@ -13,9 +13,7 @@ import Redis from 'ioredis';
           throw new Error('REDIS_URL is not defined in environment variables');
         }
         return new Redis(url, {
-          tls: {
-            rejectUnauthorized: false,
-          },
+          tls: url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
           maxRetriesPerRequest: null,
           enableReadyCheck: false,
           family: 0,

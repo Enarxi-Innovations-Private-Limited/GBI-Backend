@@ -22,9 +22,7 @@ import Redis from 'ioredis';
           throw new Error('REDIS_URL is not defined in environment variables');
         }
         const client = new Redis(url, {
-          tls: {
-            rejectUnauthorized: false,
-          },
+          tls: url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
           // Automatically reconnect with back-off on connection drop.
           // After reconnect, ioredis re-issues SUBSCRIBE for all active channels.
           retryStrategy: (times) => Math.min(times * 500, 5000),
