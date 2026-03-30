@@ -95,6 +95,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.subscriptionPlan;
   }
 
+  get premiumSubscription() {
+    return this.prisma.premiumSubscription;
+  }
+
+  get premiumHistory() {
+    return this.prisma.premiumHistory;
+  }
+
   // Expose transaction and other Prisma methods
   get $transaction() {
     return this.prisma.$transaction.bind(this.prisma);

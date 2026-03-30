@@ -69,9 +69,9 @@ export class AdminRepository {
     };
 
     if (assignmentStatus === 'assigned') {
-      where.userDevice = { some: {} };
+      where.assignments = { some: { unassignedAt: null } };
     } else if (assignmentStatus === 'unassigned') {
-      where.userDevice = { none: {} };
+      where.assignments = { none: { unassignedAt: null } };
     }
 
     const [data, total] = await Promise.all([
@@ -85,13 +85,35 @@ export class AdminRepository {
           deviceId: true,
           status: true,
           addedAt: true,
+          assignments: {
+            where: { unassignedAt: null },
+            select: {
+              user: {
+                select: { name: true }
+              }
+            }
+          }
         },
       }),
       this.prisma.device.count({ where }),
     ]);
 
+    // Fetch meta (city, pincode) from UserDevice using deviceIds
+    const deviceIds = data.map(d => d.deviceId);
+    const userDevices = await this.prisma.userDevice.findMany({
+      where: { deviceId: { in: deviceIds } }
+    });
+
+    const dataWithMeta = data.map(device => {
+      const meta = userDevices.find(ud => ud.deviceId === device.deviceId);
+      return {
+        ...device,
+        meta: meta ? { city: meta.city, pincode: meta.pincode } : null
+      };
+    });
+
     return {
-      data,
+      data: dataWithMeta,
       total,
       page,
       limit,

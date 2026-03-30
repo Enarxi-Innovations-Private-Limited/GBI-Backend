@@ -104,6 +104,7 @@ export class AlertsService {
       userId,
       deviceId,
       message,
+      thresholdValue: limit,
     });
 
     // 2. DB: Update State

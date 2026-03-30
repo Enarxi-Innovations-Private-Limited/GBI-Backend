@@ -95,6 +95,7 @@ export class AlertsRepository {
     userId: string;
     deviceId: string;
     message: string;
+    thresholdValue?: number;
   }) {
     return this.prisma.notification.create({
       data,

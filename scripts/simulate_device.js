@@ -68,6 +68,9 @@ function publishTelemetry() {
 
     // Air Quality Index
     aqi: randomInt(0, 500),    // 0-500
+
+    // Unique Message ID for deduplication
+    messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     
     // Timestamp (ISO String)
     timestamp: new Date().toISOString()

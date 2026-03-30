@@ -38,6 +38,9 @@ export class UsersService {
       isProfileComplete: user.isProfileComplete,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
+      isPremium: user.isPremium,
+      premiumStatus: user.premiumStatus,
+      premiumExpiry: user.premiumExpiry,
     };
   }
 

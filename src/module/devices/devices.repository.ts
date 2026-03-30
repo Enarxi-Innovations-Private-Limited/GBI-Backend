@@ -199,9 +199,10 @@ export class DevicesRepository {
 
   async getDeviceTelemetry(
     deviceStringId: string,
-    metric: string,
+    metric?: string,
     startDate?: string,
     endDate?: string,
+    minutes?: string,
   ) {
     const device = await this.prisma.device.findUnique({
       where: { deviceId: deviceStringId },
@@ -221,11 +222,34 @@ export class DevicesRepository {
       if (endDate) {
         where.timestamp.lte = new Date(endDate);
       }
+    } else if (minutes) {
+      const minutesAgo = new Date();
+      minutesAgo.setMinutes(minutesAgo.getMinutes() - parseInt(minutes, 10));
+      where.timestamp = { gte: minutesAgo };
     } else {
       // Default to last 24 hours if no dates provided
       const yesterday = new Date();
       yesterday.setHours(yesterday.getHours() - 24);
       where.timestamp = { gte: yesterday };
+    }
+
+    if (!metric) {
+      // Return ALL metrics for the given timeframe
+      const rows = await this.prisma.deviceTelemetry.findMany({
+        where,
+        orderBy: { timestamp: 'asc' },
+      });
+      return rows.map((row) => ({
+        timestamp: (row.timestamp as Date).toISOString(),
+        pm25: row.pm25 !== null ? Number(row.pm25) : null,
+        pm10: row.pm10 !== null ? Number(row.pm10) : null,
+        tvoc: row.tvoc !== null ? Number(row.tvoc) : null,
+        co2: row.co2 !== null ? Number(row.co2) : null,
+        temperature: row.temperature !== null ? Number(row.temperature) : null,
+        humidity: row.humidity !== null ? Number(row.humidity) : null,
+        noise: row.noise !== null ? Number(row.noise) : null,
+        aqi: row.aqi !== null ? Number(row.aqi) : null,
+      }));
     }
 
     const rows = await this.prisma.deviceTelemetry.findMany({
@@ -240,21 +264,43 @@ export class DevicesRepository {
     // Format for frontend ApexCharts: { timestamp, time, value }
     return rows.map((row) => {
       const ts = row.timestamp as Date;
-      let timeLabel = ts.toLocaleTimeString([], {
+      const timeLabel = ts.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       });
-      // If the range is > 24 hours, maybe include date, but frontend usually handles it or just wants a string.
-      // We'll provide standard ISO string for timestamp and a readable time label.
 
       return {
         timestamp: ts.toISOString(),
         time: timeLabel,
         value:
-          row[metric as keyof typeof row] !== null
+          row[metric as keyof typeof row] !== null &&
+          row[metric as keyof typeof row] !== undefined
             ? Number(row[metric as keyof typeof row])
-            : 0,
+            : null,
       };
     });
+  }
+
+  async getLatestTelemetrySince(deviceStringId: string, lastTimestamp?: string) {
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId: deviceStringId },
+    });
+
+    if (!device) throw new NotFoundException('Device not found');
+
+    const where: Prisma.DeviceTelemetryWhereInput = {
+      deviceId: device.id,
+    };
+
+    if (lastTimestamp) {
+      where.timestamp = { gt: new Date(lastTimestamp) };
+    }
+
+    const latestRecord = await this.prisma.deviceTelemetry.findFirst({
+      where,
+      orderBy: { timestamp: 'desc' },
+    });
+
+    return latestRecord;
   }
 }

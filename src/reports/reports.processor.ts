@@ -9,6 +9,20 @@ import * as path from 'path';
 
 @Processor('reports', {
   concurrency: 2, // PDF rendering is CPU heavy, keep concurrency low to prevent starvation
+
+  // --- Upstash Redis request-limit protection ---
+  // By default BullMQ polls every ~5ms when the queue may have jobs.
+  // With Upstash's 500k request/day limit that burns the allowance in hours.
+  // drainDelay: wait 10 s before re-polling after the queue is found empty.
+  drainDelay: 10000,
+
+  // Check for stalled jobs every 60 s instead of the 30 s default.
+  // Each check is a Redis round-trip; halving it halves that cost.
+  stalledInterval: 60000,
+
+  // Hold the job lock for 30 s (default 30 s). Explicit here so future
+  // changes don't accidentally shorten it and cause extra renewal calls.
+  lockDuration: 30000,
 })
 export class ReportsProcessor extends WorkerHost {
   private readonly logger = new Logger(ReportsProcessor.name);
