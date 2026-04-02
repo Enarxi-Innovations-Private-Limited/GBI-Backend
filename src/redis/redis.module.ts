@@ -9,6 +9,7 @@ import Redis from 'ioredis';
       provide: 'REDIS_CLIENT',
       useFactory: (config: ConfigService) => {
         const url = config.get<string>('REDIS_URL');
+	console.log("🔥 REDIS URL FROM CONFIG:", url);	
         if (!url) {
           throw new Error('REDIS_URL is not defined in environment variables');
         }

@@ -54,7 +54,7 @@ import { MailModule } from './mail/mail.module';
       imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => {
         const redisUrl = configService.get<string>('REDIS_URL');
-        if (!redisUrl) {
+	if (!redisUrl) {
           throw new Error('REDIS_URL is not defined in environment variables');
         }
         return {

@@ -50,7 +50,7 @@ export class ReportsService {
       type,
       { type, userId, dto },
       {
-        jobId: reportId,
+	jobId: reportId,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: true, // we track completion in Prisma
