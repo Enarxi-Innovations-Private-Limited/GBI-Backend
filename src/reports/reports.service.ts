@@ -10,6 +10,7 @@ import { PdfService } from './pdf.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { TelemetryQueryService } from 'src/telemetry/telemetry-query.service';
+import { randomUUID } from 'crypto';
 
 const CSV_COLUMN_LABELS: Record<string, string> = {
   Date: 'Date',
@@ -43,11 +44,13 @@ export class ReportsService {
     // 1) Validate ownership before enqueueing
     await this.validateAndGetDevice(userId, dto.deviceId);
 
-    // 2) Add job to BullMQ
+    // 2) Add job to BullMQ with a custom UUID to avoid collisions if Redis resets
+    const reportId = randomUUID();
     const job = await this.reportsQueue.add(
       type,
       { type, userId, dto },
       {
+        jobId: reportId,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: true, // we track completion in Prisma
