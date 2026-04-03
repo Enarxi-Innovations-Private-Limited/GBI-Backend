@@ -46,9 +46,18 @@ export class CsrfMiddleware implements NestMiddleware {
     // EXEMPT standard login/signup paths from CSRF check to prevent the first-hit 403.
     // At this stage, users have no valid session, so CSRF validation is not logically applicable.
     const url = req.url?.toLowerCase() || '';
-    const isAuthPath = url.includes('/auth/login') || url.includes('/auth/signup') || url.includes('/admin/login');
+    const isAuthPath =
+      url.includes('/auth/login') ||
+      url.includes('/auth/signup') ||
+      url.includes('/admin/login') ||
+      url.includes('/auth/verify-email-otp') ||
+      url.includes('/auth/refresh-token');
 
-    if (stateChangingMethods.includes(method) && !isAuthPath) {
+    if (isAuthPath) {
+      return next();
+    }
+
+    if (stateChangingMethods.includes(method)) {
       const headerToken = req.headers['x-xsrf-token'];
       const isPostman = req.headers['user-agent']
         ?.toLowerCase()
