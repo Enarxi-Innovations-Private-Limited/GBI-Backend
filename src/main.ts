@@ -37,6 +37,10 @@ async function bootstrap() {
     },
   });
 
+  await app.register(import('@fastify/compress'), {
+    global: true,
+  });
+
   // Explicitly allow the frontend URLs (comma-separated in .env)
   const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000')
     .split(',')

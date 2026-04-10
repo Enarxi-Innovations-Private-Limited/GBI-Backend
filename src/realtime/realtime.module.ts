@@ -26,6 +26,7 @@ import Redis from 'ioredis';
           // Automatically reconnect with back-off on connection drop.
           // After reconnect, ioredis re-issues SUBSCRIBE for all active channels.
           retryStrategy: (times) => Math.min(times * 500, 5000),
+          maxRetriesPerRequest: null,
           enableReadyCheck: true,
           lazyConnect: false,
         });

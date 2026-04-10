@@ -69,10 +69,9 @@ import { MailModule } from './mail/mail.module';
             // When Upstash rejects commands (rate limit / disconnect) ioredis
             // will keep reconnecting. Without a cap this creates an infinite
             // retry storm that floods the terminal and consumes the daily quota.
-            // Exponential backoff: 500 ms → 1 s → 1.5 s → … → 5 s max.
-            // After 10 failed reconnect attempts the client stops trying.
             retryStrategy: (times: number) => {
-              if (times > 10) return null; // give up — avoids runaway log spam
+              // Exponential backoff: 500 ms → 1 s → 1.5 s → … → 5 s max.
+              // No hard limit on attempts to ensure eventually connection resume.
               return Math.min(times * 500, 5000);
             },
           },

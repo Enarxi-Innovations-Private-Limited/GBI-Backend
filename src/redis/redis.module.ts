@@ -13,12 +13,27 @@ import Redis from 'ioredis';
         if (!url) {
           throw new Error('REDIS_URL is not defined in environment variables');
         }
-        return new Redis(url, {
-          tls: url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+        const client = new Redis(url, {
+          tls: url.startsWith('rediss://')
+            ? { rejectUnauthorized: false }
+            : undefined,
           maxRetriesPerRequest: null,
           enableReadyCheck: false,
           family: 0,
+          retryStrategy: (times: number) => {
+            return Math.min(times * 500, 5000);
+          },
         });
+
+        client.on('error', (err) => {
+          console.error('[Redis] General Error:', err.message);
+        });
+
+        client.on('connect', () => {
+          console.log('[Redis] Connected to server');
+        });
+
+        return client;
       },
       inject: [ConfigService],
     },
