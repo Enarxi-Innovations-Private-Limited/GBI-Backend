@@ -4,30 +4,23 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'admin@gbi.com';
-  const password = 'Admin@123';
+  const admins = [
+    { email: 'roop@gbiair.in', password: 'Roop@123' },
+    { email: 'Master@gbiair.in', password: 'Master@123' },
+    { email: 'Sanjana@gbiair.in', password: 'Sanjana@123' },
+  ];
 
-  const exists = await prisma.admin.findUnique({
-    where: { email },
-  });
-
-  if (exists) {
-    console.log('Admin already exists');
-    return;
+  for (const admin of admins) {
+    const passwordHash = await bcrypt.hash(admin.password, 12);
+    
+    await prisma.admin.upsert({
+      where: { email: admin.email },
+      update: { passwordHash }, // This forces the password to be reset
+      create: { email: admin.email, passwordHash },
+    });
+    console.log(`✅ Synced Admin: ${admin.email}`);
   }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  await prisma.admin.create({
-    data: {
-      email,
-      passwordHash,
-    },
-  });
-
-  console.log('Admin seeded successfully');
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+main().catch(console.error).finally(() => prisma.$disconnect());
+

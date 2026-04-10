@@ -22,7 +22,7 @@ export class AdminService {
   ) {}
 
   async login(dto: AdminLoginDto) {
-    const admin = await this.repo.findByEmail(dto.email);
+    const admin = await this.repo.findCaseInsensitive(dto.email);
     if (!admin) throw new UnauthorizedException('Invalid credentials');
 
     const isValid = await bcrypt.compare(dto.password, admin.passwordHash);
