@@ -20,14 +20,26 @@ export class DevicesService {
    * No pre-checks here to avoid race condition windows.
    */
   async claimDevice(userId: string, dto: ClaimDeviceDto) {
-    return this.repo.claimDevice(userId, dto);
+    const result = await this.repo.claimDevice(userId, dto);
+    await this.redis.del(`user:${userId}:devices`);
+    return result;
   }
 
   async getMyDevices(userId: string) {
-    const assignments = await this.repo.getUserDevices(userId);
-    const metaList = await this.repo.getUserDeviceMeta(userId);
+    const cacheKey = `user:${userId}:devices`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err) {
+      // Fallback to DB
+    }
 
-    return assignments.map((a) => {
+    const [assignments, metaList] = await Promise.all([
+      this.repo.getUserDevices(userId),
+      this.repo.getUserDeviceMeta(userId),
+    ]);
+
+    const result = assignments.map((a) => {
       const meta = metaList.find((m) => m.deviceId === a.device.deviceId);
       return {
         id: a.device.id,
@@ -41,6 +53,14 @@ export class DevicesService {
         claimedAt: a.assignedAt,
       };
     });
+
+    try {
+      await this.redis.set(cacheKey, JSON.stringify(result), 'EX', 300); // 5 min cache
+    } catch (err) {
+      // Ignore cache store failure
+    }
+
+    return result;
   }
 
   async updateDevice(
@@ -58,7 +78,7 @@ export class DevicesService {
       throw new ForbiddenException('You do not have access to this device');
     }
 
-    return this.repo.updateDeviceMeta(
+    const result = await this.repo.updateDeviceMeta(
       userId,
       deviceStringId,
       dto.name,
@@ -66,6 +86,8 @@ export class DevicesService {
       dto.city,
       dto.pincode,
     );
+    await this.redis.del(`user:${userId}:devices`);
+    return result;
   }
 
   /**

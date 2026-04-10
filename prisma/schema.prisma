@@ -81,7 +81,7 @@ model DeviceAssignment {
   device       Device    @relation(fields: [deviceId], references: [id])
   user         User      @relation(fields: [userId], references: [id])
 
-  @@index([userId])
+  @@index([userId, unassignedAt])
   @@index([deviceId])
 }
 
@@ -181,7 +181,8 @@ model RefreshToken {
   revokedAt DateTime?
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, expiresAt])
+  @@index([userId, revokedAt])
   @@index([token])
 }
 

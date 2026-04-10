@@ -7,7 +7,21 @@ export class AdminRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findByEmail(email: string) {
-    return this.prisma.admin.findUnique({ where: { email } });
+    return this.prisma.admin.findUnique({
+      where: { email: email.trim() }, // We don't use 'mode' on findUnique (it's not supported by Prisma)
+    });
+  }
+
+  // Adding a fallback case-insensitive search if findUnique (exact match) fails
+  findCaseInsensitive(email: string) {
+    return this.prisma.admin.findFirst({
+      where: {
+        email: {
+          equals: email.trim(),
+          mode: 'insensitive',
+        },
+      },
+    });
   }
 
   findById(id: string) {

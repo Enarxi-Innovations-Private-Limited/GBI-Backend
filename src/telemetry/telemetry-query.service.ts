@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Redis } from 'ioredis';
 
 const ALLOWED_PARAMS = [
   'pm25',
@@ -28,7 +29,12 @@ export interface FormattedRow {
 
 @Injectable()
 export class TelemetryQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(TelemetryQueryService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  ) {}
 
   /**
    * Compute a sensible default interval based on range length.
@@ -59,11 +65,25 @@ export class TelemetryQueryService {
   ): Promise<BucketedRow[]> {
     if (!devices.length || !params.length) return [];
 
-    const uuidList = devices.map((d) => d.id);
-    const deviceIdMap = new Map(devices.map((d) => [d.id, d.deviceId]));
-    const safeParams = params.filter((p) => ALLOWED_PARAMS.includes(p));
+    const uuidList = devices.map((d) => d.id).sort(); // Sort for consistent cache key
+    const safeParams = params
+      .filter((p) => ALLOWED_PARAMS.includes(p))
+      .sort(); // Sort for consistent cache key
 
     if (!safeParams.length) return [];
+
+    // --- Cache Lookup ---
+    const cacheKey = `telemetry:bucketed:${uuidList.join(',')}:${safeParams.join(',')}:${start.getTime()}:${end.getTime()}:${interval}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      this.logger.warn(`Redis cache lookup failed: ${err.message}`);
+    }
+
+    const deviceIdMap = new Map(devices.map((d) => [d.id, d.deviceId]));
 
     let rows: any[] = [];
 
@@ -140,6 +160,14 @@ export class TelemetryQueryService {
     for (let i = 0; i < rows.length; i++) {
       rows[i].timestamp = rows[i].timestamp_bucket ?? rows[i].timestamp;
       rows[i].deviceId = deviceIdMap.get(rows[i].deviceId) ?? rows[i].deviceId;
+    }
+
+    // --- Cache Store ---
+    try {
+      // Cache for 60 seconds (safe for near-realtime dashboards)
+      await this.redis.set(cacheKey, JSON.stringify(rows), 'EX', 60);
+    } catch (err) {
+      this.logger.warn(`Redis cache store failed: ${err.message}`);
     }
 
     return rows as BucketedRow[];
