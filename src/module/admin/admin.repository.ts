@@ -8,10 +8,11 @@ export class AdminRepository {
 
   findByEmail(email: string) {
     return this.prisma.admin.findUnique({
-      where: { email: email.trim() },
+      where: { email: email.trim() }, // We don't use 'mode' on findUnique (it's not supported by Prisma)
     });
   }
 
+  // Adding a fallback case-insensitive search if findUnique (exact match) fails
   findCaseInsensitive(email: string) {
     return this.prisma.admin.findFirst({
       where: {
@@ -55,7 +56,7 @@ export class AdminRepository {
     return this.prisma.device.create({
       data: {
         deviceId,
-        type: type,
+        type: type, // Optional: if undefined, Prisma uses @default("Air Quality Monitor")
         status: DeviceStatus.OFFLINE,
       },
     });
@@ -102,36 +103,26 @@ export class AdminRepository {
             where: { unassignedAt: null },
             select: {
               user: {
-                select: { name: true },
-              },
-            },
-          },
+                select: { name: true }
+              }
+            }
+          }
         },
       }),
       this.prisma.device.count({ where }),
     ]);
 
     // Fetch meta (city, pincode) from UserDevice using deviceIds
-    const deviceIds = data.map((d) => d.deviceId);
-    const userDevices =
-      deviceIds.length > 0
-        ? await this.prisma.userDevice.findMany({
-            where: { deviceId: { in: deviceIds } },
-            select: { deviceId: true, city: true, pincode: true },
-          })
-        : [];
+    const deviceIds = data.map(d => d.deviceId);
+    const userDevices = await this.prisma.userDevice.findMany({
+      where: { deviceId: { in: deviceIds } }
+    });
 
-    // ─── FIX: Replace O(N²) .find() loop with O(1) HashMap lookup ───
-    // Old: data.map(device => userDevices.find(ud => ud.deviceId === device.deviceId))
-    //      = N×M comparisons per render
-    // New: Build map once O(N), then O(1) access per device
-    const metaMap = new Map(userDevices.map((ud) => [ud.deviceId, ud]));
-
-    const dataWithMeta = data.map((device) => {
-      const meta = metaMap.get(device.deviceId);
+    const dataWithMeta = data.map(device => {
+      const meta = userDevices.find(ud => ud.deviceId === device.deviceId);
       return {
         ...device,
-        meta: meta ? { city: meta.city, pincode: meta.pincode } : null,
+        meta: meta ? { city: meta.city, pincode: meta.pincode } : null
       };
     });
 
@@ -221,22 +212,39 @@ export class AdminRepository {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.deviceAssignment.deleteMany({ where: { userId } });
-      await tx.alertState.deleteMany({ where: { userId } });
-      await tx.notification.deleteMany({ where: { userId } });
+      await tx.deviceAssignment.deleteMany({
+        where: { userId },
+      });
+
+      await tx.alertState.deleteMany({
+        where: { userId },
+      });
+
+      await tx.notification.deleteMany({
+        where: { userId },
+      });
+
       await tx.eventLog.updateMany({
         where: { userId },
         data: { userId: null },
       });
-      await tx.refreshToken.deleteMany({ where: { userId } });
-      await tx.user.delete({ where: { id: userId } });
+
+      await tx.refreshToken.deleteMany({
+        where: { userId },
+      });
+
+      await tx.user.delete({
+        where: { id: userId },
+      });
     });
 
     return { message: 'User deleted successfully' };
   }
 
   async softDeleteDevice(deviceId: string) {
-    const device = await this.prisma.device.findUnique({ where: { deviceId } });
+    const device = await this.prisma.device.findUnique({
+      where: { deviceId },
+    });
 
     if (!device) {
       throw new NotFoundException('Device not found');
@@ -252,38 +260,29 @@ export class AdminRepository {
     });
   }
 
-  /**
-   * ─── OPTIMIZED ───
-   * Old: 5 sequential COUNT queries (4 in Promise.all + 1 after)
-   * New: 2 parallel queries — one COUNT for users, one GROUP BY for device status breakdown.
-   *      Single table scan on Device instead of 4 separate scans.
-   *      Uses new @@index([isDeleted, status]) for the GROUP BY.
-   */
   async getStats() {
-    const [userCount, deviceStatusGroups] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.$queryRaw<{ status: string; count: bigint }[]>`
-        SELECT status, COUNT(*) AS count
-        FROM "Device"
-        WHERE "isDeleted" = false
-        GROUP BY status
-      `,
-    ]);
+    const [totalUsers, totalDevices, onlineDevices, warningDevices] =
+      await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.device.count({ where: { isDeleted: false } }),
+        this.prisma.device.count({
+          where: { isDeleted: false, status: DeviceStatus.ONLINE },
+        }),
+        this.prisma.device.count({
+          where: { isDeleted: false, status: DeviceStatus.WARNING },
+        }),
+      ]);
 
-    const counts = Object.fromEntries(
-      deviceStatusGroups.map((g) => [g.status, Number(g.count)]),
-    );
-    const totalDevices = Object.values(counts).reduce(
-      (sum, n) => sum + (n as number),
-      0,
-    );
+    const offlineDevices = await this.prisma.device.count({
+      where: { isDeleted: false, status: DeviceStatus.OFFLINE },
+    });
 
     return {
-      totalUsers: userCount,
+      totalUsers,
       totalDevices,
-      onlineDevices: counts[DeviceStatus.ONLINE] ?? 0,
-      offlineDevices: counts[DeviceStatus.OFFLINE] ?? 0,
-      warningDevices: counts[DeviceStatus.WARNING] ?? 0,
+      onlineDevices,
+      offlineDevices,
+      warningDevices,
     };
   }
 }

@@ -8,35 +8,32 @@ datasource db {
 }
 
 model User {
-  id                   String               @id @default(uuid())
-  email                String               @unique
-  passwordHash         String?
-  googleId             String?              @unique
-  name                 String?
-  organization         String?
-  phone                String?
-  emailVerified        Boolean              @default(false)
-  phoneVerified        Boolean              @default(false)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  city                 String?
-  isRestricted         Boolean              @default(false)
-  isProfileComplete    Boolean              @default(false)
-  isPremium            Boolean              @default(false)
-  premiumStatus        PremiumStatus        @default(FREE)
-  premiumExpiry        DateTime?
-  assignments          DeviceAssignment[]
-  deviceGroups         DeviceGroup[]
-  eventLogs            EventLog[]
-  notifications        Notification[]
-  refreshTokens        RefreshToken[]
-  Subscription         Subscription[]
-  generatedReports     GeneratedReport[]
+  id                String             @id @default(uuid())
+  email             String             @unique
+  passwordHash      String?
+  googleId          String?            @unique
+  name              String?
+  organization      String?
+  phone             String?
+  emailVerified     Boolean            @default(false)
+  phoneVerified     Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  city              String?
+  isRestricted      Boolean            @default(false)
+  isProfileComplete Boolean            @default(false)
+  isPremium         Boolean            @default(false)
+  premiumStatus     PremiumStatus      @default(FREE)
+  premiumExpiry     DateTime?
+  assignments       DeviceAssignment[]
+  deviceGroups      DeviceGroup[]
+  eventLogs         EventLog[]
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+  Subscription      Subscription[]
+  generatedReports  GeneratedReport[]
   premiumSubscriptions PremiumSubscription[]
-  premiumHistory       PremiumHistory[]
-
-  // Enables expireOverdueSubscriptions() to use an index scan instead of full table scan
-  @@index([isPremium, premiumExpiry])
+  premiumHistory    PremiumHistory[]
 }
 
 model Admin {
@@ -61,12 +58,6 @@ model Device {
   telemetry       DeviceTelemetry[]
   deviceThreshold DeviceThreshold?
   logs            EventLog[]
-
-  // Offline detector: status filter + heartbeat cutoff range scan
-  @@index([isDeleted, status])
-  @@index([isDeleted, lastHeartbeatAt])
-  // Alert group threshold lookup — fixes correlated subquery → O(log N) join
-  @@index([groupId])
 }
 
 model DeviceGroup {
@@ -91,8 +82,7 @@ model DeviceAssignment {
   user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId, unassignedAt])
-  // Combined index covers both the FK and the active-assignment filter in one scan
-  @@index([deviceId, unassignedAt])
+  @@index([deviceId])
 }
 
 model UserDevice {
@@ -103,11 +93,6 @@ model UserDevice {
   location String
   city     String
   pincode  String
-
-  // Previously had NO indexes on userId — caused full table scans on every
-  // report generation, event log listing, and admin device panel call.
-  @@index([userId])
-  @@index([userId, deviceId])
 }
 
 model DeviceTelemetry {
@@ -125,12 +110,7 @@ model DeviceTelemetry {
   messageId   String
   device      Device   @relation(fields: [deviceId], references: [id])
 
-  // @@unique([deviceId, messageId]) REMOVED — deduplication now handled by Redis SETNX
-  // in mqtt.consumer.ts before the DB write. Keeping this constraint would cause
-  // B+ tree write amplification on every insert at scale.
-  // The Redis key `dedup:{deviceId}:{messageId}` with 5-min TTL is the new dedup gate.
-
-  // Primary access pattern: range scan by device within a time window
+  @@unique([deviceId, messageId])
   @@index([deviceId, timestamp])
 }
 
@@ -160,8 +140,6 @@ model AlertState {
   updatedAt       DateTime  @updatedAt
 
   @@unique([userId, deviceId, parameter])
-  // Alert evaluation reads current state filtered by deviceId + state value
-  @@index([deviceId, state])
 }
 
 model EventLog {
@@ -175,11 +153,8 @@ model EventLog {
   device    Device   @relation(fields: [deviceId], references: [id])
   user      User?    @relation(fields: [userId], references: [id])
 
-  // Composite covering indexes replace the two narrow single-column indexes.
-  // These cover the WHERE + ORDER BY clauses used by the alert cooldown check
-  // and both event log dashboard queries without heap fetches.
-  @@index([deviceId, eventType, createdAt])
-  @@index([userId, eventType, createdAt])
+  @@index([deviceId])
+  @@index([userId])
 }
 
 model Notification {
@@ -193,10 +168,8 @@ model Notification {
   readAt         DateTime?
   user           User      @relation(fields: [userId], references: [id])
 
-  // (userId, isRead) for unread count queries
+  @@index([userId])
   @@index([userId, isRead])
-  // (userId, createdAt DESC) enables pagination ORDER BY without in-memory sort
-  @@index([userId, createdAt])
 }
 
 model RefreshToken {
@@ -284,35 +257,34 @@ model GeneratedReport {
 }
 
 model PremiumSubscription {
-  id                 String    @id @default(uuid())
+  id                 String        @id @default(uuid())
   userId             String
   activatedByAdminId String?
   activationDate     DateTime
   expiryDate         DateTime
-  status             SubStatus @default(ACTIVE)
+  status             SubStatus     @default(ACTIVE)
   revokedByAdminId   String?
   revokedReason      String?
   revokedAt          DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  // Composite replaces two narrow single-column indexes.
-  // expireOverdueSubscriptions() scans (status=ACTIVE, expiryDate < NOW()) — hits this index directly.
-  @@index([status, expiryDate])
+  @@index([status])
+  @@index([expiryDate])
 }
 
 model PremiumHistory {
-  id             String            @id @default(uuid())
+  id             String              @id @default(uuid())
   userId         String
   actionType     PremiumActionType
   previousExpiry DateTime?
   newExpiry      DateTime?
   adminId        String
   notes          String?
-  createdAt      DateTime          @default(now())
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([adminId])

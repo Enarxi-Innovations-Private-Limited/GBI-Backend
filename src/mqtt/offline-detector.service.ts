@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RealtimeService } from 'src/realtime/realtime.service';
-import { DeviceStatus, Prisma } from '@prisma/client';
+import { DeviceStatus } from '@prisma/client';
 import { SchedulerRegistry } from '@nestjs/schedule';
 
 @Injectable()
@@ -27,6 +27,9 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
+    // Run the scheduler dynamically at exactly half the telemetry interval for maximum precision
+    // without over-querying. e.g. if telemetry interval is 60s, run every 30s.
+    // Ensure minimum of 5 seconds to prevent runaway tight loops if config is misused.
     const schedulerFrequencySeconds = Math.max(
       Math.floor(this.intervalSeconds / 2),
       5,
@@ -57,44 +60,57 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
       const offlineTimeoutSeconds = this.intervalSeconds * this.thresholdMisses;
       const cutoffTime = new Date(Date.now() - offlineTimeoutSeconds * 1000);
 
-      // ─── FIX 1: Atomic UPDATE...RETURNING — one query instead of findMany + updateMany ───
-      // This eliminates the double-read race condition and halves the number of DB round-trips.
-      const deadDevices = await this.prisma.$queryRaw<{ id: string; deviceId: string }[]>`
-        UPDATE "Device"
-        SET status = 'OFFLINE'
-        WHERE "isDeleted" = false
-          AND status != 'OFFLINE'
-          AND "lastHeartbeatAt" < ${cutoffTime}
-        RETURNING id, "deviceId"
-      `;
+      // Find which devices are about to be marked offline to fire realtime events and logs
+      const deadDevices = await this.prisma.device.findMany({
+        where: {
+          isDeleted: false,
+          status: { not: DeviceStatus.OFFLINE },
+          lastHeartbeatAt: { lt: cutoffTime },
+        },
+        select: { id: true, deviceId: true },
+      });
 
       if (deadDevices.length === 0) return;
 
-      this.logger.warn(
-        `⚠️ Marked ${deadDevices.length} device(s) as OFFLINE due to inactivity threshold (${offlineTimeoutSeconds}s).`,
-      );
-
-      // ─── FIX 2: Single bulk fetch for all assignments (was: N separate findMany calls) ───
-      const deviceIds = deadDevices.map((d) => d.id);
-      const assignments = await this.prisma.deviceAssignment.findMany({
-        where: { deviceId: { in: deviceIds }, unassignedAt: null },
-        select: { userId: true, deviceId: true },
+      const result = await this.prisma.device.updateMany({
+        where: {
+          isDeleted: false,
+          status: { not: DeviceStatus.OFFLINE },
+          lastHeartbeatAt: { lt: cutoffTime },
+        },
+        data: {
+          status: DeviceStatus.OFFLINE,
+        },
       });
 
-      // ─── FIX 3: Single createMany for all event logs (was: N×M individual INSERTs) ───
-      if (assignments.length > 0) {
-        await this.prisma.eventLog.createMany({
-          data: assignments.map((a) => ({
-            deviceId: a.deviceId,
-            userId: a.userId,
-            eventType: 'OFFLINE',
-          })),
-        });
-      }
+      if (result.count > 0) {
+        this.logger.warn(
+          `⚠️ Marked ${result.count} local devices as OFFLINE due to inactivity threshold (${offlineTimeoutSeconds}s).`,
+        );
 
-      // Emit realtime events for each offline device
-      for (const device of deadDevices) {
-        this.realtimeService.emitDeviceStatus(device.deviceId, DeviceStatus.OFFLINE);
+        for (const device of deadDevices) {
+          this.realtimeService.emitDeviceStatus(
+            device.deviceId,
+            DeviceStatus.OFFLINE,
+          );
+
+          // Migrate the old event log functionality here
+          const assignments = await this.prisma.deviceAssignment.findMany({
+            where: { deviceId: device.id, unassignedAt: null },
+            select: { userId: true },
+          });
+
+          for (const a of assignments) {
+            await this.prisma.eventLog.create({
+              data: {
+                deviceId: device.id,
+                userId: a.userId,
+                eventType: 'OFFLINE',
+              },
+            });
+            // We can optionally add Notification logic here if required
+          }
+        }
       }
     } catch (error) {
       this.logger.error(

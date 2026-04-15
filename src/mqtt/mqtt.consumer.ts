@@ -179,26 +179,33 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
   private logToFile(data: any) {
     if (!this.logFilePath) return;
 
-    // ─── FIX: Use async fs.appendFile instead of BLOCKING fs.appendFileSync ───
-    // appendFileSync blocks Node's event loop on EVERY MQTT message.
-    // At 10K devices × 1 msg/sec = 10,000 synchronous disk writes/sec → event loop stall.
-    const logEntry =
-      JSON.stringify({ timestamp: this.getISTTimestamp(), ...data }) + '\n';
-    fs.appendFile(this.logFilePath, logEntry, 'utf8', (err) => {
-      if (err) console.error('Failed to write to log file:', err.message);
-    });
+    try {
+      const logEntry = {
+        timestamp: this.getISTTimestamp(),
+        ...data,
+      };
+
+      fs.appendFileSync(
+        this.logFilePath,
+        JSON.stringify(logEntry) + '\n',
+        'utf8',
+      );
+    } catch (error) {
+      console.error('Failed to write to log file:', error);
+    }
   }
 
   private logError(data: any) {
     try {
       const errorLogPath = this.getDailyErrorLogPath();
-      const logEntry =
-        JSON.stringify({ timestamp: this.getISTTimestamp(), ...data }) + '\n';
+      const logEntry = {
+        timestamp: this.getISTTimestamp(),
+        ...data,
+      };
 
-      // Non-blocking async writes for both error log and session log
-      fs.appendFile(errorLogPath, logEntry, 'utf8', (err) => {
-        if (err) console.error('Failed to write to error log:', err.message);
-      });
+      fs.appendFileSync(errorLogPath, JSON.stringify(logEntry) + '\n', 'utf8');
+
+      // Also write to session log for continuity
       this.logToFile(data);
     } catch (error) {
       console.error('Failed to write to error log file:', error);
@@ -321,7 +328,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
     // 1) Enforce strict messageId presence
     if (!payload.messageId) {
       const msg = 'Missing messageId in payload';
-      console.warn('\u274c ' + msg, deviceId);
+      console.warn('❌ ' + msg, deviceId);
       this.logError({
         level: 'WARN',
         event: 'telemetry_rejected_missing_messageId',
@@ -330,24 +337,6 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         payload: payload,
       });
       return;
-    }
-
-    // 2) Redis-level deduplication — runs BEFORE the expensive DB transaction
-    //    Uses SET NX (set if not exists) with a 5-minute TTL.
-    //    This replaces the DB-level @@unique([deviceId, messageId]) constraint
-    //    which caused B+ tree write overhead on every single insert.
-    try {
-      const dedupKey = `dedup:${deviceId}:${payload.messageId}`;
-      const isNew = await this.redis.set(dedupKey, '1', 'EX', 300, 'NX');
-      if (!isNew) {
-        this.logger.debug(
-          `\u267b️ Duplicate messageId ${payload.messageId} rejected at Redis layer for device ${deviceId}`,
-        );
-        return; // Drop silently — already processed within last 5 minutes
-      }
-    } catch (redisErr) {
-      // Redis unavailable — fall through to DB unique constraint as safety net
-      this.logger.warn(`[MqttConsumer] Redis dedup unavailable: ${redisErr.message}`);
     }
 
     // Helper to sanitize numeric values (NaN or undefined becomes null)

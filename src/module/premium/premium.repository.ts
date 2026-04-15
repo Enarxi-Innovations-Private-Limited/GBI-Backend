@@ -21,14 +21,8 @@ export class PremiumRepository {
     });
   }
 
-  /**
-   * ─── OPTIMIZED ───
-   * Old: Prisma's nested select with where/take inside findMany generates an N+1 subquery
-   *      (one subquery per user row to fetch their active subscription).
-   * New: Two parallel queries + in-app Map join — O(1) lookup per user instead of O(N) subquery.
-   */
-  async getPremiumUsers() {
-    const users = await this.prisma.user.findMany({
+  getPremiumUsers() {
+    return this.prisma.user.findMany({
       where: { isPremium: true },
       select: {
         id: true,
@@ -38,45 +32,20 @@ export class PremiumRepository {
         phone: true,
         premiumExpiry: true,
         premiumStatus: true,
+        premiumSubscriptions: {
+          where: { status: SubStatus.ACTIVE },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            activationDate: true,
+            expiryDate: true,
+            status: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
-
-    if (users.length === 0) return [];
-
-    const userIds = users.map((u) => u.id);
-
-    // Single query for all active subscriptions — uses @@index([userId]) + status filter
-    const activeSubscriptions = await this.prisma.premiumSubscription.findMany({
-      where: {
-        userId: { in: userIds },
-        status: SubStatus.ACTIVE,
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        userId: true,
-        id: true,
-        activationDate: true,
-        expiryDate: true,
-        status: true,
-      },
-    });
-
-    // Build O(1) lookup map: userId → latest active subscription
-    const subscriptionMap = new Map<string, (typeof activeSubscriptions)[0]>();
-    for (const sub of activeSubscriptions) {
-      // findMany with orderBy desc means first occurrence per userId is the latest
-      if (!subscriptionMap.has(sub.userId)) {
-        subscriptionMap.set(sub.userId, sub);
-      }
-    }
-
-    return users.map((u) => ({
-      ...u,
-      premiumSubscriptions: subscriptionMap.has(u.id)
-        ? [subscriptionMap.get(u.id)!]
-        : [],
-    }));
   }
 
   findUserById(userId: string) {
@@ -108,6 +77,7 @@ export class PremiumRepository {
     notes?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      // Create subscription record
       const subscription = await tx.premiumSubscription.create({
         data: {
           userId,
@@ -118,6 +88,7 @@ export class PremiumRepository {
         },
       });
 
+      // Update user premium status
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -127,6 +98,7 @@ export class PremiumRepository {
         },
       });
 
+      // Log the action
       await tx.premiumHistory.create({
         data: {
           userId,
@@ -150,11 +122,13 @@ export class PremiumRepository {
     notes?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      // Update the active subscription
       await tx.premiumSubscription.updateMany({
         where: { userId, status: SubStatus.ACTIVE },
         data: { expiryDate: newExpiryDate },
       });
 
+      // Update user premium expiry
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -163,6 +137,7 @@ export class PremiumRepository {
         },
       });
 
+      // Log the action
       await tx.premiumHistory.create({
         data: {
           userId,
@@ -185,6 +160,7 @@ export class PremiumRepository {
         select: { premiumExpiry: true },
       });
 
+      // Revoke the active subscription
       await tx.premiumSubscription.updateMany({
         where: { userId, status: SubStatus.ACTIVE },
         data: {
@@ -195,6 +171,7 @@ export class PremiumRepository {
         },
       });
 
+      // Update user
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -204,6 +181,7 @@ export class PremiumRepository {
         },
       });
 
+      // Log the action
       await tx.premiumHistory.create({
         data: {
           userId,
@@ -224,42 +202,43 @@ export class PremiumRepository {
     });
   }
 
-  /**
-   * ─── OPTIMIZED ───
-   * Old: findMany users → collect IDs → updateMany subscriptions → updateMany users (3 queries + race).
-   *      Race condition: another process could update users between the SELECT and UPDATE.
-   * New: Single transaction starting with the subscription UPDATE (source of truth),
-   *      then sync the user flags. No pre-SELECT needed — WHERE clause IS the filter.
-   *      Uses new @@index([status, expiryDate]) on PremiumSubscription for the initial scan.
-   */
   async expireOverdueSubscriptions() {
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
-      // Step 1: Expire subscriptions directly — DB does the filtering, no pre-SELECT
-      const updatedSubs = await tx.premiumSubscription.updateMany({
+    // Find users with expired premium
+    const expiredUsers = await this.prisma.user.findMany({
+      where: {
+        isPremium: true,
+        premiumExpiry: { lt: now },
+      },
+      select: { id: true },
+    });
+
+    if (expiredUsers.length === 0) return { expiredCount: 0 };
+
+    const userIds = expiredUsers.map((u) => u.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Mark subscriptions as expired
+      await tx.premiumSubscription.updateMany({
         where: {
+          userId: { in: userIds },
           status: SubStatus.ACTIVE,
           expiryDate: { lt: now },
         },
         data: { status: SubStatus.EXPIRED },
       });
 
-      if (updatedSubs.count === 0) return { expiredCount: 0 };
-
-      // Step 2: Sync user flags — matches exactly the users whose subscriptions just expired
+      // Update users
       await tx.user.updateMany({
-        where: {
-          isPremium: true,
-          premiumExpiry: { lt: now },
-        },
+        where: { id: { in: userIds } },
         data: {
           isPremium: false,
           premiumStatus: PremiumStatus.EXPIRED,
         },
       });
-
-      return { expiredCount: updatedSubs.count };
     });
+
+    return { expiredCount: expiredUsers.length };
   }
 }

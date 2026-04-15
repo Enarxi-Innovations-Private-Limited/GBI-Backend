@@ -20,18 +20,16 @@ export class AlertsRepository {
     });
   }
 
-  // ─── FIX: Replace correlated nested-subquery with a 2-step O(log N) index lookup ───
-  // Old: prisma traverses DeviceGroup → devices.some() → generates a correlated EXISTS subquery.
-  // New: read groupId directly off the Device row (FK column, covered by the new index),
-  //      then do a single PK lookup on GroupThreshold.
-  async getGroupThresholdByDevice(deviceId: string) {
-    const device = await this.prisma.device.findUnique({
-      where: { id: deviceId },
-      select: { groupId: true },
-    });
-    if (!device?.groupId) return null;
-    return this.prisma.groupThreshold.findUnique({
-      where: { groupId: device.groupId },
+  // GROUP THRESHOLD (via device)
+  getGroupThresholdByDevice(deviceId: string) {
+    return this.prisma.groupThreshold.findFirst({
+      where: {
+        group: {
+          devices: {
+            some: { id: deviceId },
+          },
+        },
+      },
     });
   }
 
@@ -70,32 +68,21 @@ export class AlertsRepository {
     });
   }
 
-  // ─── NEW: Batch event log creation — createMany instead of N individual INSERTs ───
-  batchCreateEventLogs(
-    data: {
-      deviceId: string;
-      userId: string;
-      parameter: string;
-      value: number;
-      eventType: string;
-    }[],
-  ) {
-    if (data.length === 0) return Promise.resolve({ count: 0 });
-    return this.prisma.eventLog.createMany({ data });
-  }
-
-  // EVENT LOG (kept for backward compatibility / individual use)
+  // EVENT LOG
+  // EVENT LOG
   createEventLog(data: {
     deviceId: string;
     userId: string;
     parameter: string;
     value: number;
-    eventType?: string;
+    eventType?: string; // Optional for backward compatibility, but Stage 2 uses it
   }) {
     return this.prisma.eventLog.create({
       data: {
         deviceId: data.deviceId,
         userId: data.userId,
+        // Default to 'Alert_Triggered' if not provided (legacy behavior), 
+        // or use the specific type passed called 'ALERT_TRIGGERED' / 'ALERT_RESOLVED'
         eventType: data.eventType || 'Alert_Triggered',
         parameter: data.parameter,
         value: data.value,
