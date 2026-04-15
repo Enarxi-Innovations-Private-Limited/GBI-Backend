@@ -1,14 +1,19 @@
 import {
   ConflictException,
   Injectable,
+  Inject,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import Redis from 'ioredis';
 
 @Injectable()
 export class DevicesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  ) {}
 
   // Helper to find a device by display ID (e.g. "GBI-001") → returns full Device record
   async getDeviceByStringId(deviceId: string) {
@@ -117,13 +122,14 @@ export class DevicesRepository {
   }
 
   async unclaimDevice(userId: string, deviceInternalId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Delete all telemetry for this device
-      await tx.deviceTelemetry.deleteMany({
-        where: { deviceId: deviceInternalId },
-      });
-
-      // 2. Mark assignment as finished
+    // ─── FIX: Remove telemetry DELETE from the transaction ───
+    // Issue: deleteMany on a potentially millions-of-row table inside a DB transaction
+    //        holds a write lock for minutes, blocking ALL telemetry inserts.
+    // Fix:   Keep only the critical operations in the transaction (assignment + meta).
+    //        Telemetry cleanup runs asynchronously in the background so the API
+    //        responds immediately without blocking.
+    const device = await this.prisma.$transaction(async (tx) => {
+      // Mark assignment as finished
       await tx.deviceAssignment.updateMany({
         where: {
           userId,
@@ -135,20 +141,40 @@ export class DevicesRepository {
         },
       });
 
-      // 3. Delete metadata for this user/device
-      // We look up the device display string first to target UserDevice
-      const device = await tx.device.findUnique({
+      // Get device to resolve display ID for UserDevice lookup
+      const dev = await tx.device.findUnique({
         where: { id: deviceInternalId },
+        select: { id: true, deviceId: true },
       });
-      if (device) {
+
+      if (dev) {
         await tx.userDevice.deleteMany({
           where: {
             userId,
-            deviceId: device.deviceId,
+            deviceId: dev.deviceId,
           },
         });
       }
+
+      return dev;
     });
+
+    // Fire-and-forget telemetry cleanup — runs in background, doesn't block the response
+    if (device) {
+      setImmediate(async () => {
+        try {
+          await this.prisma.deviceTelemetry.deleteMany({
+            where: { deviceId: deviceInternalId },
+          });
+        } catch (err) {
+          // Non-critical: log but don't surface to caller
+          console.error(
+            `[DevicesRepository] Background telemetry cleanup failed for ${deviceInternalId}:`,
+            err.message,
+          );
+        }
+      });
+    }
   }
 
   async updateDeviceMeta(
@@ -233,11 +259,17 @@ export class DevicesRepository {
       where.timestamp = { gte: yesterday };
     }
 
+    // ─── FIX: Hard row cap prevents OOM crashes on wide time-range requests ───
+    // Enforces a maximum of 10,000 raw rows. For larger ranges, callers should
+    // use the bucketed telemetry endpoint (queryBucketedTelemetry) instead.
+    const MAX_RAW_ROWS = 10_000;
+
     if (!metric) {
       // Return ALL metrics for the given timeframe
       const rows = await this.prisma.deviceTelemetry.findMany({
         where,
         orderBy: { timestamp: 'asc' },
+        take: MAX_RAW_ROWS,
       });
       return rows.map((row) => ({
         timestamp: (row.timestamp as Date).toISOString(),
@@ -255,6 +287,7 @@ export class DevicesRepository {
     const rows = await this.prisma.deviceTelemetry.findMany({
       where,
       orderBy: { timestamp: 'asc' },
+      take: MAX_RAW_ROWS,
       select: {
         timestamp: true,
         [metric]: true, // Select the specific metric requested
@@ -281,7 +314,32 @@ export class DevicesRepository {
     });
   }
 
+  /**
+   * Get latest telemetry reading for a device.
+   *
+   * ─── OPTIMIZED ───
+   * Old: Always 2 sequential DB queries (device lookup + telemetry findFirst).
+   * New: Try Redis FIRST (written by MQTT consumer on every message).
+   *      Sub-millisecond response on cache hit. Zero DB reads for the hot path.
+   *      Falls back to DB on cache miss (cold start or Redis restart).
+   */
   async getLatestTelemetrySince(deviceStringId: string, lastTimestamp?: string) {
+    // 1. Check Redis latest-state cache (populated by mqtt.consumer on every message)
+    try {
+      const cached = await this.redis.get(`device:${deviceStringId}:latest`);
+      if (cached) {
+        const state = JSON.parse(cached);
+        // If client provided a timestamp and Redis state is not newer, signal "no update"
+        if (lastTimestamp && state.timestamp <= lastTimestamp) {
+          return null;
+        }
+        return state;
+      }
+    } catch {
+      // Redis unavailable — silently fall through to DB
+    }
+
+    // 2. DB fallback (cold start, Redis miss, or device never sent data via MQTT)
     const device = await this.prisma.device.findUnique({
       where: { deviceId: deviceStringId },
     });
@@ -296,11 +354,9 @@ export class DevicesRepository {
       where.timestamp = { gt: new Date(lastTimestamp) };
     }
 
-    const latestRecord = await this.prisma.deviceTelemetry.findFirst({
+    return this.prisma.deviceTelemetry.findFirst({
       where,
       orderBy: { timestamp: 'desc' },
     });
-
-    return latestRecord;
   }
 }

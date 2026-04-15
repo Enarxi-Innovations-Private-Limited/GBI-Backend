@@ -11,6 +11,9 @@ export class InAppNotificationsRepository {
         userId,
         ...(typeof isRead === 'boolean' ? { isRead } : {}),
       },
+      // ─── FIX: orderBy now uses the new @@index([userId, createdAt]) ───
+      // The index covers both the WHERE (userId) and the ORDER BY (createdAt DESC),
+      // enabling an index-only scan with no in-memory sort.
       orderBy: { createdAt: 'desc' },
       skip,
       take,

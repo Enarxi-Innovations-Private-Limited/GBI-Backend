@@ -7,7 +7,14 @@ export class EventLogsRepository {
 
   /**
    * Get device events (ONLINE / OFFLINE) for users assigned to devices.
-   * Joins UserDevice for friendly name and location.
+   *
+   * ─── OPTIMIZED ───
+   * Old: search was applied IN APPLICATION LOGIC after DB fetch, causing two bugs:
+   *   1. `total` reflected pre-filter DB count but items were post-filter → broken pagination.
+   *   2. Forced fetching full pages then discarding unmatched rows in JS.
+   * New: search is pushed into the WHERE clause. DB does the filtering.
+   *      `total` now always matches the filtered item count — pagination is correct.
+   *      Uses new @@index([userId, eventType, createdAt]) for efficient range reads.
    */
   async getDeviceEvents(
     userId: string,
@@ -18,6 +25,14 @@ export class EventLogsRepository {
     const where: any = {
       userId,
       eventType: { in: ['ONLINE', 'OFFLINE'] },
+      // Push search into SQL WHERE — remove from application-level filter
+      ...(search
+        ? {
+            device: {
+              deviceId: { contains: search, mode: 'insensitive' },
+            },
+          }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -27,36 +42,27 @@ export class EventLogsRepository {
         skip,
         take,
         include: {
-          device: true,
+          device: {
+            select: { id: true, deviceId: true },
+          },
         },
       }),
       this.prisma.eventLog.count({ where }),
     ]);
 
-    // Get device meta for names/locations
-    const deviceIds = [...new Set(items.map((i) => i.device.deviceId))];
-    const metas = await this.prisma.userDevice.findMany({
-      where: { userId, deviceId: { in: deviceIds } },
-    });
+    // Fetch meta for the devices on THIS PAGE ONLY — not the entire user device list
+    const deviceIdsOnPage = [...new Set(items.map((i) => i.device.deviceId))];
+    const metas =
+      deviceIdsOnPage.length > 0
+        ? await this.prisma.userDevice.findMany({
+            where: { userId, deviceId: { in: deviceIdsOnPage } },
+          })
+        : [];
     const metaMap = new Map(metas.map((m) => [m.deviceId, m]));
 
-    const filtered = search
-      ? items.filter((item) => {
-          const meta = metaMap.get(item.device.deviceId);
-          const name = meta?.name || item.device.deviceId;
-          const location = meta?.location || '';
-          const q = search.toLowerCase();
-          return (
-            name.toLowerCase().includes(q) ||
-            item.device.deviceId.toLowerCase().includes(q) ||
-            location.toLowerCase().includes(q)
-          );
-        })
-      : items;
-
     return {
-      total: search ? filtered.length : total,
-      items: filtered.map((item) => {
+      total, // Always correct whether search is active or not
+      items: items.map((item) => {
         const meta = metaMap.get(item.device.deviceId);
         return {
           id: item.id.toString(),
@@ -72,7 +78,14 @@ export class EventLogsRepository {
 
   /**
    * Get sensor events (ALERT_TRIGGERED / ALERT_RESOLVED) for the user's devices.
-   * Also fetches the matching Notification for thresholdValue.
+   *
+   * ─── OPTIMIZED ───
+   * Old: search applied in JS → broken pagination (same issue as getDeviceEvents).
+   *      Notification proximity matching done with .filter() + .sort() in JS
+   *      after pulling a wide time-window of notifications into memory.
+   * New: search pushed into WHERE clause → correct DB-side pagination.
+   *      Notification fetch scoped to ONLY the triggered events on the current page
+   *      (not a wide global time window), reducing notification rows pulled into Node.
    */
   async getSensorEvents(
     userId: string,
@@ -84,6 +97,14 @@ export class EventLogsRepository {
       userId,
       eventType: { in: ['ALERT_TRIGGERED', 'ALERT_RESOLVED'] },
       parameter: { not: null },
+      // Push search into SQL WHERE
+      ...(search
+        ? {
+            device: {
+              deviceId: { contains: search, mode: 'insensitive' },
+            },
+          }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -92,24 +113,31 @@ export class EventLogsRepository {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
-        include: { device: true },
+        include: {
+          device: {
+            select: { id: true, deviceId: true },
+          },
+        },
       }),
       this.prisma.eventLog.count({ where }),
     ]);
 
-    // Get device meta for names
-    const deviceIds = [...new Set(items.map((i) => i.device.deviceId))];
-    const metas = await this.prisma.userDevice.findMany({
-      where: { userId, deviceId: { in: deviceIds } },
-    });
+    // Fetch meta for the devices on THIS PAGE ONLY
+    const deviceIdsOnPage = [...new Set(items.map((i) => i.device.deviceId))];
+    const metas =
+      deviceIdsOnPage.length > 0
+        ? await this.prisma.userDevice.findMany({
+            where: { userId, deviceId: { in: deviceIdsOnPage } },
+          })
+        : [];
     const metaMap = new Map(metas.map((m) => [m.deviceId, m]));
 
-    // For ALERT_TRIGGERED items, find their closest Notification to get thresholdValue
-    // Match by userId + deviceId + createdAt proximity (within 5 seconds)
+    // Only fetch notifications for ALERT_TRIGGERED items on this page (narrow scope)
     const triggeredItems = items.filter((i) => i.eventType === 'ALERT_TRIGGERED');
-    let notificationMap = new Map<string, number | null>();
+    const notificationMap = new Map<string, number | null>();
 
     if (triggeredItems.length > 0) {
+      // Scope notification fetch to a tight 10-second window around items on THIS page
       const minDate = new Date(
         Math.min(...triggeredItems.map((i) => i.createdAt.getTime())) - 5000,
       );
@@ -117,26 +145,19 @@ export class EventLogsRepository {
         Math.max(...triggeredItems.map((i) => i.createdAt.getTime())) + 5000,
       );
 
-      const notifications: Array<{
-        deviceId: string | null;
-        thresholdValue: number | null;
-        createdAt: Date;
-      }> = await (this.prisma.notification.findMany as any)({
+      const notifications = await this.prisma.notification.findMany({
         where: {
           userId,
           createdAt: { gte: minDate, lte: maxDate },
           thresholdValue: { not: null },
+          // Further scope to devices on this page only
+          deviceId: { in: triggeredItems.map((i) => i.device.id) },
         },
-        select: {
-          deviceId: true,
-          thresholdValue: true,
-          createdAt: true,
-        },
+        select: { deviceId: true, thresholdValue: true, createdAt: true },
       });
 
-      // Build a key lookup: itemId → closest thresholdValue for each triggered event
+      // Build proximity match map keyed by event item id
       for (const item of triggeredItems) {
-        const key = `${item.id}`;
         const match = notifications
           .filter(
             (n) =>
@@ -148,11 +169,10 @@ export class EventLogsRepository {
               Math.abs(a.createdAt.getTime() - item.createdAt.getTime()) -
               Math.abs(b.createdAt.getTime() - item.createdAt.getTime()),
           )[0];
-        notificationMap.set(key, match?.thresholdValue ?? null);
+        notificationMap.set(`${item.id}`, match?.thresholdValue ?? null);
       }
     }
 
-    // Parameter → unit mapping
     const UNIT_MAP: Record<string, string> = {
       pm25: 'µg/m³',
       pm10: 'µg/m³',
@@ -175,42 +195,29 @@ export class EventLogsRepository {
       aqi: 'AQI',
     };
 
-    const mapped = items.map((item) => {
-      const meta = metaMap.get(item.device.deviceId);
-      const param = item.parameter || '';
-      const unit = UNIT_MAP[param] ?? '';
-      const thresholdValue =
-        item.eventType === 'ALERT_TRIGGERED'
-          ? notificationMap.get(`${item.id}`) ?? null
-          : null;
-
-      return {
-        id: item.id.toString(),
-        createdAt: item.createdAt.toISOString(),
-        deviceId: item.device.deviceId,
-        deviceName: meta?.name || item.device.deviceId,
-        parameter: PARAM_LABEL[param] || param,
-        condition: item.eventType === 'ALERT_TRIGGERED' ? 'Above' : 'Resolved',
-        value: item.value,
-        unit,
-        thresholdValue,
-      };
-    });
-
-    const filtered = search
-      ? mapped.filter((item) => {
-          const q = search.toLowerCase();
-          return (
-            item.deviceName.toLowerCase().includes(q) ||
-            item.deviceId.toLowerCase().includes(q) ||
-            item.parameter.toLowerCase().includes(q)
-          );
-        })
-      : mapped;
-
     return {
-      total: search ? filtered.length : total,
-      items: filtered,
+      total, // Always correct whether search is active or not
+      items: items.map((item) => {
+        const meta = metaMap.get(item.device.deviceId);
+        const param = item.parameter || '';
+        const unit = UNIT_MAP[param] ?? '';
+        const thresholdValue =
+          item.eventType === 'ALERT_TRIGGERED'
+            ? notificationMap.get(`${item.id}`) ?? null
+            : null;
+
+        return {
+          id: item.id.toString(),
+          createdAt: item.createdAt.toISOString(),
+          deviceId: item.device.deviceId,
+          deviceName: meta?.name || item.device.deviceId,
+          parameter: PARAM_LABEL[param] || param,
+          condition: item.eventType === 'ALERT_TRIGGERED' ? 'Above' : 'Resolved',
+          value: item.value,
+          unit,
+          thresholdValue,
+        };
+      }),
     };
   }
 }

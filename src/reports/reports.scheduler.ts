@@ -21,11 +21,10 @@ export class ReportsScheduler implements OnModuleInit {
     this.logger.log('🧹 Running cleanup for expired reports...');
 
     try {
-      // 1. Find all expired reports
+      // 1. Find all expired reports in one query
       const expiredReports = await this.prisma.generatedReport.findMany({
-        where: {
-          expiresAt: { lt: new Date() },
-        },
+        where: { expiresAt: { lt: new Date() } },
+        select: { id: true, fileKey: true },
       });
 
       if (expiredReports.length === 0) {
@@ -33,47 +32,35 @@ export class ReportsScheduler implements OnModuleInit {
         return;
       }
 
-      this.logger.log(
-        `Found ${expiredReports.length} expired reports to delete.`,
-      );
+      this.logger.log(`Found ${expiredReports.length} expired reports to delete.`);
 
-      // 2. Delete files from disk and records from DB
-      let deletedCount = 0;
-
-      for (const report of expiredReports) {
-        if (report.fileKey) {
-          const absolutePath = path.join(
-            this.reportsDir,
-            path.basename(report.fileKey),
-          );
-
-          try {
-            if (fs.existsSync(absolutePath)) {
-              await fs.promises.unlink(absolutePath);
-            }
-
-            // 3. Delete from DB only if file is confirmed gone (or was never there)
-            await this.prisma.generatedReport.delete({
-              where: { id: report.id },
-            });
-            deletedCount++;
-          } catch (fileErr) {
-            this.logger.error(
-              `Failed to cleanup report ${report.id}: ${fileErr.message}`,
+      // 2. Delete all files in PARALLEL (Promise.allSettled = never throws on individual failure)
+      const fileCleanupResults = await Promise.allSettled(
+        expiredReports
+          .filter((r) => r.fileKey)
+          .map((r) => {
+            const absolutePath = path.join(
+              this.reportsDir,
+              path.basename(r.fileKey!),
             );
-          }
-        } else {
-          // If no fileKey, just clear the record
-          await this.prisma.generatedReport.delete({
-            where: { id: report.id },
-          });
-          deletedCount++;
-        }
-      }
-
-      this.logger.log(
-        `✅ Successfully cleaned up ${deletedCount} expired reports.`,
+            return fs.promises.unlink(absolutePath);
+          }),
       );
+
+      // Log individual file errors without aborting the DB cleanup
+      fileCleanupResults.forEach((result, i) => {
+        if (result.status === 'rejected' && !result.reason?.code?.includes('ENOENT')) {
+          this.logger.warn(`File cleanup warning: ${result.reason?.message}`);
+        }
+      });
+
+      // 3. Delete ALL expired records in ONE batch query (was: N separate DELETEs in a loop)
+      const ids = expiredReports.map((r) => r.id);
+      const { count } = await this.prisma.generatedReport.deleteMany({
+        where: { id: { in: ids } },
+      });
+
+      this.logger.log(`✅ Successfully cleaned up ${count} expired reports.`);
     } catch (error) {
       this.logger.error('❌ Error during report cleanup:', error.stack);
     }

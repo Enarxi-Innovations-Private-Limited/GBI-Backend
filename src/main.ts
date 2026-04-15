@@ -1,5 +1,7 @@
 // Load environment variables first for Prisma v7
-import 'dotenv/config';
+import * as dotenv from 'dotenv-flow';
+
+dotenv.config();
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -24,6 +26,10 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter(),
   );
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not set');
+  }
 
   // app.setGlobalPrefix('api');
 

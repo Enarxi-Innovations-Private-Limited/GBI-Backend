@@ -332,6 +332,9 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
+    // Invalidate session cache so the next request re-validates from DB
+    await this.invalidateUserCache(userId);
+
     return { message: 'Password changed successfully' };
   }
 
@@ -411,23 +414,24 @@ export class AuthService {
     // Hash new password
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
-    // Update user password
-    await this.prisma.user.update({
+    // ─── FIX: Use update() return value — eliminates a second findUnique round-trip ───
+    const updatedUser = await this.prisma.user.update({
       where: { email },
       data: { passwordHash },
+      select: { id: true },
     });
 
     // Delete OTP
     await this.redis.del(`reset_otp:${email}`);
 
-    // Revoke all sessions for security
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (user) {
-      await this.prisma.refreshToken.updateMany({
-        where: { userId: user.id },
+    // Revoke all sessions + invalidate session cache
+    await Promise.all([
+      this.prisma.refreshToken.updateMany({
+        where: { userId: updatedUser.id },
         data: { revokedAt: new Date() },
-      });
-    }
+      }),
+      this.invalidateUserCache(updatedUser.id),
+    ]);
 
     return { message: 'Password reset successfully' };
   }
@@ -542,10 +546,11 @@ export class AuthService {
       },
     });
 
-    // 4. Delete OTP (Only if generated)
-    if (requirePhoneVerif) {
-      await this.redis.del(`phone_otp:${phone}`);
-    }
+    // 4. Delete OTP (Only if generated) + invalidate user session cache
+    await Promise.all([
+      requirePhoneVerif ? this.redis.del(`phone_otp:${phone}`) : Promise.resolve(),
+      this.invalidateUserCache(updatedUser.id),
+    ]);
 
     // 5. Generate New Tokens (refresh claims)
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
@@ -598,6 +603,8 @@ export class AuthService {
           where: { id: user.id },
           data: updateData,
         });
+        // Invalidate stale session cache after profile update
+        await this.invalidateUserCache(user.id);
       }
 
       // Check if user is restricted
@@ -722,9 +729,37 @@ export class AuthService {
   }
 
   /**
-   * Validate user by ID (used by JWT strategy)
+   * Validate user by ID (used by JWT strategy).
+   *
+   * ─── OPTIMIZED ───
+   * Old: Hits PostgreSQL on EVERY authenticated API request.
+   *      At 10M users × 100 RPS = 1B DB reads/second from this single function.
+   * New: Redis cache with 15-minute TTL (matches JWT access token lifetime).
+   *      Cache miss triggers DB lookup and re-primes cache.
+   *      Cache invalidated on: password change, profile update, Google login update.
    */
   async validateUser(userId: string) {
+    const cacheKey = `user:session:${userId}`;
+
+    // 1. Try Redis cache first
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        const user = JSON.parse(cached);
+        if (user.isRestricted) {
+          throw new UnauthorizedException(
+            'Your account has been restricted. Please contact support.',
+          );
+        }
+        return user;
+      }
+    } catch (err) {
+      // Re-throw HTTP exceptions; swallow Redis connection errors (fall through to DB)
+      if (err instanceof UnauthorizedException) throw err;
+      this.logger?.warn(`[AUTH] Redis session cache unavailable: ${err.message}`);
+    }
+
+    // 2. Cache miss — fetch from DB
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -756,7 +791,26 @@ export class AuthService {
       );
     }
 
+    // 3. Prime the cache — TTL matches JWT access token lifetime (15 min)
+    try {
+      await this.redis.set(cacheKey, JSON.stringify(user), 'EX', 900);
+    } catch (err) {
+      this.logger?.warn(`[AUTH] Failed to prime user session cache: ${err.message}`);
+    }
+
     return user;
+  }
+
+  /**
+   * Invalidate a user's session cache.
+   * Call after any mutation that changes the cached user fields.
+   */
+  private async invalidateUserCache(userId: string): Promise<void> {
+    try {
+      await this.redis.del(`user:session:${userId}`);
+    } catch (err) {
+      this.logger?.warn(`[AUTH] Failed to invalidate user cache for ${userId}: ${err.message}`);
+    }
   }
 
   /**
