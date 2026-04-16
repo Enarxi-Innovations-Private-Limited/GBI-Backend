@@ -16,15 +16,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        // 1. Try HttpOnly cookie first (primary, secure method)
+        // 1. Try Authorization: Bearer header first (primary for API clients & impersonation)
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // 2. Fallback to HttpOnly cookie (default for browser sessions)
         (req) => {
           if (req && req.cookies) {
             return req.cookies['accessToken'] || null;
           }
           return null;
         },
-        // 2. Fallback to Authorization: Bearer header (backward compat)
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
       secretOrKey: configService.get('JWT_SECRET'),
