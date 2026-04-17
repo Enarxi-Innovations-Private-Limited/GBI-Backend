@@ -7,6 +7,16 @@ export class AlertsService {
   private readonly logger = new Logger(AlertsService.name);
   private readonly HYSTERESIS_PERCENT = 0.05; // 5% buffer
 
+  // Global UI fallback thresholds (WHO Standards)
+  private readonly DEFAULT_THRESHOLDS: Record<string, number> = {
+    pm25: 12,
+    pm10: 45,
+    tvoc: 250,
+    co2: 100,
+    temperature: 26,
+    humidity: 65,
+  };
+
   constructor(
     private readonly repo: AlertsRepository,
     private readonly sseService: SseService,
@@ -14,7 +24,7 @@ export class AlertsService {
 
   /**
    * Evaluate telemetry against thresholds.
-   * Hierarchy: Device Specific -> Group Default.
+   * Hierarchy: Device Specific -> Group Default -> Global Default.
    */
   async evaluate(deviceId: string, telemetry: any) {
     // 1. Check for Device Specific Threshold
@@ -36,7 +46,15 @@ export class AlertsService {
         groupThreshold.thresholds as Record<string, number>,
         telemetry,
       );
+      return;
     }
+
+    // 3. Fallback to Global Default Thresholds
+    await this.evaluateWithThresholds(
+      deviceId,
+      this.DEFAULT_THRESHOLDS,
+      telemetry,
+    );
   }
 
   private async evaluateWithThresholds(

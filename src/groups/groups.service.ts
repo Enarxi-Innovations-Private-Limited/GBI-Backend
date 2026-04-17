@@ -16,6 +16,16 @@ export class GroupsService {
     });
   }
 
+  async getUserGroups(userId: string) {
+    return this.prisma.deviceGroup.findMany({
+      where: { userId },
+      include: {
+        devices: true,
+        threshold: true,
+      },
+    });
+  }
+
   async addDeviceToGroup(
     userId: string,
     groupId: string,

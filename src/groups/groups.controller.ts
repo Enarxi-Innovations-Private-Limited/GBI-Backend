@@ -11,6 +11,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { GroupsService } from './groups.service';
 import { SetGroupThresholdDto } from './dto/set-group-threshold.dto';
+import { Get } from '@nestjs/common';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('groups')
@@ -20,6 +21,11 @@ export class GroupsController {
   @Post()
   create(@Req() req, @Body() dto: CreateGroupDto) {
     return this.service.createGroup(req.user.id, dto.name);
+  }
+
+  @Get()
+  findAll(@Req() req) {
+    return this.service.getUserGroups(req.user.id);
   }
 
   @Post(':groupId/devices')
