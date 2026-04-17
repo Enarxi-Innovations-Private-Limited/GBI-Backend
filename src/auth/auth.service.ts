@@ -50,6 +50,9 @@ export interface AuthResponse {
     emailVerified: boolean;
     phoneVerified: boolean;
     isProfileComplete: boolean;
+    isPremium?: boolean;
+    premiumStatus?: string;
+    premiumExpiry?: Date | null;
   };
 }
 
@@ -212,6 +215,9 @@ export class AuthService {
       emailVerified: updatedUser.emailVerified,
       phoneVerified: updatedUser.phoneVerified,
       isProfileComplete: updatedUser.isProfileComplete,
+      isPremium: updatedUser.isPremium,
+      premiumStatus: updatedUser.premiumStatus,
+      premiumExpiry: updatedUser.premiumExpiry,
     };
 
     if (updatedUser.name) returnUser.name = updatedUser.name;
@@ -282,6 +288,9 @@ export class AuthService {
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
       isProfileComplete: user.isProfileComplete,
+      isPremium: user.isPremium,
+      premiumStatus: user.premiumStatus,
+      premiumExpiry: user.premiumExpiry,
     };
 
     if (user.name) returnUser.name = user.name;
@@ -556,6 +565,9 @@ export class AuthService {
       emailVerified: updatedUser.emailVerified,
       phoneVerified: updatedUser.phoneVerified,
       isProfileComplete: updatedUser.isProfileComplete,
+      isPremium: updatedUser.isPremium,
+      premiumStatus: updatedUser.premiumStatus,
+      premiumExpiry: updatedUser.premiumExpiry,
     };
 
     if (updatedUser.name) returnUser.name = updatedUser.name;
@@ -629,6 +641,9 @@ export class AuthService {
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
       isProfileComplete: user.isProfileComplete,
+      isPremium: user.isPremium,
+      premiumStatus: user.premiumStatus,
+      premiumExpiry: user.premiumExpiry,
     };
 
     if (user.name) returnUser.name = user.name;
@@ -695,6 +710,9 @@ export class AuthService {
       emailVerified: storedToken.user.emailVerified,
       phoneVerified: storedToken.user.phoneVerified,
       isProfileComplete: storedToken.user.isProfileComplete,
+      isPremium: storedToken.user.isPremium,
+      premiumStatus: storedToken.user.premiumStatus,
+      premiumExpiry: storedToken.user.premiumExpiry,
     };
 
     if (storedToken.user.name) returnUser.name = storedToken.user.name;
