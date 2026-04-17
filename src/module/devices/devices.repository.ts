@@ -12,7 +12,7 @@ export class DevicesRepository {
 
   // Helper to find a device by display ID (e.g. "GBI-001") → returns full Device record
   async getDeviceByStringId(deviceId: string) {
-    return this.prisma.device.findUnique({ where: { deviceId } });
+  return this.prisma.device.findUnique({ where: { deviceId } });
   }
 
   /**

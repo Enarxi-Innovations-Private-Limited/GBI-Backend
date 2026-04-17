@@ -8,6 +8,6 @@ import { PremiumRepository } from './premium.repository';
   imports: [PrismaModule],
   controllers: [PremiumController],
   providers: [PremiumService, PremiumRepository],
-  exports: [PremiumService],
+  exports: [PremiumService, PremiumRepository],
 })
 export class PremiumModule {}

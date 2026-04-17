@@ -61,6 +61,7 @@
     "mqtt": "^5.14.1",
     "nodemailer": "^8.0.1",
     "passport": "^0.7.0",
+    "razorpay": "^2.9.6",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.17.2",

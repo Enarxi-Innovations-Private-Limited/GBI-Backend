@@ -23,6 +23,7 @@ import { ReportsModule } from './reports/reports.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { GroupsModule } from './groups/groups.module';
 import { EventLogsModule } from './event-logs/event-logs.module';
+import { SubscriptionsModule } from './module/subscriptions/subscriptions.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
@@ -50,6 +51,7 @@ import { MailModule } from './mail/mail.module';
     GroupsModule,
     EventLogsModule,
     MailModule,
+    SubscriptionsModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => {
