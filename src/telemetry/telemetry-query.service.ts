@@ -96,10 +96,9 @@ export class TelemetryQueryService {
       rows = await this.prisma.$queryRaw(
         Prisma.sql`
           SELECT DISTINCT ON ("timestamp_bucket", "deviceId")
-            to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60))
-              AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp_bucket",
+            to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) as "timestamp_bucket",
             "deviceId",
-            "timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "original_timestamp",
+            "timestamp" as "original_timestamp",
             ${selectCols}
           FROM "DeviceTelemetry"
           WHERE "deviceId" IN (${Prisma.join(uuidList)})
@@ -119,7 +118,7 @@ export class TelemetryQueryService {
       rows = await this.prisma.$queryRaw(
         Prisma.sql`
           SELECT
-            date_trunc('minute', "timestamp") AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
+            date_trunc('minute', "timestamp") as "timestamp",
             "deviceId",
             ${selectAgg}
           FROM "DeviceTelemetry"
@@ -144,7 +143,7 @@ export class TelemetryQueryService {
             (
               date_trunc('minute', "timestamp")
               - (extract(minute from "timestamp")::int % ${interval}) * interval '1 minute'
-            ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as "timestamp",
+            ) as "timestamp",
             "deviceId",
             ${selectAgg}
           FROM "DeviceTelemetry"
@@ -183,13 +182,21 @@ export class TelemetryQueryService {
 
       if (row.timestamp) {
         const ts = new Date(row.timestamp);
-        const dd = String(ts.getUTCDate()).padStart(2, '0');
-        const mm = String(ts.getUTCMonth() + 1).padStart(2, '0');
-        const yyyy = ts.getUTCFullYear();
-        const hours = String(ts.getUTCHours()).padStart(2, '0');
-        const minutes = String(ts.getUTCMinutes()).padStart(2, '0');
-        processedRow.Date = `${dd}-${mm}-${yyyy}`;
-        processedRow.Time = `${hours}:${minutes}`;
+        // Use Intl.DateTimeFormat to ensure IST (Asia/Kolkata) in reports
+        const formatter = new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        const parts = formatter.formatToParts(ts);
+        const getPart = (type) => parts.find((p) => p.type === type)?.value || '';
+
+        processedRow.Date = `${getPart('day')}-${getPart('month')}-${getPart('year')}`;
+        processedRow.Time = `${getPart('hour')}:${getPart('minute')}`;
       }
 
       for (const param of orderedParams) {
