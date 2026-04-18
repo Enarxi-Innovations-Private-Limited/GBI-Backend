@@ -20,7 +20,7 @@ export class PaymentsController {
     @Body() dto: CreateOrderDto,
     @Req() req: FastifyRequest & { user: any },
   ) {
-    return this.paymentsService.createOrder(dto.planId, req.user.sub);
+    return this.paymentsService.createOrder(dto.planId, req.user.id);
   }
 
   @Post('verify')
@@ -32,7 +32,7 @@ export class PaymentsController {
       dto.razorpayOrderId,
       dto.razorpayPaymentId,
       dto.razorpaySignature,
-      req.user.sub,
+      req.user.id,
     );
   }
 }

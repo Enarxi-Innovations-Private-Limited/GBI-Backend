@@ -43,10 +43,14 @@ export class PaymentsService {
 
     const amountInPaise = Math.round(plan.amount * 100);
 
+    // Razorpay receipt field max length is 40 characters
+    const shortUserId = userId.replace(/-/g, '').substring(0, 10);
+    const receipt = `rcpt_${Date.now()}_${shortUserId}`.substring(0, 40);
+
     const options = {
       amount: amountInPaise,
       currency: plan.currency || 'INR',
-      receipt: `receipt_${Date.now()}_${userId}`,
+      receipt,
       notes: {
         planId: plan.id,
         userId: userId,
@@ -54,16 +58,21 @@ export class PaymentsService {
     };
 
     try {
+      this.logger.log(`Creating Razorpay order: amount=${amountInPaise}, currency=${options.currency}, receipt=${receipt}`);
       const order = await this.razorpay.orders.create(options);
+      this.logger.log(`Razorpay order created: ${order.id}`);
       return {
         id: order.id,
         amount: order.amount,
         currency: order.currency,
         planId: plan.id,
+        key: this.configService.get<string>('RAZORPAY_KEY_ID'),
       };
     } catch (error) {
-      this.logger.error('Error creating Razorpay order', error);
-      throw new BadRequestException('Failed to create payment order');
+      // Expose the actual Razorpay API error for debugging
+      const razorpayMsg = error?.error?.description || error?.message || JSON.stringify(error);
+      this.logger.error(`Razorpay order creation failed: ${razorpayMsg}`, error);
+      throw new BadRequestException(`Failed to create payment order: ${razorpayMsg}`);
     }
   }
 
@@ -74,15 +83,15 @@ export class PaymentsService {
     userId: string,
   ) {
     const body = razorpayOrderId + '|' + razorpayPaymentId;
+    const secret = this.configService.get<string>('RAZORPAY_KEY_SECRET') || '';
     const expectedSignature = crypto
-      .createHmac(
-        'sha256',
-        this.configService.get<string>('RAZORPAY_KEY_SECRET') || '',
-      )
+      .createHmac('sha256', secret)
       .update(body.toString())
       .digest('hex');
 
     if (expectedSignature !== razorpaySignature) {
+      this.logger.error(`Signature mismatch! Expected: ${expectedSignature}, Received: ${razorpaySignature}`);
+      this.logger.error(`Used secret: ${secret.substring(0, 4)}...${secret.substring(secret.length - 4)}`);
       throw new BadRequestException('Invalid payment signature');
     }
 
