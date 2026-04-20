@@ -20,4 +20,7 @@ export class CreatePlanDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsOptional()
+  features?: any;
 }

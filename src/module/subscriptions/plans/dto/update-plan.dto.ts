@@ -16,4 +16,7 @@ export class UpdatePlanDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsOptional()
+  features?: any;
 }
