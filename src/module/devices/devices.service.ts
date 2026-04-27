@@ -5,6 +5,7 @@ import { DevicesRepository } from './devices.repository';
 import { ClaimDeviceDto } from './dto/claim-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { TelemetryQueryService } from '../../telemetry/telemetry-query.service';
+import { MqttService } from '../../mqtt/mqtt.service';
 
 @Injectable()
 export class DevicesService {
@@ -12,6 +13,7 @@ export class DevicesService {
     private readonly repo: DevicesRepository,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly telemetryQuery: TelemetryQueryService,
+    private readonly mqtt: MqttService,
   ) {}
 
   /**
@@ -279,5 +281,34 @@ export class DevicesService {
       deviceName: nameMap.get(displayId) || displayId,
       data: grouped.get(displayId) || [],
     }));
+  }
+
+  async restartDevice(userId: string, deviceStringId: string) {
+    const device = await this.repo.getDeviceByStringId(deviceStringId);
+    if (!device) throw new NotFoundException('Device not found');
+
+    // Ownership check
+    const assignments = await this.repo.getUserDevices(userId);
+    if (!assignments.find((a) => a.device.deviceId === deviceStringId)) {
+      const { ForbiddenException } = await import('@nestjs/common');
+      throw new ForbiddenException('You do not have access to this device');
+    }
+
+    const topic = `gbi/devices/${deviceStringId}/restart`;
+    const success = await this.mqtt.requestResponse(
+      topic,
+      'RESTART',
+      'OK',
+      15000, // 15 seconds timeout
+    );
+
+    if (!success) {
+      const { RequestTimeoutException } = await import('@nestjs/common');
+      throw new RequestTimeoutException(
+        'No response from device within 15 seconds',
+      );
+    }
+
+    return { success: true, message: 'Device is restarting' };
   }
 }

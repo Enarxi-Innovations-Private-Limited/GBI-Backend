@@ -162,4 +162,12 @@ export class DevicesController {
       minutes,
     );
   }
+
+  @UseGuards(ReadonlyGuard)
+  @ReadonlyBlocked()
+  @Post(':id/restart')
+  @HttpCode(200)
+  restartDevice(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.devicesService.restartDevice(user.id, id);
+  }
 }

@@ -90,4 +90,84 @@ export class MqttService implements OnModuleInit {
   getClient() {
     return this.client;
   }
+
+  async publish(
+    topic: string,
+    message: string,
+    options: mqtt.IClientPublishOptions = { qos: 1 },
+  ): Promise<void> {
+    if (!this.client || !this.client.connected) {
+      throw new Error('MQTT client not connected');
+    }
+
+    return new Promise((resolve, reject) => {
+      this.client.publish(topic, message, options, (err) => {
+        if (err) {
+          this.logger.error(`❌ Failed to publish to ${topic}`, err.stack);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  async requestResponse(
+    topic: string,
+    command: string,
+    expectedResponse: string,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    if (!this.client || !this.client.connected) {
+      throw new Error('MQTT client not connected');
+    }
+
+    // 1. Subscribe to the topic to listen for the response
+    await new Promise<void>((resolve, reject) => {
+      this.client.subscribe(topic, { qos: 1 }, (err) => {
+        if (err) {
+          this.logger.error(`❌ Failed to subscribe to ${topic}`, err.stack);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    return new Promise<boolean>((resolve) => {
+      let timeout: NodeJS.Timeout;
+
+      const messageHandler = (incomingTopic: string, payload: Buffer) => {
+        if (incomingTopic === topic) {
+          const message = payload.toString();
+          if (message === expectedResponse) {
+            this.logger.log(`📥 Received expected response "${message}" on ${topic}`);
+            cleanup(true);
+          }
+        }
+      };
+
+      const cleanup = (result: boolean) => {
+        clearTimeout(timeout);
+        this.client.removeListener('message', messageHandler);
+        this.client.unsubscribe(topic);
+        resolve(result);
+      };
+
+      // 2. Start listening
+      this.client.on('message', messageHandler);
+
+      // 3. Set timeout
+      timeout = setTimeout(() => {
+        this.logger.warn(`⏳ Timeout waiting for "${expectedResponse}" on ${topic}`);
+        cleanup(false);
+      }, timeoutMs);
+
+      // 4. Publish the command
+      this.publish(topic, command).catch((err) => {
+        this.logger.error(`❌ Failed to send command "${command}" to ${topic}`, err.stack);
+        cleanup(false);
+      });
+    });
+  }
 }
