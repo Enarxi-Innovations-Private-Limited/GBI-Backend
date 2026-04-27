@@ -67,3 +67,6 @@ migration.mjs
 prisma/seed.ts
 prisma/migrations/
 scratch/
+
+
+past_envs/
