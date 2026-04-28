@@ -19,9 +19,9 @@ jobs:
           script: |
             echo "🚀 Deploying Backend"
 
-            cd /root/GBI-Backend
+            source ~/.bashrc
 
-            git pull origin main
+            cd /root/GBI-Backend
 
             echo "📥 Pull latest code"
             git pull origin main
