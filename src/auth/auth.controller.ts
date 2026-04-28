@@ -59,7 +59,7 @@ export class AuthController {
     res.setCookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 15 * 60,
     });
@@ -67,7 +67,7 @@ export class AuthController {
     res.setCookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge: 30 * 24 * 60 * 60,
     });
@@ -158,7 +158,7 @@ export class AuthController {
     res.setCookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 15 * 60,
     });
@@ -166,7 +166,7 @@ export class AuthController {
     res.setCookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge: 30 * 24 * 60 * 60,
     });
@@ -262,7 +262,7 @@ export class AuthController {
     res.setCookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 15 * 60,
     });
@@ -270,7 +270,7 @@ export class AuthController {
     res.setCookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge: 30 * 24 * 60 * 60,
     });
@@ -294,7 +294,7 @@ export class AuthController {
     res.setCookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 15 * 60,
     });
@@ -302,7 +302,7 @@ export class AuthController {
     res.setCookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge: 30 * 24 * 60 * 60,
     });
