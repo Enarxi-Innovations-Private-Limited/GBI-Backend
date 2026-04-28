@@ -1,0 +1,44 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Backend via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "🚀 Deploying Backend"
+
+            cd /root/GBI-Backend
+
+            git pull origin main
+
+            echo "📥 Pull latest code"
+            git pull origin main
+
+            echo "📦 Install dependencies"
+            pnpm install --frozen-lockfile
+
+            echo "🧬 Prisma generate"
+            npx prisma generate
+
+            echo "🏗️ Build project"
+            pnpm run build
+
+            echo "🗄️ Run DB migrations"
+            npx prisma migrate deploy
+
+            echo "🔄 Reload backend"
+            pm2 reload gbi-backend
+
+            echo "✅ Backend Done"
