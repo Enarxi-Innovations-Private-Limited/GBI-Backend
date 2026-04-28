@@ -25,7 +25,7 @@ export class InAppNotificationsController {
     const parsedIsRead = isRead === undefined ? undefined : isRead === 'true';
 
     return this.service.getMyNotifications(
-      user.sub,
+      user.id,
       parsedIsRead,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20,
@@ -34,11 +34,11 @@ export class InAppNotificationsController {
 
   @Patch(':id/read')
   markAsRead(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.service.markAsRead(user.sub, id);
+    return this.service.markAsRead(user.id, id);
   }
 
   @Patch('read-all')
   markAllAsRead(@CurrentUser() user: any) {
-    return this.service.markAllAsRead(user.sub);
+    return this.service.markAllAsRead(user.id);
   }
 }

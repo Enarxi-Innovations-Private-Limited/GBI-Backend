@@ -6,6 +6,7 @@ export class InAppNotificationsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findMany(userId: string, isRead?: boolean, skip = 0, take = 20) {
+    if (!userId) return [];
     return this.prisma.notification.findMany({
       where: {
         userId,
@@ -18,6 +19,7 @@ export class InAppNotificationsRepository {
   }
 
   count(userId: string, isRead?: boolean) {
+    if (!userId) return 0;
     return this.prisma.notification.count({
       where: {
         userId,
@@ -27,6 +29,7 @@ export class InAppNotificationsRepository {
   }
 
   markRead(userId: string, notificationId: string) {
+    if (!userId || !notificationId) return { count: 0 };
     return this.prisma.notification.updateMany({
       where: { id: notificationId, userId },
       data: { isRead: true, readAt: new Date() },
@@ -34,6 +37,7 @@ export class InAppNotificationsRepository {
   }
 
   markAllRead(userId: string) {
+    if (!userId) return { count: 0 };
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false },
       data: { isRead: true, readAt: new Date() },

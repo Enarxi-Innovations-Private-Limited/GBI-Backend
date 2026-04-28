@@ -122,7 +122,7 @@ export class DevicesService {
     if (device.groupId) {
       const { ConflictException } = await import('@nestjs/common');
       throw new ConflictException(
-        'Remove device from group before setting individual threshold',
+        'device is already been added to the group threshold',
       );
     }
 
