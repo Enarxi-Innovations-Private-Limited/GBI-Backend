@@ -19,7 +19,8 @@ jobs:
           script: |
             echo "🚀 Deploying Backend"
 
-            source ~/.bashrc
+            export NVM_DIR="$HOME/.nvm"
+            source $NVM_DIR/nvm.sh
 
             cd /root/GBI-Backend
 
