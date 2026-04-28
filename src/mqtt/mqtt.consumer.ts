@@ -222,8 +222,10 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       payload.aqi = payload.AQI;
     }
 
-    console.log('📥 Received telemetry for deviceId:', deviceId);
-    console.log('📦 Payload:', JSON.stringify(payload));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📥 Received telemetry for deviceId:', deviceId);
+      console.log('📦 Payload:', JSON.stringify(payload));
+    }
 
     const device = await this.prisma.device.findUnique({
       where: { deviceId },
@@ -241,7 +243,9 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    console.log('✅ Device found:', device.id, '- Status:', device.status);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Device found:', device.id, '- Status:', device.status);
+    }
 
     // Validate payload
     const dto = plainToInstance(TelemetryPayloadDto, payload);
@@ -322,7 +326,9 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       });
       // Do NOT return here, proceed to save valid data
     } else {
-      console.log('✅ Validation passed. Saving to database...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ Validation passed. Saving to database...');
+      }
     }
 
     // 1) Enforce strict messageId presence
@@ -409,12 +415,14 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         telemetryId: savedTelemetry.id.toString(),
       });
 
-      if (device.status !== newStatus) {
-        console.log(
-          `✅ Device status updated: ${device.status} -> ${newStatus}`,
-        );
-      } else {
-        console.log('✅ Telemetry data saved successfully!');
+      if (process.env.NODE_ENV === 'development') {
+        if (device.status !== newStatus) {
+          console.log(
+            `✅ Device status updated: ${device.status} -> ${newStatus}`,
+          );
+        } else {
+          console.log('✅ Telemetry data saved successfully!');
+        }
       }
 
       // Emit real-time update
@@ -490,9 +498,11 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
           message:
             'Telemetry message safely ignored due to duplicate messageId',
         });
-        console.log(
-          `♻️ Ignored duplicate messageId ${payload.messageId} for device ${deviceId}`,
-        );
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            `♻️ Ignored duplicate messageId ${payload.messageId} for device ${deviceId}`,
+          );
+        }
         return;
       }
 
