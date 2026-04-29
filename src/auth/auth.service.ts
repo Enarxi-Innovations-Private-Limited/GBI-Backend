@@ -377,8 +377,17 @@ export class AuthService {
     await this.redis.set(`reset_otp:${email}`, otp, 'EX', 600);
 
     // Enqueue Forgot Password Email
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrls = (
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000'
+    )
+      .split(',')
+      .map((url) => url.trim());
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const frontendUrl = isProduction
+      ? frontendUrls.find((url) => url.includes('gbiair.in')) || frontendUrls[0]
+      : frontendUrls[0];
+
     const resetLink = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}&otp=${otp}`;
 
     await this.mailService.enqueueForgotPasswordEmail(

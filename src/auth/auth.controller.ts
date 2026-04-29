@@ -96,10 +96,15 @@ export class AuthController {
       // Process Google login
       const result = await this.authService.googleLogin(req.user);
 
-      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000')
-        .split(',')[0]
-        .trim();
+      const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000')
+        .split(',')
+        .map((url) => url.trim());
+      
       const isProduction = process.env.NODE_ENV === 'production';
+      const frontendUrl = isProduction
+        ? frontendUrls.find((url) => url.includes('gbiair.in')) ||
+          frontendUrls[0]
+        : frontendUrls[0];
 
       // Set tokens as HttpOnly cookies — JS cannot access these
       res.setCookie('accessToken', result.accessToken, {
@@ -124,9 +129,15 @@ export class AuthController {
       return res.status(302).redirect(callbackUrl);
     } catch (error) {
       console.error('Google OAuth Error:', error);
-      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000')
-        .split(',')[0]
-        .trim();
+      const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000')
+        .split(',')
+        .map((url) => url.trim());
+      
+      const isProduction = process.env.NODE_ENV === 'production';
+      const frontendUrl = isProduction
+        ? frontendUrls.find((url) => url.includes('gbiair.in')) ||
+          frontendUrls[0]
+        : frontendUrls[0];
       return res
         .status(302)
         .redirect(`${frontendUrl}/login?error=oauth_failed`);
