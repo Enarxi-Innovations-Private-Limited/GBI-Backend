@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   MinLength,
+  IsBoolean,
 } from 'class-validator';
 
 export class CompleteProfileDto {
@@ -33,6 +34,10 @@ export class CompleteProfileDto {
   @IsString()
   @MinLength(8)
   password?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }
 
 // RequestPhoneOtpDto is kept for backward compatibility if the frontend still calls it,

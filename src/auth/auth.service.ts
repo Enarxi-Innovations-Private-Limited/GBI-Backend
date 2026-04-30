@@ -40,6 +40,7 @@ export interface JwtPayload {
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
+  isPersistent: boolean;
   user: {
     id: string;
     email: string;
@@ -169,7 +170,8 @@ export class AuthService {
   async verifyEmailOtp(
     verifyEmailOtpDto: VerifyEmailOtpDto,
   ): Promise<AuthResponse> {
-    let { email, otp } = verifyEmailOtpDto;
+    let { email, otp, rememberMe } = verifyEmailOtpDto;
+    const isPersistent = rememberMe === true;
 
     // Normalize identifiers
     email = email.trim().toLowerCase();
@@ -206,7 +208,7 @@ export class AuthService {
     await this.redis.del(`email_otp:${email}`);
 
     // Generate tokens
-    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
+    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, isPersistent);
 
     // Omit null values for incomplete profiles
     const returnUser: any = {
@@ -236,7 +238,8 @@ export class AuthService {
    * Login user with email and password
    */
   async login(loginDto: LoginDto): Promise<AuthResponse> {
-    let { email, password } = loginDto;
+    let { email, password, rememberMe } = loginDto;
+    const isPersistent = rememberMe === true;
 
     // Normalize
     email = email.trim().toLowerCase();
@@ -279,7 +282,7 @@ export class AuthService {
     await this.clearFailures(email);
 
     // Generate tokens
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(user.id, user.email, isPersistent);
 
     // Omit null values for incomplete profiles
     const returnUser: any = {
@@ -498,7 +501,8 @@ export class AuthService {
     completeProfileDto: CompleteProfileDto,
     userEmail: string,
   ): Promise<AuthResponse> {
-    let { name, organization, city, phone, otp, password } = completeProfileDto;
+    let { name, organization, city, phone, otp, password, rememberMe } = completeProfileDto;
+    const isPersistent = rememberMe === true;
 
     // Normalize
     let email = userEmail.trim().toLowerCase();
@@ -566,7 +570,7 @@ export class AuthService {
     }
 
     // 5. Generate New Tokens (refresh claims)
-    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email);
+    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, isPersistent);
 
     const returnUser: any = {
       id: updatedUser.id,
@@ -595,6 +599,7 @@ export class AuthService {
    * Google OAuth login/signup
    */
   async googleLogin(profile: any): Promise<AuthResponse> {
+    const isPersistent = true; // Google logins usually default to persistent
     const { id: googleId, emails, displayName, _json } = profile;
     const email = emails[0].value;
     // Extract organization from Hosted Domain (hd) only.
@@ -642,7 +647,7 @@ export class AuthService {
     }
 
     // Generate tokens
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(user.id, user.email, isPersistent);
 
     const returnUser: any = {
       id: user.id,
@@ -711,6 +716,7 @@ export class AuthService {
     const tokens = await this.generateTokens(
       storedToken.user.id,
       storedToken.user.email,
+      storedToken.isPersistent,
     );
 
     const returnUser: any = {
@@ -792,7 +798,8 @@ export class AuthService {
   private async generateTokens(
     userId: string,
     email: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+    isPersistent: boolean = true,
+  ): Promise<{ accessToken: string; refreshToken: string; isPersistent: boolean }> {
     const payload: JwtPayload = { sub: userId, email };
 
     // Generate access token (short-lived)
@@ -827,10 +834,11 @@ export class AuthService {
         userId,
         token: refreshToken,
         expiresAt,
+        isPersistent,
       },
     });
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, isPersistent };
   }
 
   /**

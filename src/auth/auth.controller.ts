@@ -61,7 +61,8 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/',
-      maxAge: 15 * 60,
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+      ...(result.isPersistent && { maxAge: 15*60 }),
     });
 
     res.setCookie('refreshToken', result.refreshToken, {
@@ -69,7 +70,8 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/api/auth',
-      maxAge: 30 * 24 * 60 * 60,
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+      ...(result.isPersistent && { maxAge: 7 * 24 * 60 * 60 }),
     });
 
     return { user: result.user };
@@ -112,6 +114,7 @@ export class AuthController {
         secure: isProduction,
         sameSite: 'lax', // 'lax' needed for OAuth redirect flow
         path: '/',
+        domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
         maxAge: 15 * 60, // 15 minutes (seconds)
       });
 
@@ -120,7 +123,8 @@ export class AuthController {
         secure: isProduction,
         sameSite: 'lax',
         path: '/api/auth', // Scoped to auth endpoints only
-        maxAge: 30 * 24 * 60 * 60, // 30 days (seconds)
+        domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+        ...(result.isPersistent && { maxAge: 30 * 24 * 60 * 60 }), // 30 days if persistent
       });
 
       // Redirect to frontend without sensitive data in URL
@@ -171,6 +175,7 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 15 * 60,
     });
 
@@ -179,7 +184,8 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/api/auth',
-      maxAge: 30 * 24 * 60 * 60,
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+      ...(result.isPersistent && { maxAge: 30 * 24 * 60 * 60 }),
     });
 
     return { user: result.user };
@@ -224,9 +230,16 @@ export class AuthController {
       changePasswordDto.newPassword,
     );
 
+    const isProduction = process.env.NODE_ENV === 'production';
     // Clear HttpOnly cookies to force re-login with new credentials
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+    res.clearCookie('refreshToken', {
+      path: '/api/auth',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
 
     return result;
   }
@@ -275,6 +288,7 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 15 * 60,
     });
 
@@ -283,7 +297,8 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/api/auth',
-      maxAge: 30 * 24 * 60 * 60,
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+      ...(result.isPersistent && { maxAge: 30 * 24 * 60 * 60 }),
     });
 
     return { user: result.user };
@@ -307,6 +322,7 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 15 * 60,
     });
 
@@ -315,7 +331,8 @@ export class AuthController {
       secure: isProduction,
       sameSite: 'lax',
       path: '/api/auth',
-      maxAge: 30 * 24 * 60 * 60,
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+      ...(result.isPersistent && { maxAge: 30 * 24 * 60 * 60 }),
     });
 
     return { user: result.user };
@@ -339,9 +356,16 @@ export class AuthController {
       await this.authService.logout(refreshToken);
     }
 
+    const isProduction = process.env.NODE_ENV === 'production';
     // Clear HttpOnly cookies
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+    res.clearCookie('refreshToken', {
+      path: '/api/auth',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
 
     return { message: 'Logged out successfully' };
   }
