@@ -63,7 +63,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 
 #files
-migration.mjs
-prisma/seed.ts
-prisma/migrations/
+# migration.mjs
+# prisma/seed.ts
+# prisma/migrations/
 scratch/

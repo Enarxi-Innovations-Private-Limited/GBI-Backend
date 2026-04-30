@@ -29,11 +29,16 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 import { BullModule } from '@nestjs/bullmq';
 import { MailModule } from './mail/mail.module';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { LoadTestThrottlerGuard } from './common/guards/load-test-throttler.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // Makes config available everywhere
+    }),
+    PrometheusModule.register({
+      path: '/metrics',
     }),
     PrismaModule,
     AuthModule,
@@ -94,7 +99,7 @@ import { MailModule } from './mail/mail.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: LoadTestThrottlerGuard,
     },
   ],
 })
