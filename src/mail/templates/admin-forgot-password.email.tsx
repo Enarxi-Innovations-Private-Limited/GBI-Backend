@@ -12,7 +12,7 @@ import {
   Img,
 } from '@react-email/components';
 
-interface ForgotPasswordEmailProps {
+interface AdminForgotPasswordEmailProps {
   otp: string;
   resetLink: string;
   name?: string;
@@ -20,15 +20,15 @@ interface ForgotPasswordEmailProps {
 
 const baseUrl = 'https://gbiair.in';
 
-export const ForgotPasswordEmail = ({
+export const AdminForgotPasswordEmail = ({
   otp,
   resetLink,
   name,
-}: ForgotPasswordEmailProps) => {
+}: AdminForgotPasswordEmailProps) => {
   return (
     <Html>
       <Head />
-      <Preview>Reset your GBI account password</Preview>
+      <Preview>Admin Account: Reset your GBI password</Preview>
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
@@ -39,14 +39,15 @@ export const ForgotPasswordEmail = ({
               style={logo}
             />
             <Text style={logoText}>GREENBREATHE INNOVATIONS</Text>
+            <Text style={adminBadge}>ADMIN PORTAL</Text>
           </Section>
 
-          <Heading style={h1}>Password Reset Request</Heading>
+          <Heading style={h1}>Admin Password Reset</Heading>
 
-          <Text style={text}>Hello {name || 'there'},</Text>
+          <Text style={text}>Hello {name || 'Admin'},</Text>
           <Text style={text}>
-            We received a request to reset the password for your GBI account.
-            Please use the following verification code to choose a new password.
+            A password reset was requested for your GBI Admin account. 
+            Please use the following verification code to securely reset your password.
           </Text>
 
           <Section style={codeBox}>
@@ -54,28 +55,17 @@ export const ForgotPasswordEmail = ({
           </Section>
 
           <Text style={mutedText}>
-            If you did not request a password reset, please ignore this email or
-            contact support if you have concerns. This code will expire in 10
-            minutes.
-          </Text>
-
-          <Text style={mutedText}>
-            If you prefer, you can also reset your password by clicking this
-            link:
-            <br />
-            <Link href={resetLink} style={link}>
-              Reset Password Link
-            </Link>
+            If you did not request this reset, please notify the security team immediately.
+            This code will expire in 10 minutes.
           </Text>
 
           <Section style={footer}>
             <Text style={footerText}>
-              Best regards,
-              <br />
-              <strong style={{ color: '#16A34A' }}>
-                GreenBreathe Innovations Team
-              </strong>
+              © {new Date().getFullYear()} GreenBreathe Innovations. All rights reserved.
             </Text>
+            <Link href="https://gbiair.in" style={footerLink}>
+              Visit GBI Portal
+            </Link>
           </Section>
         </Container>
       </Body>
@@ -83,20 +73,19 @@ export const ForgotPasswordEmail = ({
   );
 };
 
-// --- Styles ---
+export default AdminForgotPasswordEmail;
 
 const main = {
-  backgroundColor: '#f1f5f9',
+  backgroundColor: '#f6f9fc',
   fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-  padding: '60px 0',
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
 };
 
 const container = {
-  margin: '0 auto',
-  padding: '40px',
   backgroundColor: '#ffffff',
-  borderRadius: '16px',
+  margin: '40px auto',
+  padding: '40px 20px',
+  borderRadius: '12px',
   border: '1px solid #e2e8f0',
   maxWidth: '500px',
   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
@@ -119,61 +108,73 @@ const logoText = {
   margin: '0',
 };
 
+const adminBadge = {
+  fontSize: '10px',
+  color: '#64748b',
+  fontWeight: '700',
+  letterSpacing: '1px',
+  marginTop: '4px',
+  textTransform: 'uppercase' as const,
+};
+
 const h1 = {
   color: '#0f172a',
   fontSize: '28px',
   fontWeight: '700',
   textAlign: 'center' as const,
-  margin: '0 0 24px',
+  margin: '30px 0',
 };
 
 const text = {
-  color: '#475569',
+  color: '#334155',
   fontSize: '16px',
-  lineHeight: '26px',
-  margin: '0 0 20px',
+  lineHeight: '24px',
+  textAlign: 'left' as const,
+  marginBottom: '16px',
 };
 
 const codeBox = {
   backgroundColor: '#f8fafc',
-  borderRadius: '12px',
-  padding: '32px 24px',
-  textAlign: 'center' as const,
+  borderRadius: '8px',
+  border: '2px dashed #cbd5e1',
+  padding: '24px',
   margin: '32px 0',
-  border: '1px dashed #cbd5e1',
+  textAlign: 'center' as const,
 };
 
 const codeText = {
+  fontSize: '36px',
+  fontWeight: '700',
   color: '#16A34A',
-  fontSize: '40px',
-  fontWeight: 'bold',
-  letterSpacing: '12px',
+  letterSpacing: '8px',
   margin: '0',
-};
-
-const link = {
-  color: '#16A34A',
-  textDecoration: 'underline',
-  fontSize: '14px',
 };
 
 const mutedText = {
   color: '#64748b',
   fontSize: '14px',
-  lineHeight: '22px',
-  margin: '0 0 24px',
+  lineHeight: '20px',
+  textAlign: 'center' as const,
+  marginTop: '24px',
+  fontStyle: 'italic',
 };
 
 const footer = {
+  marginTop: '48px',
+  paddingTop: '24px',
   borderTop: '1px solid #e2e8f0',
-  paddingTop: '32px',
+  textAlign: 'center' as const,
 };
 
 const footerText = {
-  color: '#64748b',
-  fontSize: '14px',
-  lineHeight: '22px',
-  margin: '0',
+  color: '#94a3b8',
+  fontSize: '12px',
+  margin: '0 0 8px',
 };
 
-export default ForgotPasswordEmail;
+const footerLink = {
+  color: '#16A34A',
+  fontSize: '12px',
+  fontWeight: '600',
+  textDecoration: 'none',
+};

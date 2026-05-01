@@ -7,8 +7,11 @@ import { AdminService } from './admin.service';
 import { JwtModule } from '@nestjs/jwt';
 import { AdminJwtStrategy } from 'src/auth/strategies/admin-jwt.strategy';
 
+import { MailModule } from 'src/mail/mail.module';
+import { RedisModule } from 'src/redis/redis.module';
+
 @Module({
-  imports: [PrismaModule, AuthModule, JwtModule],
+  imports: [PrismaModule, AuthModule, JwtModule, MailModule, RedisModule],
   controllers: [AdminController],
   providers: [AdminService, AdminRepository, AdminJwtStrategy],
 })

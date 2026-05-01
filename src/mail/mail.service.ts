@@ -96,13 +96,14 @@ export class MailService {
    */
   async enqueueForgotPasswordEmail(
     to: string,
+    otp: string,
     resetLink: string,
     name?: string,
   ): Promise<boolean> {
     try {
       await this.mailQueue.add(
         'send-forgot-password',
-        { type: 'forgot-password', to, resetLink, name },
+        { type: 'forgot-password', to, otp, resetLink, name },
         {
           attempts: 3,
           backoff: { type: 'exponential', delay: 1000 },
@@ -114,6 +115,36 @@ export class MailService {
     } catch (error) {
       this.logger.error(
         `Failed to enqueue Forgot Password email for ${to}`,
+        error.stack,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Enqueues an Admin Forgot Password email to be sent asynchronously
+   */
+  async enqueueAdminForgotPasswordEmail(
+    to: string,
+    otp: string,
+    resetLink: string,
+    name?: string,
+  ): Promise<boolean> {
+    try {
+      await this.mailQueue.add(
+        'send-admin-forgot-password',
+        { type: 'admin-forgot-password', to, otp, resetLink, name },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+          removeOnComplete: true,
+        },
+      );
+      this.logger.log(`Enqueued Admin Forgot Password email job for ${to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to enqueue Admin Forgot Password email for ${to}`,
         error.stack,
       );
       return false;

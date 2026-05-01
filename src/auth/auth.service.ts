@@ -112,9 +112,12 @@ export class AuthService {
     const otp = randomInt(100000, 999999).toString();
     await this.redis.set(`email_otp:${email}`, otp, 'EX', 600);
 
-    // Enqueue email asynchronously
+    // Enqueue emails asynchronously
+    await this.mailService.enqueueWelcomeEmail(email);
     await this.mailService.enqueueOtpEmail(email, otp);
-    this.logger?.log(`[AUTH] Enqueued Email Verification OTP for ${email}`);
+    this.logger?.log(
+      `[AUTH] Enqueued Welcome & Verification OTP emails for ${email}`,
+    );
 
     return {
       message:
@@ -391,10 +394,11 @@ export class AuthService {
       ? frontendUrls.find((url) => url.includes('gbiair.in')) || frontendUrls[0]
       : frontendUrls[0];
 
-    const resetLink = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}&otp=${otp}`;
+    const resetLink = `${frontendUrl}/forgot-password?email=${encodeURIComponent(email)}&otp=${otp}`;
 
     await this.mailService.enqueueForgotPasswordEmail(
       email,
+      otp,
       resetLink,
       user.name || undefined,
     );
@@ -644,6 +648,10 @@ export class AuthService {
           phoneVerified: false,
         },
       });
+
+      // Enqueue Welcome Email for new Google users
+      await this.mailService.enqueueWelcomeEmail(email, displayName);
+      this.logger?.log(`[AUTH] Enqueued Welcome email for new Google user ${email}`);
     }
 
     // Generate tokens

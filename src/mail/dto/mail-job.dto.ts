@@ -17,6 +17,7 @@ export interface VerificationMailJob extends BaseMailJob {
 }
 
 export interface ForgotPasswordMailJob extends BaseMailJob {
+  otp: string;
   resetLink: string;
   name?: string;
 }
@@ -26,4 +27,5 @@ export type MailJobData =
   | ({ type: 'otp' } & OtpMailJob)
   | ({ type: 'welcome' } & WelcomeMailJob)
   | ({ type: 'verification' } & VerificationMailJob)
-  | ({ type: 'forgot-password' } & ForgotPasswordMailJob);
+  | ({ type: 'forgot-password' } & ForgotPasswordMailJob)
+  | ({ type: 'admin-forgot-password' } & ForgotPasswordMailJob);

@@ -10,6 +10,7 @@ import { OtpEmail } from './templates/otp.email';
 import { WelcomeEmail } from './templates/welcome.email';
 import { VerificationEmail } from './templates/verification.email';
 import { ForgotPasswordEmail } from './templates/forgot-password.email';
+import { AdminForgotPasswordEmail } from './templates/admin-forgot-password.email';
 
 @Processor('mail')
 export class MailProcessor extends WorkerHost {
@@ -38,6 +39,9 @@ export class MailProcessor extends WorkerHost {
           break;
         case 'forgot-password':
           await this.handleForgotPasswordEmail(data);
+          break;
+        case 'admin-forgot-password':
+          await this.handleAdminForgotPasswordEmail(data);
           break;
         default:
           this.logger.warn(`Unknown mail job type: ${(data as any).type}`);
@@ -84,9 +88,27 @@ export class MailProcessor extends WorkerHost {
     data: Extract<MailJobData, { type: 'forgot-password' }>,
   ) {
     const html = await render(
-      ForgotPasswordEmail({ resetLink: data.resetLink, name: data.name }),
+      ForgotPasswordEmail({
+        otp: data.otp,
+        resetLink: data.resetLink,
+        name: data.name,
+      }),
     );
     const subject = 'Reset your GBI account password';
+    await this.mailerService.sendHtmlEmail(data.to, subject, html);
+  }
+
+  private async handleAdminForgotPasswordEmail(
+    data: Extract<MailJobData, { type: 'admin-forgot-password' }>,
+  ) {
+    const html = await render(
+      AdminForgotPasswordEmail({
+        otp: data.otp,
+        resetLink: data.resetLink,
+        name: data.name,
+      }),
+    );
+    const subject = 'Admin Portal: Reset your GBI account password';
     await this.mailerService.sendHtmlEmail(data.to, subject, html);
   }
 }

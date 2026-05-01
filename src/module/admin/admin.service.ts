@@ -12,6 +12,12 @@ import * as bcrypt from 'bcrypt';
 import { CreateDeviceDto, DeviceType } from './dto/create-device.dto';
 import * as ExcelJS from 'exceljs';
 import { Readable } from 'stream';
+import { MailService } from 'src/mail/mail.service';
+import Redis from 'ioredis';
+import { Inject } from '@nestjs/common';
+import { randomInt } from 'crypto';
+import { AdminForgotPasswordDto } from './dto/admin-forgot-password.dto';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 
 @Injectable()
 export class AdminService {
@@ -19,6 +25,8 @@ export class AdminService {
     private readonly repo: AdminRepository,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly mailService: MailService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
   async login(dto: AdminLoginDto) {
@@ -286,5 +294,61 @@ export class AdminService {
 
   async getStats() {
     return this.repo.getStats();
+  }
+
+  async forgotPassword(dto: AdminForgotPasswordDto) {
+    const { email } = dto;
+    const admin = await this.repo.findCaseInsensitive(email);
+
+    // Security: Always return success message even if admin doesn't exist
+    if (!admin) {
+      return { message: 'If an account exists, a reset code has been sent.' };
+    }
+
+    // Generate 6-digit OTP
+    const otp = randomInt(100000, 999999).toString();
+    
+    // Store in Redis (10 minutes expiry)
+    await this.redis.set(`admin_password_otp:${admin.email}`, otp, 'EX', 600);
+
+    // Enqueue Admin Forgot Password email
+    const frontendUrl = this.config.get('FRONTEND_URL') || 'https://gbiair.in';
+    const resetLink = `${frontendUrl}/admin/reset-password?email=${encodeURIComponent(admin.email)}&otp=${otp}`;
+
+    await this.mailService.enqueueAdminForgotPasswordEmail(
+      admin.email,
+      otp,
+      resetLink,
+      'Admin',
+    );
+
+    return { message: 'If an account exists, a reset code has been sent.' };
+  }
+
+  async resetPassword(dto: AdminResetPasswordDto) {
+    const { email, otp, newPassword } = dto;
+
+    // 1. Verify OTP from Redis
+    const storedOtp = await this.redis.get(`admin_password_otp:${email}`);
+    if (!storedOtp || storedOtp !== otp) {
+      throw new BadRequestException('Invalid or expired reset code');
+    }
+
+    // 2. Find Admin
+    const admin = await this.repo.findCaseInsensitive(email);
+    if (!admin) {
+      throw new BadRequestException('Admin account not found');
+    }
+
+    // 3. Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    // 4. Update password
+    await this.repo.updateAdminPassword(admin.id, passwordHash);
+
+    // 5. Cleanup OTP
+    await this.redis.del(`admin_password_otp:${email}`);
+
+    return { message: 'Password reset successfully' };
   }
 }

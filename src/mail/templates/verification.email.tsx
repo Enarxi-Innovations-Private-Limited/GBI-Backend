@@ -10,12 +10,15 @@ import {
   Text,
   Button,
   Link,
+  Img,
 } from '@react-email/components';
 
 interface VerificationEmailProps {
   verificationLink: string;
   name?: string;
 }
+
+const baseUrl = 'https://gbiair.in';
 
 export const VerificationEmail = ({
   verificationLink,
@@ -28,6 +31,12 @@ export const VerificationEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
+            <Img
+              src={`${baseUrl}/gbiLogo.png`}
+              width="100"
+              alt="GBI Logo"
+              style={logo}
+            />
             <Text style={logoText}>GREENBREATHE INNOVATIONS</Text>
           </Section>
 
@@ -55,7 +64,7 @@ export const VerificationEmail = ({
 
           <Text style={warningText}>
             This link will expire in{' '}
-            <strong style={{ color: '#ffffff' }}>24 hours</strong>.
+            <strong style={{ color: '#0f172a' }}>24 hours</strong>.
           </Text>
 
           <Text style={mutedText}>
@@ -67,7 +76,7 @@ export const VerificationEmail = ({
             <Text style={footerText}>
               Best regards,
               <br />
-              <strong style={{ color: '#22c55e' }}>
+              <strong style={{ color: '#16A34A' }}>
                 GreenBreathe Innovations Team
               </strong>
             </Text>
@@ -81,7 +90,7 @@ export const VerificationEmail = ({
 // --- Styles ---
 
 const main = {
-  backgroundColor: '#050505',
+  backgroundColor: '#f1f5f9',
   fontFamily:
     '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
   padding: '60px 0',
@@ -90,35 +99,40 @@ const main = {
 const container = {
   margin: '0 auto',
   padding: '40px',
-  backgroundColor: '#121212',
+  backgroundColor: '#ffffff',
   borderRadius: '16px',
-  border: '1px solid #27272a',
+  border: '1px solid #e2e8f0',
   maxWidth: '500px',
-  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
 };
 
 const header = {
-  marginBottom: '30px',
+  marginBottom: '32px',
   textAlign: 'center' as const,
+};
+
+const logo = {
+  margin: '0 auto 12px',
 };
 
 const logoText = {
-  fontSize: '14px',
-  color: '#22c55e',
-  fontWeight: 'bold',
+  fontSize: '15px',
+  color: '#16A34A',
+  fontWeight: '900',
   letterSpacing: '2px',
+  margin: '0',
 };
 
 const h1 = {
-  color: '#ffffff',
-  fontSize: '24px',
+  color: '#0f172a',
+  fontSize: '28px',
   fontWeight: '700',
   textAlign: 'center' as const,
-  margin: '0 0 20px',
+  margin: '0 0 24px',
 };
 
 const text = {
-  color: '#d4d4d8',
+  color: '#475569',
   fontSize: '16px',
   lineHeight: '26px',
   margin: '0 0 20px',
@@ -130,7 +144,7 @@ const btnContainer = {
 };
 
 const button = {
-  backgroundColor: '#22c55e',
+  backgroundColor: '#16A34A',
   borderRadius: '8px',
   color: '#fff',
   fontSize: '16px',
@@ -138,11 +152,11 @@ const button = {
   textDecoration: 'none',
   padding: '16px 32px',
   display: 'inline-block',
-  boxShadow: '0 4px 14px 0 rgba(34, 197, 94, 0.39)',
+  boxShadow: '0 4px 14px 0 rgba(22, 163, 74, 0.3)',
 };
 
 const link = {
-  color: '#22c55e',
+  color: '#16A34A',
   textDecoration: 'underline',
   wordBreak: 'break-all' as const,
   fontSize: '14px',
@@ -151,26 +165,26 @@ const link = {
 };
 
 const warningText = {
-  color: '#a1a1aa',
+  color: '#64748b',
   fontSize: '14px',
   textAlign: 'center' as const,
   margin: '0 0 24px',
 };
 
 const mutedText = {
-  color: '#71717a',
+  color: '#94a3b8',
   fontSize: '14px',
   lineHeight: '22px',
   margin: '0 0 32px',
 };
 
 const footer = {
-  borderTop: '1px solid #27272a',
+  borderTop: '1px solid #e2e8f0',
   paddingTop: '32px',
 };
 
 const footerText = {
-  color: '#a1a1aa',
+  color: '#64748b',
   fontSize: '14px',
   lineHeight: '22px',
   margin: '0',

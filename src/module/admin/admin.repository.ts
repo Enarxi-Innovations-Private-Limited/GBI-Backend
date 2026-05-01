@@ -35,6 +35,13 @@ export class AdminRepository {
     });
   }
 
+  updateAdminPassword(id: string, passwordHash: string) {
+    return this.prisma.admin.update({
+      where: { id },
+      data: { passwordHash },
+    });
+  }
+
   findUserById(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },

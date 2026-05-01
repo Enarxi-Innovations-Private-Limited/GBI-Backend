@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import * as aws from '@aws-sdk/client-ses';
+import * as aws from '@aws-sdk/client-sesv2';
 
 @Injectable()
 export class MailerService implements OnModuleInit {
@@ -24,8 +24,7 @@ export class MailerService implements OnModuleInit {
 
     // Only configure real SES if credentials are provided, otherwise fallback to Ethereal testing account
     if (region && accessKeyId && secretAccessKey) {
-      const ses = new aws.SES({
-        apiVersion: '2010-12-01',
+      const ses = new aws.SESv2Client({
         region: region,
         credentials: {
           accessKeyId,
@@ -34,7 +33,7 @@ export class MailerService implements OnModuleInit {
       });
 
       this.transporter = nodemailer.createTransport({
-        SES: { ses: ses as any, aws: aws as any },
+        SES: { sesClient: ses, SendEmailCommand: aws.SendEmailCommand },
       } as nodemailer.TransportOptions);
       this.logger.log('Amazon SES Transporter configured successfully.');
     } else {
@@ -81,13 +80,26 @@ export class MailerService implements OnModuleInit {
       // Log the preview URL for Ethereal test emails
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
-        this.logger.log(`✉️ [TESTING] Preview your email here:`);
-        this.logger.log(previewUrl);
+        this.logger.log(`✉️ [TESTING] "${subject}" - Preview URL:`);
+        this.logger.log(`👉 ${previewUrl}`);
       }
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      const isUnverified =
+        error.message?.includes('Email address is not verified') ||
+        error.name === 'MessageRejected';
+
+      if (isUnverified) {
+        this.logger.warn(
+          `✉️ [SES SANDBOX] Could not send email to ${to}. ` +
+            `Reason: Recipient address is not verified in SES AP-SOUTH-1 Sandbox. ` +
+            `Please verify this email address in the AWS SES Console to receive emails during development.`,
+        );
+        return false; // Return false but don't throw, to prevent BullMQ from retrying indefinitely
+      }
+
       this.logger.error(`Failed to send email to ${to}`, error.stack);
-      throw error; // Re-throw so BullMQ knows the job failed and can retry
+      throw error; // Re-throw for other errors so BullMQ knows the job failed and can retry
     }
   }
 }

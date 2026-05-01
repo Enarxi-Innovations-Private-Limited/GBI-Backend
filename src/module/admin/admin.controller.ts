@@ -18,6 +18,8 @@ import { AdminService } from './admin.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { AdminGuard } from 'src/auth/guards/admin.guard';
+import { AdminForgotPasswordDto } from './dto/admin-forgot-password.dto';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -94,6 +96,16 @@ export class AdminController {
     res.clearCookie('accessToken', { path: '/' });
     res.clearCookie('refreshToken', { path: '/' });
     return this.adminService.logout();
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: AdminForgotPasswordDto) {
+    return this.adminService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: AdminResetPasswordDto) {
+    return this.adminService.resetPassword(dto);
   }
 
 

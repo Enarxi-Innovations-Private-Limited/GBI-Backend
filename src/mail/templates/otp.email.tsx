@@ -8,12 +8,15 @@ import {
   Preview,
   Section,
   Text,
+  Img,
 } from '@react-email/components';
 
 interface OtpEmailProps {
   otp: string;
   name?: string;
 }
+
+const baseUrl = 'https://gbiair.in';
 
 export const OtpEmail = ({ otp, name }: OtpEmailProps) => {
   return (
@@ -23,6 +26,12 @@ export const OtpEmail = ({ otp, name }: OtpEmailProps) => {
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
+            <Img
+              src={`${baseUrl}/gbiLogo.png`}
+              width="100"
+              alt="GBI Logo"
+              style={logo}
+            />
             <Text style={logoText}>GREENBREATHE INNOVATIONS</Text>
           </Section>
 
@@ -40,7 +49,7 @@ export const OtpEmail = ({ otp, name }: OtpEmailProps) => {
 
           <Text style={warningText}>
             This code will expire in{' '}
-            <strong style={{ color: '#ffffff' }}>10 minutes</strong>.
+            <strong style={{ color: '#0f172a' }}>10 minutes</strong>.
           </Text>
 
           <Text style={mutedText}>
@@ -52,7 +61,7 @@ export const OtpEmail = ({ otp, name }: OtpEmailProps) => {
             <Text style={footerText}>
               Best regards,
               <br />
-              <strong style={{ color: '#22c55e' }}>
+              <strong style={{ color: '#16A34A' }}>
                 GreenBreathe Innovations Team
               </strong>
             </Text>
@@ -66,7 +75,7 @@ export const OtpEmail = ({ otp, name }: OtpEmailProps) => {
 // --- Styles ---
 
 const main = {
-  backgroundColor: '#050505',
+  backgroundColor: '#f1f5f9',
   fontFamily:
     '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
   padding: '60px 0',
@@ -75,79 +84,83 @@ const main = {
 const container = {
   margin: '0 auto',
   padding: '40px',
-  backgroundColor: '#121212',
+  backgroundColor: '#ffffff',
   borderRadius: '16px',
-  border: '1px solid #27272a',
+  border: '1px solid #e2e8f0',
   maxWidth: '500px',
-  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
 };
 
 const header = {
-  marginBottom: '30px',
+  marginBottom: '32px',
   textAlign: 'center' as const,
+};
+
+const logo = {
+  margin: '0 auto 12px',
 };
 
 const logoText = {
-  fontSize: '14px',
-  color: '#22c55e',
-  fontWeight: 'bold',
+  fontSize: '15px',
+  color: '#16A34A',
+  fontWeight: '900',
   letterSpacing: '2px',
+  margin: '0',
 };
 
 const h1 = {
-  color: '#ffffff',
-  fontSize: '24px',
+  color: '#0f172a',
+  fontSize: '28px',
   fontWeight: '700',
   textAlign: 'center' as const,
-  margin: '0 0 20px',
+  margin: '0 0 24px',
 };
 
 const text = {
-  color: '#d4d4d8',
+  color: '#475569',
   fontSize: '16px',
   lineHeight: '26px',
   margin: '0 0 20px',
 };
 
 const codeBox = {
-  background: 'linear-gradient(145deg, #18181b, #27272a)',
+  backgroundColor: '#f8fafc',
   borderRadius: '12px',
-  padding: '24px',
+  padding: '32px 24px',
   textAlign: 'center' as const,
   margin: '32px 0',
-  border: '1px solid #3f3f46',
-  boxShadow: '0 0 20px rgba(34, 197, 94, 0.1)',
+  border: '1px dashed #cbd5e1',
 };
 
 const codeText = {
-  color: '#22c55e',
-  fontSize: '32px',
+  color: '#16A34A',
+  fontSize: '40px',
   fontWeight: 'bold',
-  letterSpacing: '8px',
+  letterSpacing: '12px',
   margin: '0',
 };
 
 const warningText = {
-  color: '#a1a1aa',
+  color: '#64748b',
   fontSize: '14px',
   textAlign: 'center' as const,
   margin: '0 0 24px',
 };
 
 const mutedText = {
-  color: '#71717a',
+  color: '#94a3b8',
   fontSize: '14px',
   lineHeight: '22px',
   margin: '0 0 32px',
 };
 
 const footer = {
-  borderTop: '1px solid #27272a',
+  borderTop: '1px solid #e2e8f0',
   paddingTop: '32px',
 };
 
 const footerText = {
-  color: '#a1a1aa',
+  color: '#64748b',
   fontSize: '14px',
   lineHeight: '22px',
   margin: '0',
