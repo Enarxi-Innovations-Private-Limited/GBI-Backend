@@ -217,6 +217,10 @@ export class AuthService {
     const returnUser: any = {
       id: updatedUser.id,
       email: updatedUser.email,
+      name: updatedUser.name || null,
+      organization: updatedUser.organization || null,
+      phone: updatedUser.phone || null,
+      city: updatedUser.city || null,
       emailVerified: updatedUser.emailVerified,
       phoneVerified: updatedUser.phoneVerified,
       isProfileComplete: updatedUser.isProfileComplete,
@@ -224,12 +228,6 @@ export class AuthService {
       premiumStatus: updatedUser.premiumStatus,
       premiumExpiry: updatedUser.premiumExpiry,
     };
-
-    if (updatedUser.name) returnUser.name = updatedUser.name;
-    if (updatedUser.organization)
-      returnUser.organization = updatedUser.organization;
-    if (updatedUser.phone) returnUser.phone = updatedUser.phone;
-    if (updatedUser.city) returnUser.city = updatedUser.city;
 
     return {
       ...tokens,
@@ -291,6 +289,10 @@ export class AuthService {
     const returnUser: any = {
       id: user.id,
       email: user.email,
+      name: user.name || null,
+      organization: user.organization || null,
+      phone: user.phone || null,
+      city: user.city || null,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
       isProfileComplete: user.isProfileComplete,
@@ -298,11 +300,6 @@ export class AuthService {
       premiumStatus: user.premiumStatus,
       premiumExpiry: user.premiumExpiry,
     };
-
-    if (user.name) returnUser.name = user.name;
-    if (user.organization) returnUser.organization = user.organization;
-    if (user.phone) returnUser.phone = user.phone;
-    if (user.city) returnUser.city = user.city;
 
     return {
       ...tokens,
@@ -576,22 +573,21 @@ export class AuthService {
     // 5. Generate New Tokens (refresh claims)
     const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, isPersistent);
 
+    // 6. Map response (Consistent with other auth methods)
     const returnUser: any = {
       id: updatedUser.id,
       email: updatedUser.email,
+      name: updatedUser.name || null,
+      organization: updatedUser.organization || null,
+      phone: updatedUser.phone || null,
+      city: updatedUser.city || null,
       emailVerified: updatedUser.emailVerified,
       phoneVerified: updatedUser.phoneVerified,
-      isProfileComplete: updatedUser.isProfileComplete,
+      isProfileComplete: true, // Force true since we just updated it
       isPremium: updatedUser.isPremium,
       premiumStatus: updatedUser.premiumStatus,
       premiumExpiry: updatedUser.premiumExpiry,
     };
-
-    if (updatedUser.name) returnUser.name = updatedUser.name;
-    if (updatedUser.organization)
-      returnUser.organization = updatedUser.organization;
-    if (updatedUser.phone) returnUser.phone = updatedUser.phone;
-    if (updatedUser.city) returnUser.city = updatedUser.city;
 
     return {
       ...tokens,
