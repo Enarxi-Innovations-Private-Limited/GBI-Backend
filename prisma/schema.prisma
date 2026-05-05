@@ -96,7 +96,8 @@ model UserDevice {
 }
 
 model DeviceTelemetry {
-  id          BigInt   @id @default(autoincrement())
+  // 1. Remove the @id from here
+  id          BigInt   @default(autoincrement())
   deviceId    String
   timestamp   DateTime @default(now())
   pm25        Int?
@@ -109,8 +110,12 @@ model DeviceTelemetry {
   aqi         Int?
   messageId   String
   device      Device   @relation(fields: [deviceId], references: [id])
-
-  @@unique([deviceId, messageId])
+  // 2. Add the Composite ID here
+  @@id([id, timestamp])
+  
+  // 3. Update the unique constraint to include timestamp
+  @@unique([deviceId, messageId, timestamp])
+  
   @@index([deviceId, timestamp])
 }
 
