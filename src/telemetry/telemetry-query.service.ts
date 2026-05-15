@@ -66,9 +66,7 @@ export class TelemetryQueryService {
     if (!devices.length || !params.length) return [];
 
     const uuidList = devices.map((d) => d.id).sort(); // Sort for consistent cache key
-    const safeParams = params
-      .filter((p) => ALLOWED_PARAMS.includes(p))
-      .sort(); // Sort for consistent cache key
+    const safeParams = params.filter((p) => ALLOWED_PARAMS.includes(p)).sort(); // Sort for consistent cache key
 
     if (!safeParams.length) return [];
 
@@ -88,22 +86,25 @@ export class TelemetryQueryService {
     let rows: any[] = [];
 
     if (interval === 60 || interval === 360) {
-      const selectCols = Prisma.join(
-        safeParams.map((param) => Prisma.sql`"${Prisma.raw(param)}"`),
+      const selectAgg = Prisma.join(
+        safeParams.map(
+          (param) =>
+            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+        ),
         ', ',
       );
 
       rows = await this.prisma.$queryRaw(
         Prisma.sql`
-          SELECT DISTINCT ON ("timestamp_bucket", "deviceId")
-            to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) as "timestamp_bucket",
+          SELECT
+            to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) as "timestamp",
             "deviceId",
-            "timestamp" as "original_timestamp",
-            ${selectCols}
+            ${selectAgg}
           FROM "DeviceTelemetry"
           WHERE "deviceId" IN (${Prisma.join(uuidList)})
             AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
-          ORDER BY "timestamp_bucket" ASC, "deviceId" ASC, "timestamp" ASC
+          GROUP BY 1, "deviceId"
+          ORDER BY 1 ASC, "deviceId" ASC
         `,
       );
     } else if (interval === 1) {
@@ -176,9 +177,16 @@ export class TelemetryQueryService {
    * Format raw bucketed rows into human-readable Date/Time strings,
    * rounding numeric values appropriately.
    */
-  formatTelemetryRows(rawRows: BucketedRow[], orderedParams: string[]): FormattedRow[] {
+  formatTelemetryRows(
+    rawRows: BucketedRow[],
+    orderedParams: string[],
+  ): FormattedRow[] {
     return rawRows.map((row) => {
-      const processedRow: FormattedRow = { deviceId: row.deviceId, Date: '', Time: '' };
+      const processedRow: FormattedRow = {
+        deviceId: row.deviceId,
+        Date: '',
+        Time: '',
+      };
 
       if (row.timestamp) {
         const ts = new Date(row.timestamp);
@@ -193,7 +201,8 @@ export class TelemetryQueryService {
           hour12: false,
         });
         const parts = formatter.formatToParts(ts);
-        const getPart = (type) => parts.find((p) => p.type === type)?.value || '';
+        const getPart = (type) =>
+          parts.find((p) => p.type === type)?.value || '';
 
         processedRow.Date = `${getPart('day')}-${getPart('month')}-${getPart('year')}`;
         processedRow.Time = `${getPart('hour')}:${getPart('minute')}`;
