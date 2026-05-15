@@ -37,15 +37,31 @@ export class TelemetryQueryService {
   ) {}
 
   /**
-   * Compute a sensible default interval based on range length.
+   * Industrial best practice for computing aggregation intervals.
+   * Targets approximately 20-30 data points per chart to maintain 
+   * trend clarity and reduce visual noise across any time range.
    */
   static autoInterval(start: Date, end: Date): number {
-    const diffMs = end.getTime() - start.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-    if (diffHours <= 1) return 1;
-    if (diffHours <= 24) return 5;
-    if (diffHours <= 24 * 7) return 60;
-    return 360;
+    const diffMs = Math.abs(end.getTime() - start.getTime());
+    const diffMinutes = diffMs / (1000 * 60);
+
+    // If range is extremely small (e.g. 15 mins), show every minute
+    if (diffMinutes <= 15) return 1;
+
+    // Target ~24 points for optimal readability (2 points per 'hour' in a 12h view, etc.)
+    const rawInterval = diffMinutes / 24;
+
+    // Standard industrial buckets (in minutes)
+    const buckets = [
+      1, 2, 3, 5, 10, 15, 30, // Small ranges
+      60, 120, 180, 240, 360, 720, // 1h to 12h
+      1440, 2880, 4320, 10080, 43200 // 1d to 1m
+    ];
+
+    // Find the closest bucket that is >= rawInterval
+    const snapped = buckets.find(b => b >= rawInterval) || buckets[buckets.length - 1];
+
+    return snapped;
   }
 
   /**
@@ -85,37 +101,16 @@ export class TelemetryQueryService {
 
     let rows: any[] = [];
 
-    if (interval === 60 || interval === 360) {
-      const selectAgg = Prisma.join(
-        safeParams.map(
-          (param) =>
-            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
-        ),
-        ', ',
-      );
+    const selectAgg = Prisma.join(
+      safeParams.map(
+        (param) =>
+          Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+      ),
+      ', ',
+    );
 
-      rows = await this.prisma.$queryRaw(
-        Prisma.sql`
-          SELECT
-            to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) as "timestamp",
-            "deviceId",
-            ${selectAgg}
-          FROM "DeviceTelemetry"
-          WHERE "deviceId" IN (${Prisma.join(uuidList)})
-            AND "timestamp" BETWEEN ${start.toISOString()}::timestamp AND ${end.toISOString()}::timestamp
-          GROUP BY 1, "deviceId"
-          ORDER BY 1 ASC, "deviceId" ASC
-        `,
-      );
-    } else if (interval === 1) {
-      const selectAgg = Prisma.join(
-        safeParams.map(
-          (param) =>
-            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
-        ),
-        ', ',
-      );
-
+    if (interval === 1) {
+      // Optimized for 1-minute high-resolution data
       rows = await this.prisma.$queryRaw(
         Prisma.sql`
           SELECT
@@ -130,21 +125,12 @@ export class TelemetryQueryService {
         `,
       );
     } else {
-      const selectAgg = Prisma.join(
-        safeParams.map(
-          (param) =>
-            Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
-        ),
-        ', ',
-      );
-
+      // General epoch-based bucketing for any interval > 1
+      // This works for custom durations (e.g. 5m, 30m, 2h, 1d)
       rows = await this.prisma.$queryRaw(
         Prisma.sql`
           SELECT
-            (
-              date_trunc('minute', "timestamp")
-              - (extract(minute from "timestamp")::int % ${interval}) * interval '1 minute'
-            ) as "timestamp",
+            to_timestamp(floor(extract(epoch from "timestamp") / (${interval} * 60)) * (${interval} * 60)) as "timestamp",
             "deviceId",
             ${selectAgg}
           FROM "DeviceTelemetry"
