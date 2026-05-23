@@ -1,0 +1,10 @@
+npx prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-schema-datasource prisma/schema.prisma --script > prisma/migrations/0_manual_timescale_migration.sql
+
+mkdir prisma/migrations/20260505_timescale_manual
+mv prisma/migrations/0_manual_timescale_migration.sql prisma/migrations/20260505_timescale_manual/migration.sql
+
+
+npx prisma migrate resolve --applied 20260505_timescale_manual
+
+npx prisma migrate status
+
