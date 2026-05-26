@@ -13,20 +13,44 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   constructor() {
     this.prisma = new PrismaClient({
-      log:
-        process.env.NODE_ENV === 'development'
-          ? ['info', 'warn', 'error']
-          : ['error'],
+      log: [
+        { emit: 'event', level: 'error' },
+        { emit: 'event', level: 'warn' },
+        { emit: 'stdout', level: 'info' },
+      ],
+    });
+
+    (this.prisma as any).$on('error', (e: any) => {
+      this.logger.error(`🚨 [Prisma Runtime Error]: ${e.message}`, e.target);
+    });
+
+    (this.prisma as any).$on('warn', (e: any) => {
+      this.logger.warn(`⚠️ [Prisma Runtime Warning]: ${e.message}`);
     });
   }
 
   async onModuleInit() {
-    try {
-      await this.prisma.$connect();
-      this.logger.log('✅ Successfully connected to database');
-    } catch (error) {
-      this.logger.error('❌ Failed to connect to database:', error.message);
-      throw error;
+    let maxRetries = 5;
+    const retryDelayMs = 3000;
+
+    while (maxRetries > 0) {
+      try {
+        await this.prisma.$connect();
+        this.logger.log('✅ Successfully connected to database');
+        return;
+      } catch (error) {
+        maxRetries--;
+        this.logger.warn(
+          `⚠️ Failed to connect to database (${error.message}). Retries left: ${maxRetries}`,
+        );
+        if (maxRetries === 0) {
+          this.logger.error(
+            '❌ Exhausted database connection retries. Shutting down service init.',
+          );
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
     }
   }
 
