@@ -133,9 +133,15 @@ export class AlertsRepository {
   }
 
   async getDeviceName(userId: string, deviceId: string) {
-    const meta = await this.prisma.userDevice.findFirst({
-      where: { userId, deviceId },
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceId },
+      select: { deviceId: true },
     });
-    return meta?.name || deviceId;
+    if (!device) return deviceId;
+
+    const meta = await this.prisma.userDevice.findFirst({
+      where: { userId, deviceId: device.deviceId },
+    });
+    return meta?.name || device.deviceId;
   }
 }
