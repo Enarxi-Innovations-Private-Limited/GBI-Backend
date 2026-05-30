@@ -149,6 +149,18 @@ export class ReportsService {
     // 1) Validate ownership
     const device = await this.validateAndGetDevice(userId, dto.deviceId);
 
+    // Fetch user defined device name and location for CSV header
+    const userDevice = await this.prisma.userDevice.findFirst({
+      where: {
+        userId,
+        OR: [
+          { deviceId: device.id },
+          { deviceId: dto.deviceId },
+        ],
+      },
+      select: { name: true, location: true },
+    });
+
     // 2) Query telemetry using bucketing (raw SQL)
     const rawRows: any[] = await this.telemetryQuery.queryBucketedTelemetry(
       [device],
@@ -229,8 +241,14 @@ export class ReportsService {
     // Use the exact device ID the user provided in the request query
     const deviceId = dto.deviceId;
 
+    const userDefinedName = userDevice?.name || '';
+    const userDefinedLocation = userDevice?.location || '';
+    const namePart = userDefinedName ? ` - ${userDefinedName}` : '';
+    const locationPart = userDefinedLocation ? ` - ${userDefinedLocation}` : '';
+    const deviceHeader = `Device - ${deviceId}${namePart}${locationPart}`;
+
     // Row 5 (or dynamically placed): Device Name Title
-    lines.push(centerText(`Device - ${deviceId}`));
+    lines.push(centerText(deviceHeader));
     // Row 6: Empty
     lines.push(','.repeat(totalCols - 1));
     // Row 7: Column Headers
