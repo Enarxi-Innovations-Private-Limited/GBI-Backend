@@ -241,14 +241,38 @@ export class ReportsService {
     // Use the exact device ID the user provided in the request query
     const deviceId = dto.deviceId;
 
+    const escapeCsv = (str: string) => {
+      if (!str) return '';
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const userDefinedName = userDevice?.name || '';
     const userDefinedLocation = userDevice?.location || '';
-    const namePart = userDefinedName ? ` - ${userDefinedName}` : '';
-    const locationPart = userDefinedLocation ? ` - ${userDefinedLocation}` : '';
-    const deviceHeader = `Device - ${deviceId}${namePart}${locationPart}`;
+
+    const deviceHeaderRow = new Array(totalCols).fill('');
+    deviceHeaderRow[0] = escapeCsv(`Device ID: ${deviceId}`);
+
+    if (totalCols >= 11) {
+      if (userDefinedName) deviceHeaderRow[5] = escapeCsv(`Device Name: ${userDefinedName}`);
+      if (userDefinedLocation) deviceHeaderRow[10] = escapeCsv(`Location: ${userDefinedLocation}`);
+    } else if (totalCols >= 3) {
+      const mid = Math.floor((totalCols - 1) / 2);
+      if (userDefinedName) deviceHeaderRow[mid] = escapeCsv(`Device Name: ${userDefinedName}`);
+      if (userDefinedLocation) deviceHeaderRow[totalCols - 1] = escapeCsv(`Location: ${userDefinedLocation}`);
+    } else if (totalCols === 2) {
+      const parts: string[] = [];
+      if (userDefinedName) parts.push(`Device Name: ${userDefinedName}`);
+      if (userDefinedLocation) parts.push(`Location: ${userDefinedLocation}`);
+      if (parts.length > 0) {
+        deviceHeaderRow[1] = escapeCsv(parts.join(' - '));
+      }
+    }
 
     // Row 5 (or dynamically placed): Device Name Title
-    lines.push(centerText(deviceHeader));
+    lines.push(deviceHeaderRow.join(','));
     // Row 6: Empty
     lines.push(','.repeat(totalCols - 1));
     // Row 7: Column Headers
