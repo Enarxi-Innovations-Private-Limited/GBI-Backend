@@ -131,4 +131,11 @@ export class AlertsRepository {
       },
     });
   }
+
+  async getDeviceName(userId: string, deviceId: string) {
+    const meta = await this.prisma.userDevice.findFirst({
+      where: { userId, deviceId },
+    });
+    return meta?.name || deviceId;
+  }
 }

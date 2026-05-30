@@ -22,13 +22,23 @@ export class InAppNotificationsRepository {
     const minDate = new Date(Math.min(...items.map((n) => n.createdAt.getTime())) - 5000);
     const maxDate = new Date(Math.max(...items.map((n) => n.createdAt.getTime())) + 5000);
 
-    const eventLogs = await this.prisma.eventLog.findMany({
-      where: {
-        userId,
-        createdAt: { gte: minDate, lte: maxDate },
-        eventType: { in: ['ALERT_TRIGGERED', 'ALERT_RESOLVED'] },
-      },
-    });
+    const [eventLogs, userDevices] = await Promise.all([
+      this.prisma.eventLog.findMany({
+        where: {
+          userId,
+          createdAt: { gte: minDate, lte: maxDate },
+          eventType: { in: ['ALERT_TRIGGERED', 'ALERT_RESOLVED'] },
+        },
+      }),
+      this.prisma.userDevice.findMany({
+        where: {
+          userId,
+          deviceId: { in: [...new Set(items.map((n) => n.deviceId).filter(Boolean))] as string[] },
+        },
+      }),
+    ]);
+
+    const deviceMap = new Map(userDevices.map((d) => [d.deviceId, d.name]));
 
     return items.map((n) => {
       const messageLower = n.message.toLowerCase();
@@ -56,6 +66,7 @@ export class InAppNotificationsRepository {
 
       return {
         ...n,
+        deviceName: n.deviceId ? deviceMap.get(n.deviceId) || n.deviceId : null,
         eventLogId: matchedEvent ? matchedEvent.id.toString() : null,
       };
     });

@@ -134,11 +134,14 @@ export class AlertsService {
       lastTriggeredAt: new Date(),
     });
 
+    const deviceName = await this.repo.getDeviceName(userId, deviceId);
+
     // 3. Realtime: Emit SSE
     this.sseService.sendEvent(userId, {
       type: 'NOTIFICATION',
       data: {
         ...notification,
+        deviceName,
         eventLogId: eventLog.id.toString(),
       },
     });
@@ -171,11 +174,14 @@ export class AlertsService {
       lastTriggeredAt: new Date(),
     });
 
+    const deviceName = await this.repo.getDeviceName(userId, deviceId);
+
     // 3. Realtime: Emit SSE
     this.sseService.sendEvent(userId, {
       type: 'NOTIFICATION',
       data: {
         ...notification,
+        deviceName,
         eventLogId: eventLog.id.toString(),
       },
     });
