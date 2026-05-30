@@ -5,9 +5,9 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class InAppNotificationsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findMany(userId: string, isRead?: boolean, skip = 0, take = 20) {
+  async findMany(userId: string, isRead?: boolean, skip = 0, take = 20) {
     if (!userId) return [];
-    return this.prisma.notification.findMany({
+    const items = await this.prisma.notification.findMany({
       where: {
         userId,
         ...(typeof isRead === 'boolean' ? { isRead } : {}),
@@ -15,6 +15,49 @@ export class InAppNotificationsRepository {
       orderBy: { createdAt: 'desc' },
       skip,
       take,
+    });
+
+    if (items.length === 0) return [];
+
+    const minDate = new Date(Math.min(...items.map((n) => n.createdAt.getTime())) - 5000);
+    const maxDate = new Date(Math.max(...items.map((n) => n.createdAt.getTime())) + 5000);
+
+    const eventLogs = await this.prisma.eventLog.findMany({
+      where: {
+        userId,
+        createdAt: { gte: minDate, lte: maxDate },
+        eventType: { in: ['ALERT_TRIGGERED', 'ALERT_RESOLVED'] },
+      },
+    });
+
+    return items.map((n) => {
+      const messageLower = n.message.toLowerCase();
+      const firstWord = n.message.split(' ')[0].toLowerCase().replace('.', '');
+      let paramName = firstWord;
+      if (paramName === 'temp') paramName = 'temperature';
+
+      const isTrigger = messageLower.includes('exceed');
+      const targetType = isTrigger ? 'ALERT_TRIGGERED' : 'ALERT_RESOLVED';
+
+      const matches = eventLogs.filter(
+        (e) =>
+          e.deviceId === n.deviceId &&
+          e.parameter?.toLowerCase() === paramName &&
+          e.eventType === targetType &&
+          Math.abs(e.createdAt.getTime() - n.createdAt.getTime()) <= 5000,
+      );
+
+      matches.sort(
+        (a, b) =>
+          Math.abs(a.createdAt.getTime() - n.createdAt.getTime()) -
+          Math.abs(b.createdAt.getTime() - n.createdAt.getTime()),
+      );
+      const matchedEvent = matches[0];
+
+      return {
+        ...n,
+        eventLogId: matchedEvent ? matchedEvent.id.toString() : null,
+      };
     });
   }
 

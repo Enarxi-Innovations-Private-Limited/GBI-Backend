@@ -10,10 +10,11 @@ export class EventLogsService {
     page = 1,
     limit = 6,
     search?: string,
+    highlightId?: string,
   ) {
     const take = Math.min(limit, 50);
     const skip = (page - 1) * take;
-    return this.repo.getDeviceEvents(userId, skip, take, search);
+    return this.repo.getDeviceEvents(userId, skip, take, search, highlightId);
   }
 
   async getSensorEvents(
@@ -21,9 +22,10 @@ export class EventLogsService {
     page = 1,
     limit = 6,
     search?: string,
+    highlightId?: string,
   ) {
     const take = Math.min(limit, 50);
     const skip = (page - 1) * take;
-    return this.repo.getSensorEvents(userId, skip, take, search);
+    return this.repo.getSensorEvents(userId, skip, take, search, highlightId);
   }
 }

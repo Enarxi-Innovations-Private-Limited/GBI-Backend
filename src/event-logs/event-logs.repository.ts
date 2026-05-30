@@ -14,11 +14,27 @@ export class EventLogsRepository {
     skip: number,
     take: number,
     search?: string,
+    highlightId?: string,
   ) {
     const where: any = {
       userId,
       eventType: { in: ['ONLINE', 'OFFLINE'] },
     };
+
+    // If highlightId is provided, fetch the specific event
+    let highlightedItem: any = null;
+    if (highlightId) {
+      const parsedHighlightId = parseInt(highlightId);
+      if (!isNaN(parsedHighlightId)) {
+        highlightedItem = await this.prisma.eventLog.findFirst({
+          where: {
+            id: parsedHighlightId,
+            userId,
+          },
+          include: { device: true },
+        });
+      }
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.eventLog.findMany({
@@ -33,15 +49,21 @@ export class EventLogsRepository {
       this.prisma.eventLog.count({ where }),
     ]);
 
+    const containsHighlighted = items.some((item) => item.id.toString() === highlightId);
+    let finalItems = [...items];
+    if (highlightedItem && !containsHighlighted) {
+      finalItems = [highlightedItem, ...items];
+    }
+
     // Get device meta for names/locations
-    const deviceIds = [...new Set(items.map((i) => i.device.deviceId))];
+    const deviceIds = [...new Set(finalItems.map((i) => i.device.deviceId))];
     const metas = await this.prisma.userDevice.findMany({
       where: { userId, deviceId: { in: deviceIds } },
     });
     const metaMap = new Map(metas.map((m) => [m.deviceId, m]));
 
     const filtered = search
-      ? items.filter((item) => {
+      ? finalItems.filter((item) => {
           const meta = metaMap.get(item.device.deviceId);
           const name = meta?.name || item.device.deviceId;
           const location = meta?.location || '';
@@ -52,7 +74,7 @@ export class EventLogsRepository {
             location.toLowerCase().includes(q)
           );
         })
-      : items;
+      : finalItems;
 
     return {
       total: search ? filtered.length : total,
@@ -79,12 +101,28 @@ export class EventLogsRepository {
     skip: number,
     take: number,
     search?: string,
+    highlightId?: string,
   ) {
     const where: any = {
       userId,
       eventType: { in: ['ALERT_TRIGGERED', 'ALERT_RESOLVED'] },
       parameter: { not: null },
     };
+
+    // If highlightId is provided, fetch the specific event
+    let highlightedItem: any = null;
+    if (highlightId) {
+      const parsedHighlightId = parseInt(highlightId);
+      if (!isNaN(parsedHighlightId)) {
+        highlightedItem = await this.prisma.eventLog.findFirst({
+          where: {
+            id: parsedHighlightId,
+            userId,
+          },
+          include: { device: true },
+        });
+      }
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.eventLog.findMany({
@@ -97,8 +135,14 @@ export class EventLogsRepository {
       this.prisma.eventLog.count({ where }),
     ]);
 
+    const containsHighlighted = items.some((item) => item.id.toString() === highlightId);
+    let finalItems = [...items];
+    if (highlightedItem && !containsHighlighted) {
+      finalItems = [highlightedItem, ...items];
+    }
+
     // Get device meta for names
-    const deviceIds = [...new Set(items.map((i) => i.device.deviceId))];
+    const deviceIds = [...new Set(finalItems.map((i) => i.device.deviceId))];
     const metas = await this.prisma.userDevice.findMany({
       where: { userId, deviceId: { in: deviceIds } },
     });
@@ -106,7 +150,7 @@ export class EventLogsRepository {
 
     // For ALERT_TRIGGERED items, find their closest Notification to get thresholdValue
     // Match by userId + deviceId + createdAt proximity (within 5 seconds)
-    const triggeredItems = items.filter((i) => i.eventType === 'ALERT_TRIGGERED');
+    const triggeredItems = finalItems.filter((i) => i.eventType === 'ALERT_TRIGGERED');
     let notificationMap = new Map<string, number | null>();
 
     if (triggeredItems.length > 0) {
@@ -175,7 +219,7 @@ export class EventLogsRepository {
       aqi: 'AQI',
     };
 
-    const mapped = items.map((item) => {
+    const mapped = finalItems.map((item) => {
       const meta = metaMap.get(item.device.deviceId);
       const param = item.parameter || '';
       const unit = UNIT_MAP[param] ?? '';

@@ -110,7 +110,7 @@ export class AlertsService {
     const message = `${param.toUpperCase()} exceeded limit (${value} > ${limit})`;
 
     // 1. DB: Create Event Log & Notification
-    await this.repo.createEventLog({
+    const eventLog = await this.repo.createEventLog({
       deviceId,
       userId,
       parameter: param,
@@ -137,7 +137,10 @@ export class AlertsService {
     // 3. Realtime: Emit SSE
     this.sseService.sendEvent(userId, {
       type: 'NOTIFICATION',
-      data: notification,
+      data: {
+        ...notification,
+        eventLogId: eventLog.id.toString(),
+      },
     });
   }
 
@@ -145,7 +148,7 @@ export class AlertsService {
     const message = `${param.toUpperCase()} returned to normal (${value})`;
 
     // 1. DB: Create Event Log & Notification
-    await this.repo.createEventLog({
+    const eventLog = await this.repo.createEventLog({
       deviceId,
       userId,
       parameter: param,
@@ -171,7 +174,10 @@ export class AlertsService {
     // 3. Realtime: Emit SSE
     this.sseService.sendEvent(userId, {
       type: 'NOTIFICATION',
-      data: notification,
+      data: {
+        ...notification,
+        eventLogId: eventLog.id.toString(),
+      },
     });
   }
 }

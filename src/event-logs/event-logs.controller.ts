@@ -20,12 +20,14 @@ export class EventLogsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('highlightId') highlightId?: string,
   ) {
     return this.service.getDeviceEvents(
       user.id,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 6,
       search || undefined,
+      highlightId || undefined,
     );
   }
 
@@ -41,12 +43,14 @@ export class EventLogsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('highlightId') highlightId?: string,
   ) {
     return this.service.getSensorEvents(
       user.id,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 6,
       search || undefined,
+      highlightId || undefined,
     );
   }
 }
