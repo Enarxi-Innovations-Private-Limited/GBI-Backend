@@ -21,19 +21,45 @@ export class EventLogsRepository {
       eventType: { in: ['ONLINE', 'OFFLINE'] },
     };
 
-    // If highlightId is provided, fetch the specific event
-    let highlightedItem: any = null;
+    // If highlightId is provided, find its index to calculate page
     if (highlightId) {
       const parsedHighlightId = parseInt(highlightId);
       if (!isNaN(parsedHighlightId)) {
-        highlightedItem = await this.prisma.eventLog.findFirst({
+        const highlightedEvent = await this.prisma.eventLog.findFirst({
           where: {
             id: parsedHighlightId,
             userId,
+            eventType: { in: ['ONLINE', 'OFFLINE'] },
           },
-          include: { device: true },
         });
+
+        if (highlightedEvent) {
+          const newerCount = await this.prisma.eventLog.count({
+            where: {
+              ...where,
+              createdAt: { gt: highlightedEvent.createdAt },
+            },
+          });
+
+          const targetPage = Math.floor(newerCount / take) + 1;
+          const currentPageNum = Math.floor(skip / take) + 1;
+          if (targetPage !== currentPageNum) {
+            skip = (targetPage - 1) * take;
+          }
+        }
       }
+    }
+
+    // Enforce total 50 events cap
+    if (skip >= 50) {
+      return {
+        total: 50,
+        page: Math.floor(skip / take) + 1,
+        items: [],
+      };
+    }
+    if (skip + take > 50) {
+      take = Math.max(0, 50 - skip);
     }
 
     const [items, total] = await Promise.all([
@@ -49,21 +75,15 @@ export class EventLogsRepository {
       this.prisma.eventLog.count({ where }),
     ]);
 
-    const containsHighlighted = items.some((item) => item.id.toString() === highlightId);
-    let finalItems = [...items];
-    if (highlightedItem && !containsHighlighted) {
-      finalItems = [highlightedItem, ...items];
-    }
-
     // Get device meta for names/locations
-    const deviceIds = [...new Set(finalItems.map((i) => i.device.deviceId))];
+    const deviceIds = [...new Set(items.map((i) => i.device.deviceId))];
     const metas = await this.prisma.userDevice.findMany({
       where: { userId, deviceId: { in: deviceIds } },
     });
     const metaMap = new Map(metas.map((m) => [m.deviceId, m]));
 
     const filtered = search
-      ? finalItems.filter((item) => {
+      ? items.filter((item) => {
           const meta = metaMap.get(item.device.deviceId);
           const name = meta?.name || item.device.deviceId;
           const location = meta?.location || '';
@@ -74,10 +94,11 @@ export class EventLogsRepository {
             location.toLowerCase().includes(q)
           );
         })
-      : finalItems;
+      : items;
 
     return {
-      total: search ? filtered.length : total,
+      total: search ? filtered.length : Math.min(total, 50),
+      page: Math.floor(skip / take) + 1,
       items: filtered.map((item) => {
         const meta = metaMap.get(item.device.deviceId);
         return {
@@ -109,19 +130,45 @@ export class EventLogsRepository {
       parameter: { not: null },
     };
 
-    // If highlightId is provided, fetch the specific event
-    let highlightedItem: any = null;
+    // If highlightId is provided, find its index to calculate page
     if (highlightId) {
       const parsedHighlightId = parseInt(highlightId);
       if (!isNaN(parsedHighlightId)) {
-        highlightedItem = await this.prisma.eventLog.findFirst({
+        const highlightedEvent = await this.prisma.eventLog.findFirst({
           where: {
             id: parsedHighlightId,
             userId,
+            eventType: { in: ['ALERT_TRIGGERED', 'ALERT_RESOLVED'] },
           },
-          include: { device: true },
         });
+
+        if (highlightedEvent) {
+          const newerCount = await this.prisma.eventLog.count({
+            where: {
+              ...where,
+              createdAt: { gt: highlightedEvent.createdAt },
+            },
+          });
+
+          const targetPage = Math.floor(newerCount / take) + 1;
+          const currentPageNum = Math.floor(skip / take) + 1;
+          if (targetPage !== currentPageNum) {
+            skip = (targetPage - 1) * take;
+          }
+        }
       }
+    }
+
+    // Enforce total 50 events cap
+    if (skip >= 50) {
+      return {
+        total: 50,
+        page: Math.floor(skip / take) + 1,
+        items: [],
+      };
+    }
+    if (skip + take > 50) {
+      take = Math.max(0, 50 - skip);
     }
 
     const [items, total] = await Promise.all([
@@ -135,14 +182,8 @@ export class EventLogsRepository {
       this.prisma.eventLog.count({ where }),
     ]);
 
-    const containsHighlighted = items.some((item) => item.id.toString() === highlightId);
-    let finalItems = [...items];
-    if (highlightedItem && !containsHighlighted) {
-      finalItems = [highlightedItem, ...items];
-    }
-
     // Get device meta for names
-    const deviceIds = [...new Set(finalItems.map((i) => i.device.deviceId))];
+    const deviceIds = [...new Set(items.map((i) => i.device.deviceId))];
     const metas = await this.prisma.userDevice.findMany({
       where: { userId, deviceId: { in: deviceIds } },
     });
@@ -150,7 +191,7 @@ export class EventLogsRepository {
 
     // For ALERT_TRIGGERED items, find their closest Notification to get thresholdValue
     // Match by userId + deviceId + createdAt proximity (within 5 seconds)
-    const triggeredItems = finalItems.filter((i) => i.eventType === 'ALERT_TRIGGERED');
+    const triggeredItems = items.filter((i) => i.eventType === 'ALERT_TRIGGERED');
     let notificationMap = new Map<string, number | null>();
 
     if (triggeredItems.length > 0) {
@@ -219,7 +260,7 @@ export class EventLogsRepository {
       aqi: 'AQI',
     };
 
-    const mapped = finalItems.map((item) => {
+    const mapped = items.map((item) => {
       const meta = metaMap.get(item.device.deviceId);
       const param = item.parameter || '';
       const unit = UNIT_MAP[param] ?? '';
@@ -253,7 +294,8 @@ export class EventLogsRepository {
       : mapped;
 
     return {
-      total: search ? filtered.length : total,
+      total: search ? filtered.length : Math.min(total, 50),
+      page: Math.floor(skip / take) + 1,
       items: filtered,
     };
   }
