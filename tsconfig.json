@@ -15,7 +15,7 @@
     "outDir": "./dist",
     "rootDir": "src",
     "baseUrl": "./",
-    "incremental": true,
+    "incremental": false,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
@@ -25,5 +25,5 @@
     "jsx": "react"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts", "prisma/**/*", "scratch/**/*", "scripts/**/*"]
 }

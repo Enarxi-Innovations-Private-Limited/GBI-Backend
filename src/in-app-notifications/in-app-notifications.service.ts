@@ -11,7 +11,9 @@ export class InAppNotificationsService {
     page = 1,
     limit = 20,
   ) {
-    const take = Math.min(limit, 100);
+    // If fetching unread notifications, cap at 50, otherwise 100
+    const cap = isRead === false ? 50 : 100;
+    const take = Math.min(limit, cap);
     const skip = (page - 1) * take;
 
     const [items, total] = await Promise.all([
