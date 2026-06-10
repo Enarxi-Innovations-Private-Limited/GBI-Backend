@@ -3,12 +3,14 @@ import {
   Logger,
   OnModuleInit,
   OnModuleDestroy,
+  Inject,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RealtimeService } from 'src/realtime/realtime.service';
 import { SseService } from 'src/realtime/sse.service';
 import { DeviceStatus } from '@prisma/client';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import Redis from 'ioredis';
 
 @Injectable()
 export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
@@ -21,6 +23,7 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
     private readonly realtimeService: RealtimeService,
     private readonly sseService: SseService,
     private readonly schedulerRegistry: SchedulerRegistry,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {
     this.intervalSeconds =
       Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) ||
@@ -139,6 +142,9 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
                 eventLogId: eventLog.id.toString(),
               },
             });
+
+            // 4. Invalidate user devices list cache in Redis
+            await this.redis.del(`user:${a.userId}:devices`);
           }
         }
       }

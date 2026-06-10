@@ -440,17 +440,28 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         aqi: savedTelemetry.aqi,
       });
 
-      if (device.status !== newStatus) {
-        this.realtimeService.emitDeviceStatus(device.deviceId, newStatus);
-      }
+      const hasStatusChanged = device.status !== newStatus;
+      const isRecoveringFromOffline =
+        device.status === DeviceStatus.OFFLINE &&
+        newStatus === DeviceStatus.ONLINE;
 
-      // Write ONLINE event log and send SSE notification when device recovers from OFFLINE
-      if (device.status === DeviceStatus.OFFLINE && newStatus === DeviceStatus.ONLINE) {
-        const assignments = await this.prisma.deviceAssignment.findMany({
+      let assignments: { userId: string }[] = [];
+      if (hasStatusChanged || isRecoveringFromOffline) {
+        assignments = await this.prisma.deviceAssignment.findMany({
           where: { deviceId: device.id, unassignedAt: null },
           select: { userId: true },
         });
+      }
 
+      if (hasStatusChanged) {
+        this.realtimeService.emitDeviceStatus(device.deviceId, newStatus);
+        for (const a of assignments) {
+          await this.redis.del(`user:${a.userId}:devices`);
+        }
+      }
+
+      // Write ONLINE event log and send SSE notification when device recovers from OFFLINE
+      if (isRecoveringFromOffline) {
         // Fetch a human-readable device name
         const deviceMeta = await this.prisma.userDevice.findFirst({
           where: { deviceId: device.deviceId },
