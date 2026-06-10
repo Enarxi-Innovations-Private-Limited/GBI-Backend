@@ -13,6 +13,7 @@ import { AlertsService } from 'src/alerts/alerts.service';
 import { RealtimeService } from 'src/realtime/realtime.service';
 import { SseService } from 'src/realtime/sse.service';
 import * as fs from 'fs';
+import { DeviceStatusLoggerService } from './device-status-logger.service';
 import * as path from 'path';
 import { Inject } from '@nestjs/common';
 import Redis from 'ioredis';
@@ -34,6 +35,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly realtimeService: RealtimeService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly sseService: SseService,
+    private readonly deviceStatusLogger: DeviceStatusLoggerService,
   ) {}
 
   onModuleInit() {
@@ -249,6 +251,13 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       console.log('✅ Device found:', device.id, '- Status:', device.status);
     }
 
+    // Fetch a human-readable device name for logging
+    const deviceMeta = await this.prisma.userDevice.findFirst({
+      where: { deviceId: device.deviceId },
+      select: { name: true },
+    });
+    const deviceLabel = deviceMeta?.name || device.deviceId;
+
     // Validate payload
     const dto = plainToInstance(TelemetryPayloadDto, payload);
     const errors = await validate(dto);
@@ -417,6 +426,13 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         telemetryId: savedTelemetry.id.toString(),
       });
 
+      // Log telemetry receipt to device-specific file
+      this.deviceStatusLogger.logStatus(
+        deviceLabel,
+        device.deviceId,
+        `TELEMETRY RECEIVED: pm25=${pm25}, pm10=${pm10}, tvoc=${tvoc}, co2=${co2}, temp=${temperature}, hum=${humidity}, noise=${noise}, aqi=${aqi}`,
+      );
+
       if (process.env.NODE_ENV === 'development') {
         if (device.status !== newStatus) {
           console.log(
@@ -455,6 +471,11 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
 
       if (hasStatusChanged) {
         this.realtimeService.emitDeviceStatus(device.deviceId, newStatus);
+        this.deviceStatusLogger.logStatus(
+          deviceLabel,
+          device.deviceId,
+          `STATUS CHANGE: ${device.status} -> ${newStatus}`,
+        );
         for (const a of assignments) {
           await this.redis.del(`user:${a.userId}:devices`);
         }

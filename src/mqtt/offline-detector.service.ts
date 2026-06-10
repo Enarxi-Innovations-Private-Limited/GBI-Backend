@@ -11,6 +11,7 @@ import { SseService } from 'src/realtime/sse.service';
 import { DeviceStatus } from '@prisma/client';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
+import { DeviceStatusLoggerService } from './device-status-logger.service';
 
 @Injectable()
 export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
@@ -24,6 +25,7 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
     private readonly sseService: SseService,
     private readonly schedulerRegistry: SchedulerRegistry,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private readonly deviceStatusLogger: DeviceStatusLoggerService,
   ) {
     this.intervalSeconds =
       Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) ||
@@ -63,6 +65,37 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
 
   async checkOfflineDevices() {
     try {
+      // 1. Fetch all active devices (not offline) to compute and log misses
+      const activeDevices = await this.prisma.device.findMany({
+        where: {
+          isDeleted: false,
+          status: { not: DeviceStatus.OFFLINE },
+        },
+        select: { id: true, deviceId: true, lastHeartbeatAt: true, status: true },
+      });
+
+      // Fetch all device metadata (labels) for logging
+      const devicesMeta = await this.prisma.userDevice.findMany({
+        select: { deviceId: true, name: true },
+      });
+      const labelMap = new Map(devicesMeta.map((m) => [m.deviceId, m.name]));
+
+      for (const device of activeDevices) {
+        if (!device.lastHeartbeatAt) continue;
+        const elapsedSeconds = (Date.now() - new Date(device.lastHeartbeatAt).getTime()) / 1000;
+        const misses = Math.floor(elapsedSeconds / this.intervalSeconds);
+        const deviceLabel = labelMap.get(device.deviceId) || device.deviceId;
+
+        if (misses > 0) {
+          const capMisses = Math.min(misses, this.thresholdMisses);
+          this.deviceStatusLogger.logStatus(
+            deviceLabel,
+            device.deviceId,
+            `MISSED HEARTBEAT: ${capMisses}/${this.thresholdMisses} (Last seen: ${elapsedSeconds.toFixed(1)}s ago)`,
+          );
+        }
+      }
+
       const offlineTimeoutSeconds = this.intervalSeconds * this.thresholdMisses;
       const cutoffTime = new Date(Date.now() - offlineTimeoutSeconds * 1000);
 
@@ -107,11 +140,7 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
           });
 
           // Fetch a human-readable device name from userDevice metadata
-          const deviceMeta = await this.prisma.userDevice.findFirst({
-            where: { deviceId: device.deviceId },
-            select: { name: true },
-          });
-          const deviceLabel = deviceMeta?.name || device.deviceId;
+          const deviceLabel = labelMap.get(device.deviceId) || device.deviceId;
 
           for (const a of assignments) {
             // 1. Create event log
@@ -146,6 +175,13 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
             // 4. Invalidate user devices list cache in Redis
             await this.redis.del(`user:${a.userId}:devices`);
           }
+
+          // 5. Log final status change
+          this.deviceStatusLogger.logStatus(
+            deviceLabel,
+            device.deviceId,
+            `STATUS CHANGE: ${DeviceStatus.OFFLINE} (THRESHOLD EXCEEDED)`,
+          );
         }
       }
     } catch (error) {
