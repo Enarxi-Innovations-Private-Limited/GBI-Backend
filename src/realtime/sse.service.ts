@@ -144,7 +144,7 @@ export class SseService implements OnModuleInit, OnModuleDestroy {
    * Attaches to the 'ready' event to guarantee re-subscription on reconnect.
    */
   private subscribeToRedis() {
-    this.subscriber.on('ready', () => {
+    const doSubscribe = () => {
       this.subscriber.subscribe(REDIS_CHANNEL, (err) => {
         if (err) {
           this.logger.error('Redis SSE subscribe failed', err.message);
@@ -152,7 +152,14 @@ export class SseService implements OnModuleInit, OnModuleDestroy {
         }
         this.logger.log(`Subscribed to Redis channel: ${REDIS_CHANNEL}`);
       });
-    });
+    };
+
+    // If client is already ready, subscribe immediately. Otherwise listen for ready.
+    if (this.subscriber.status === 'ready') {
+      doSubscribe();
+    } else {
+      this.subscriber.once('ready', doSubscribe);
+    }
 
     this.subscriber.on('message', (channel, message) => {
       if (channel !== REDIS_CHANNEL) return;

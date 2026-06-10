@@ -139,6 +139,7 @@ export class AlertsService {
     // 3. Realtime: Emit SSE
     this.sseService.sendEvent(userId, {
       type: 'NOTIFICATION',
+      eventType: 'THRESHOLD_EXCEEDED',
       data: {
         ...notification,
         deviceName,
@@ -179,6 +180,7 @@ export class AlertsService {
     // 3. Realtime: Emit SSE
     this.sseService.sendEvent(userId, {
       type: 'NOTIFICATION',
+      eventType: 'THRESHOLD_RESOLVED',
       data: {
         ...notification,
         deviceName,

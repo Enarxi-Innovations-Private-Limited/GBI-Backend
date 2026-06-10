@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RealtimeService } from 'src/realtime/realtime.service';
+import { SseService } from 'src/realtime/sse.service';
 import { DeviceStatus } from '@prisma/client';
 import { SchedulerRegistry } from '@nestjs/schedule';
 
@@ -18,10 +19,12 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtimeService: RealtimeService,
+    private readonly sseService: SseService,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {
     this.intervalSeconds =
-      Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) || 60;
+      Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) ||
+      Number(process.env.DEVICE_CHECK_INTERVAL_SECONDS) || 60;
     this.thresholdMisses =
       Number(process.env.DEVICE_OFFLINE_THRESHOLD_MISSES) || 5;
   }
@@ -94,21 +97,48 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
             DeviceStatus.OFFLINE,
           );
 
-          // Migrate the old event log functionality here
+          // Create event logs and send live SSE notifications for device offline
           const assignments = await this.prisma.deviceAssignment.findMany({
             where: { deviceId: device.id, unassignedAt: null },
             select: { userId: true },
           });
 
+          // Fetch a human-readable device name from userDevice metadata
+          const deviceMeta = await this.prisma.userDevice.findFirst({
+            where: { deviceId: device.deviceId },
+            select: { name: true },
+          });
+          const deviceLabel = deviceMeta?.name || device.deviceId;
+
           for (const a of assignments) {
-            await this.prisma.eventLog.create({
+            // 1. Create event log
+            const eventLog = await this.prisma.eventLog.create({
               data: {
                 deviceId: device.id,
                 userId: a.userId,
                 eventType: 'OFFLINE',
               },
             });
-            // We can optionally add Notification logic here if required
+
+            // 2. Create in-app notification record
+            const notification = await this.prisma.notification.create({
+              data: {
+                userId: a.userId,
+                deviceId: device.id,
+                message: `${deviceLabel} went offline`,
+              },
+            });
+
+            // 3. Push live SSE toast to the user
+            this.sseService.sendEvent(a.userId, {
+              type: 'NOTIFICATION',
+              eventType: 'DEVICE_OFFLINE',
+              data: {
+                ...notification,
+                deviceName: deviceLabel,
+                eventLogId: eventLog.id.toString(),
+              },
+            });
           }
         }
       }

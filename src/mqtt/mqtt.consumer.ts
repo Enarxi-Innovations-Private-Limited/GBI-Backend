@@ -11,6 +11,7 @@ import { TelemetryPayloadDto } from './dto/telemetry-payload.dto';
 import { validate } from 'class-validator';
 import { AlertsService } from 'src/alerts/alerts.service';
 import { RealtimeService } from 'src/realtime/realtime.service';
+import { SseService } from 'src/realtime/sse.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Inject } from '@nestjs/common';
@@ -32,6 +33,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly alertsService: AlertsService,
     private readonly realtimeService: RealtimeService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private readonly sseService: SseService,
   ) {}
 
   onModuleInit() {
@@ -442,18 +444,47 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         this.realtimeService.emitDeviceStatus(device.deviceId, newStatus);
       }
 
-      // Write ONLINE event log when device recovers from OFFLINE
+      // Write ONLINE event log and send SSE notification when device recovers from OFFLINE
       if (device.status === DeviceStatus.OFFLINE && newStatus === DeviceStatus.ONLINE) {
         const assignments = await this.prisma.deviceAssignment.findMany({
           where: { deviceId: device.id, unassignedAt: null },
           select: { userId: true },
         });
+
+        // Fetch a human-readable device name
+        const deviceMeta = await this.prisma.userDevice.findFirst({
+          where: { deviceId: device.deviceId },
+          select: { name: true },
+        });
+        const deviceLabel = deviceMeta?.name || device.deviceId;
+
         for (const a of assignments) {
-          await this.prisma.eventLog.create({
+          // 1. Create event log
+          const eventLog = await this.prisma.eventLog.create({
             data: {
               deviceId: device.id,
               userId: a.userId,
               eventType: 'ONLINE',
+            },
+          });
+
+          // 2. Create in-app notification
+          const notification = await this.prisma.notification.create({
+            data: {
+              userId: a.userId,
+              deviceId: device.id,
+              message: `${deviceLabel} is back online`,
+            },
+          });
+
+          // 3. Push live SSE toast to the user
+          this.sseService.sendEvent(a.userId, {
+            type: 'NOTIFICATION',
+            eventType: 'DEVICE_ONLINE',
+            data: {
+              ...notification,
+              deviceName: deviceLabel,
+              eventLogId: eventLog.id.toString(),
             },
           });
         }
@@ -463,7 +494,8 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
 
       // 4) Set latest state in Redis (TTL = 2 * Offline Timeout)
       const offlineTimeoutSeconds =
-        (Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) || 60) *
+        (Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) ||
+          Number(process.env.DEVICE_CHECK_INTERVAL_SECONDS) || 60) *
         (Number(process.env.DEVICE_OFFLINE_THRESHOLD_MISSES) || 5);
 
       const redisKey = `device:${device.deviceId}:latest`;
