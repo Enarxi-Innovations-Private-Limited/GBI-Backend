@@ -22,7 +22,7 @@ async function bootstrap() {
   // Reverting to standard to avoid "use already added" conflict
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ trustProxy: true }),
   );
 
   // app.setGlobalPrefix('api');
