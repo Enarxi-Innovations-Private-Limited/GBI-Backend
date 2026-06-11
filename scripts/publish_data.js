@@ -1,10 +1,10 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
 const mqtt = require('mqtt');
 const crypto = require('crypto');
 
 // Configuration
 // const DEVICE_ID = process.env.MQTT_USERNAME || 'GBIAIR1000';
-const DEVICE_ID = 'GBISIM0001';
+const DEVICE_ID = 'GBIAIR_1780299772937';
 const TOPIC = `gbi/devices/${DEVICE_ID}/telemetry`;
 const INTERVAL = 30000; // 30 seconds
 

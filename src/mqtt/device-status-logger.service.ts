@@ -8,6 +8,10 @@ export class DeviceStatusLoggerService implements OnModuleInit {
   private sessionTimestamp: string;
 
   onModuleInit() {
+    if (process.env.NODE_ENV !== 'development') {
+      return;
+    }
+
     this.logDir = path.join(process.cwd(), 'logs', 'device_status');
     if (!fs.existsSync(this.logDir)) {
       fs.mkdirSync(this.logDir, { recursive: true });
@@ -28,6 +32,10 @@ export class DeviceStatusLoggerService implements OnModuleInit {
   }
 
   logStatus(deviceLabel: string, deviceId: string, message: string) {
+    if (process.env.NODE_ENV !== 'development') {
+      return;
+    }
+
     const sanitizedLabel = deviceLabel.replace(/[^a-zA-Z0-9-_]/g, '_');
     const filename = `${sanitizedLabel}_${this.sessionTimestamp}.log`;
     const filePath = path.join(this.logDir, filename);
