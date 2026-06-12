@@ -49,7 +49,15 @@ export class MqttService implements OnModuleInit {
           `✅ MQTT connected successfully as client: ${options.clientId}`,
         );
 
-        const consumerGroup = process.env.MQTT_CONSUMER_GROUP || 'gbi_backend';
+        const consumerGroup = process.env.MQTT_CONSUMER_GROUP;
+        if (!consumerGroup) {
+          this.logger.error(
+            '❌ MQTT_CONSUMER_GROUP is required but not defined in environment variables. MQTT connection aborted.',
+          );
+          this.client.end(true);
+          return;
+        }
+
         const telemetryTopic =
           process.env.MQTT_TELEMETRY_TOPIC || 'gbi/devices/+/telemetry';
 
