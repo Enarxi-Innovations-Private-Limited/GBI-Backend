@@ -2,7 +2,7 @@ require('dotenv').config();
 const mqtt = require('mqtt');
 
 // Configuration
-const DEVICE_ID = 'GBIAIR1000';
+const DEVICE_ID = process.argv[2] || process.env.DEVICE_ID || 'GBIAIR1000';
 const TOPIC = `gbi/devices/${DEVICE_ID}/telemetry`;
 const INTERVAL = 5000; // 5 seconds
 
@@ -53,6 +53,7 @@ client.on('close', () => {
 function publishTelemetry() {
   // Generate random values within realistic ranges
   const data = {
+    messageId: `msg-${Date.now()}-${Math.random().toString(16).substr(2, 8)}`,
     // Particulate Matter (µg/m³)
     pm25: randomInt(0, 500),   // 0-500
     pm10: randomInt(0, 500),   // 0-500
