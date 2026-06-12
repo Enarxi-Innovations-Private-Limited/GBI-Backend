@@ -16,11 +16,21 @@ export class PaymentsService {
     private premiumRepo: PremiumRepository,
   ) {
     // We will initialize Razorpay dynamically to avoid issues if the package is still installing
+    const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
+    const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
+
+    if (!keyId || !keySecret) {
+      this.logger.warn(
+        'Razorpay API keys (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are missing. Payments service will be disabled.',
+      );
+      return;
+    }
+
     try {
       const Razorpay = require('razorpay');
       this.razorpay = new Razorpay({
-        key_id: this.configService.get('RAZORPAY_KEY_ID'),
-        key_secret: this.configService.get('RAZORPAY_KEY_SECRET'),
+        key_id: keyId,
+        key_secret: keySecret,
       });
     } catch (e) {
       this.logger.error('Failed to initialize Razorpay', e);
