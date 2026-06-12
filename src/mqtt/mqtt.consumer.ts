@@ -356,15 +356,18 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // Helper to sanitize numeric values (NaN or undefined becomes null)
-    const sanitize = (val: number | undefined) =>
-      typeof val === 'number' && !isNaN(val) ? val : null;
+    // Helper to sanitize numeric values (NaN or undefined becomes null, and 0 becomes null for non-temperature metrics)
+    const sanitize = (val: number | undefined, allowZero = false) => {
+      if (typeof val !== 'number' || isNaN(val)) return null;
+      if (val === 0 && !allowZero) return null;
+      return val;
+    };
 
     const pm25 = sanitize(dto.pm25);
     const pm10 = sanitize(dto.pm10);
     const tvoc = sanitize(dto.tvoc);
     const co2 = sanitize(dto.co2);
-    const temperature = sanitize(dto.temperature);
+    const temperature = sanitize(dto.temperature, true); // Temperature of 0°C is valid
     const humidity = sanitize(dto.humidity);
     const noise = sanitize(dto.noise);
     const aqi = sanitize(dto.aqi);
