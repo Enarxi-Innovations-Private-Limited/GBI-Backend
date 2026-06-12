@@ -40,21 +40,35 @@ export class AdminController {
     const isProduction = process.env.NODE_ENV === 'production';
 
     // Set tokens as HttpOnly cookies
-    res.setCookie('accessToken', result.accessToken, {
+    res.setCookie('adminAccessToken', result.accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
       path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 15 * 60, // 15 mins
     });
 
-    res.setCookie('refreshToken', result.refreshToken, {
+    res.setCookie('adminRefreshToken', result.refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
       path: '/', // Changed from /api/admin to ensure proxy compatibility if needed
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
+
+    // Proactively clear legacy accessToken/refreshToken cookies to avoid any collisions
+    res.clearCookie('accessToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+    res.clearCookie('refreshToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
 
     return { user: result.user };
   }
@@ -64,7 +78,7 @@ export class AdminController {
     @Req() req: any,
     @Res({ passthrough: true }) res: any,
   ) {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.adminRefreshToken;
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token provided');
     }
@@ -72,19 +86,21 @@ export class AdminController {
     const result = await this.adminService.refreshTokens(refreshToken);
     const isProduction = process.env.NODE_ENV === 'production';
 
-    res.setCookie('accessToken', result.accessToken, {
+    res.setCookie('adminAccessToken', result.accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
       path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 15 * 60,
     });
 
-    res.setCookie('refreshToken', result.refreshToken, {
+    res.setCookie('adminRefreshToken', result.refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
       path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
       maxAge: 30 * 24 * 60 * 60,
     });
 
@@ -93,8 +109,28 @@ export class AdminController {
 
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: any) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.clearCookie('adminAccessToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+    res.clearCookie('adminRefreshToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+
+    // Proactively clear legacy accessToken/refreshToken cookies on logout too
+    res.clearCookie('accessToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
+    res.clearCookie('refreshToken', {
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    });
     res.clearCookie('accessToken', { path: '/' });
     res.clearCookie('refreshToken', { path: '/' });
+
     return this.adminService.logout();
   }
 

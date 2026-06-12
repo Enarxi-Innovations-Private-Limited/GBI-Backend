@@ -10,7 +10,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: any) => {
           if (req && req.cookies) {
-            return req.cookies['accessToken'] || null;
+            return req.cookies['adminAccessToken'] || null;
           }
           return null;
         },
