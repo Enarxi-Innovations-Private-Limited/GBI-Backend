@@ -227,10 +227,10 @@ export class DevicesRepository {
       minutesAgo.setMinutes(minutesAgo.getMinutes() - parseInt(minutes, 10));
       where.timestamp = { gte: minutesAgo };
     } else {
-      // Default to last 24 hours if no dates provided
-      const yesterday = new Date();
-      yesterday.setHours(yesterday.getHours() - 24);
-      where.timestamp = { gte: yesterday };
+      // Default to last 12 hours if no dates provided
+      const twelveHoursAgo = new Date();
+      twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
+      where.timestamp = { gte: twelveHoursAgo };
     }
 
     if (!metric) {
