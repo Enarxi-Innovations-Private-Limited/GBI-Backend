@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0](https://github.com/chellakumarr/GBI-Backend/compare/v1.2.1...v1.3.0) (2026-06-15)
+
+### Features
+
+* deactivate all non-pro plans during seed ([2ddee03](https://github.com/chellakumarr/GBI-Backend/commit/2ddee03c61cb9867b15d734cbdb7718456d80800))
+
 ## [1.2.1](https://github.com/chellakumarr/GBI-Backend/compare/v1.2.0...v1.2.1) (2026-06-15)
 
 ### Bug Fixes
