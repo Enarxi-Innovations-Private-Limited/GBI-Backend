@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1](https://github.com/chellakumarr/GBI-Backend/compare/v1.2.0...v1.2.1) (2026-06-15)
+
+### Bug Fixes
+
+* resolve prisma seed TypeScript compilation error with null features ([5ed967e](https://github.com/chellakumarr/GBI-Backend/commit/5ed967e977ddda87a4da769fd7b928b9ae2fc085))
+
 ## [1.2.0](https://github.com/chellakumarr/GBI-Backend/compare/v1.1.0...v1.2.0) (2026-06-15)
 
 ### Features
