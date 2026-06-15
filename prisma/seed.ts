@@ -24,12 +24,28 @@ async function main() {
   // ─── Subscription Plans ───────────────────────────────────────────────────
   const plans = [
     {
+      id: 'pro',
+      name: 'Pro',
+      amount: 4999,
+      currency: 'INR',
+      durationDays: 30,
+      isActive: true,
+      features: [
+        { id: 1, name: "PDF & CSV Reports Download", included: true },
+        { id: 2, name: "Custom Threshold Limits", included: true },
+        { id: 3, name: "Detailed Event Logs & History", included: true },
+        { id: 4, name: "Advanced Analytics & Comparison", included: true }
+      ],
+      updatedAt: new Date(),
+    },
+    {
       id: 'starter',
       name: 'Starter',
       amount: 499,
       currency: 'INR',
       durationDays: 30,
-      isActive: true,
+      isActive: false,
+      features: null,
       updatedAt: new Date(),
     },
     {
@@ -38,7 +54,8 @@ async function main() {
       amount: 4999,
       currency: 'INR',
       durationDays: 365,
-      isActive: true,
+      isActive: false,
+      features: null,
       updatedAt: new Date(),
     },
     {
@@ -46,8 +63,9 @@ async function main() {
       name: 'Enterprise',
       amount: 9999,
       currency: 'INR',
-      durationDays: 36500, // ~100 years → effectively lifetime
-      isActive: true,
+      durationDays: 36500,
+      isActive: false,
+      features: null,
       updatedAt: new Date(),
     },
   ];
@@ -60,11 +78,12 @@ async function main() {
         currency: plan.currency,
         durationDays: plan.durationDays,
         isActive: plan.isActive,
+        features: plan.features ?? undefined,
         updatedAt: plan.updatedAt,
       },
       create: plan,
     });
-    console.log(`✅ Synced Plan: ${plan.name} (₹${plan.amount})`);
+    console.log(`✅ Synced Plan: ${plan.name} (Active: ${plan.isActive}, ₹${plan.amount})`);
   }
 }
 
