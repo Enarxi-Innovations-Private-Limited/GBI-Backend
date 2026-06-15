@@ -28,7 +28,7 @@ async function main() {
       name: 'Pro',
       amount: 4999,
       currency: 'INR',
-      durationDays: 30,
+      durationDays: 365,
       isActive: true,
       features: [
         { id: 1, name: "PDF & CSV Reports Download", included: true },
@@ -45,7 +45,6 @@ async function main() {
       currency: 'INR',
       durationDays: 30,
       isActive: false,
-      features: null,
       updatedAt: new Date(),
     },
     {
@@ -55,7 +54,6 @@ async function main() {
       currency: 'INR',
       durationDays: 365,
       isActive: false,
-      features: null,
       updatedAt: new Date(),
     },
     {
@@ -65,7 +63,6 @@ async function main() {
       currency: 'INR',
       durationDays: 36500,
       isActive: false,
-      features: null,
       updatedAt: new Date(),
     },
   ];
@@ -81,7 +78,16 @@ async function main() {
         features: plan.features ?? undefined,
         updatedAt: plan.updatedAt,
       },
-      create: plan,
+      create: {
+        id: plan.id,
+        name: plan.name,
+        amount: plan.amount,
+        currency: plan.currency,
+        durationDays: plan.durationDays,
+        isActive: plan.isActive,
+        features: plan.features ?? undefined,
+        updatedAt: plan.updatedAt,
+      },
     });
     console.log(`✅ Synced Plan: ${plan.name} (Active: ${plan.isActive}, ₹${plan.amount})`);
   }
