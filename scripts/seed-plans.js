@@ -52,6 +52,16 @@ async function main() {
 
   console.log('Seeding subscription plans...');
 
+  // Deactivate all plans that are not 'pro'
+  await prisma.subscriptionPlan.updateMany({
+    where: {
+      id: { not: 'pro' }
+    },
+    data: {
+      isActive: false
+    }
+  });
+
   for (const plan of plans) {
     await prisma.subscriptionPlan.upsert({
       where: { id: plan.id },
