@@ -9,12 +9,13 @@ export class AlertsService {
 
   // Global UI fallback thresholds (WHO Standards)
   private readonly DEFAULT_THRESHOLDS: Record<string, number> = {
-    pm25: 12,
+    pm25: 20,
     pm10: 45,
-    tvoc: 250,
-    co2: 100,
-    temperature: 26,
-    humidity: 65,
+    tvoc: 500,
+    co2: 1000,
+    temperature: 28,
+    humidity: 60,
+    noise: 55,
   };
 
   constructor(
