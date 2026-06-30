@@ -17,7 +17,7 @@ This matrix tracks the compatibility between the Frontend (`GBI`) and Backend (`
 
 | Frontend Version | Backend Version | Status               | Notes                                                                                                                         |
 | :--------------- | :-------------- | :------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
-| `v1.2.0`         | `v1.3.0`        | **Compatible**       | Aligned global threshold limits (including Noise at 55 dB) and added support for smooth progressive chart panning.            |
+| `v1.2.0`         | `>= v1.3.0`     | **Compatible**       | Aligned global threshold limits (including Noise at 55 dB) and added support for smooth progressive chart panning.            |
 | `v1.1.0`         | `>= v1.0.0`     | **Compatible**       | No breaking API changes in backend `v1.1.0`. Frontend `v1.1.0` is compatible with both backend `v1.0.0` and `v1.1.0`.         |
 | `v1.0.0`         | `v1.0.0`        | **Compatible**       | Initial production release.                                                                                                   |
 
