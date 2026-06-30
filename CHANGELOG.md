@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1](https://github.com/chellakumarr/GBI-Backend/compare/v1.3.0...v1.3.1) (2026-06-30)
+
+### Bug Fixes
+
+* **alerts:** update default global thresholds, including Noise, to match frontend defaults ([341f96a](https://github.com/chellakumarr/GBI-Backend/commit/341f96ada810be9382856dbd9c8c300a811bd48f))
+
 ## [1.3.0](https://github.com/chellakumarr/GBI-Backend/compare/v1.2.1...v1.3.0) (2026-06-15)
 
 ### Features
