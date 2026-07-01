@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0](https://github.com/chellakumarr/GBI-Backend/compare/v1.3.1...v1.4.0) (2026-07-01)
+
+### Features
+
+* **prisma:** implement blocking connection retry and fix E2E test isolation data wipes and connections leak ([000c4e0](https://github.com/chellakumarr/GBI-Backend/commit/000c4e0732b827f10136b2110e736e916bd18e50))
+
 ## [1.3.1](https://github.com/chellakumarr/GBI-Backend/compare/v1.3.0...v1.3.1) (2026-06-30)
 
 ### Bug Fixes
