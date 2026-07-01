@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, OnModuleDestroy, Inject } from '@nestjs/common';
 import { RealtimeService } from './realtime.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
@@ -45,4 +45,11 @@ import Redis from 'ioredis';
   controllers: [SseController],
   exports: [RealtimeService, SseService],
 })
-export class RealtimeModule {}
+export class RealtimeModule implements OnModuleDestroy {
+  constructor(@Inject('REDIS_SUBSCRIBER') private readonly redisSubscriber: Redis) {}
+
+  onModuleDestroy() {
+    this.redisSubscriber.disconnect();
+    console.log('[REDIS_SUBSCRIBER] Connection closed via OnModuleDestroy');
+  }
+}

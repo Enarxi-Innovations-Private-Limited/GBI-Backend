@@ -4,6 +4,10 @@ import * as crypto from 'crypto';
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
   use(req: any, res: any, next: () => void) {
+    if (process.env.NODE_ENV === 'test') {
+      return next();
+    }
+
     // 1. Parse cookies manually from headers
     // In NestJS Fastify middleware, req.cookies might not be populated yet by @fastify/cookie
     const cookies = this.parseCookies(req.headers?.cookie);

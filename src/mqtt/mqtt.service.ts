@@ -1,10 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import * as os from 'os';
 import * as url from 'url';
 import * as mqtt from 'mqtt';
 
 @Injectable()
-export class MqttService implements OnModuleInit {
+export class MqttService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
   private readonly logger = new Logger(MqttService.name);
 
@@ -177,5 +177,12 @@ export class MqttService implements OnModuleInit {
         cleanup(false);
       });
     });
+  }
+
+  onModuleDestroy() {
+    if (this.client) {
+      this.client.end(true);
+      this.logger.log('🔴 MQTT connection closed via OnModuleDestroy.');
+    }
   }
 }

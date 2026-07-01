@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, ConflictException } from '@nestjs/common';
 import { Redis } from 'ioredis';
 
 import { DevicesRepository } from './devices.repository';
@@ -120,7 +120,6 @@ export class DevicesService {
     if (!device) throw new NotFoundException('Device not found');
 
     if (device.groupId) {
-      const { ConflictException } = await import('@nestjs/common');
       throw new ConflictException(
         'device is already been added to the group threshold',
       );

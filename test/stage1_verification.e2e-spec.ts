@@ -1,18 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { GroupsModule } from '../src/groups/groups.module';
-import { DevicesModule } from '../src/module/devices/devices.module';
-import { PrismaModule } from '../src/prisma/prisma.module';
-import { JwtModule, JwtService } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import { ConfigService } from '@nestjs/config';
-import { AuthService } from '../src/auth/auth.service';
-import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
+import { JwtService } from '@nestjs/jwt';
+import { AppModule } from '../src/app.module';
 
 describe('Stage 1 Verification (e2e)', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
 
@@ -25,34 +22,16 @@ describe('Stage 1 Verification (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        PassportModule.register({ defaultStrategy: 'jwt' }),
-        PrismaModule,
-        GroupsModule,
-        DevicesModule,
-        JwtModule.register({ secret: 'test-secret', signOptions: { expiresIn: '1h' } }),
-      ],
-      providers: [
-        JwtStrategy,
-        {
-          provide: ConfigService,
-          useValue: {
-            get: (key: string) => (key === 'JWT_SECRET' ? 'test-secret' : null),
-          },
-        },
-        {
-          provide: AuthService,
-          useValue: {
-            validateUser: async (id: string) => ({ id }),
-          },
-        },
-      ],
+      imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
     prisma = app.get<PrismaService>(PrismaService);
     jwtService = app.get<JwtService>(JwtService);
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
 
     // --- SETUP DATA ---
     // 1. Create Owner User
@@ -64,7 +43,10 @@ describe('Stage 1 Verification (e2e)', () => {
       },
     });
     ownerId = owner.id;
-    ownerToken = jwtService.sign({ sub: owner.id, email: owner.email });
+    ownerToken = jwtService.sign(
+      { sub: owner.id, email: owner.email },
+      { secret: process.env.JWT_SECRET || 'test-secret' },
+    );
 
     // 2. Create Other User (Attacker)
     const other = await prisma.user.create({
@@ -75,7 +57,10 @@ describe('Stage 1 Verification (e2e)', () => {
       },
     });
     otherUserId = other.id;
-    otherUserToken = jwtService.sign({ sub: other.id, email: other.email });
+    otherUserToken = jwtService.sign(
+      { sub: other.id, email: other.email },
+      { secret: process.env.JWT_SECRET || 'test-secret' },
+    );
 
     // 3. Create Device
     const device = await prisma.device.create({
@@ -107,11 +92,12 @@ describe('Stage 1 Verification (e2e)', () => {
 
   afterAll(async () => {
     // Cleanup
+    if (deviceId) await prisma.deviceAssignment.deleteMany({ where: { deviceId } }).catch(() => {});
     if (groupId) await prisma.deviceGroup.delete({ where: { id: groupId } }).catch(() => {});
     if (deviceId) await prisma.device.delete({ where: { id: deviceId } }).catch(() => {});
     if (ownerId) await prisma.user.delete({ where: { id: ownerId } }).catch(() => {});
     if (otherUserId) await prisma.user.delete({ where: { id: otherUserId } }).catch(() => {});
-    await app.close();
+    if (app) await app.close();
   });
 
   // --- TEST CASES ---

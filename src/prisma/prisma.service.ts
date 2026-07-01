@@ -30,26 +30,20 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    let maxRetries = 5;
-    const retryDelayMs = 3000;
+    let attempt = 1;
 
-    while (maxRetries > 0) {
+    while (true) {
       try {
         await this.prisma.$connect();
         this.logger.log('✅ Successfully connected to database');
         return;
       } catch (error) {
-        maxRetries--;
+        const delay = Math.min(attempt * 500, 5000);
         this.logger.warn(
-          `⚠️ Failed to connect to database (${error.message}). Retries left: ${maxRetries}`,
+          `⚠️ Failed to connect to database (${error.message}). Retrying in ${delay}ms... (Attempt ${attempt})`,
         );
-        if (maxRetries === 0) {
-          this.logger.error(
-            '❌ Exhausted database connection retries. Shutting down service init.',
-          );
-          throw error;
-        }
-        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        attempt++;
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
