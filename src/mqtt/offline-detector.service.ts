@@ -123,8 +123,15 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (result.count > 0) {
+        const deadDeviceDetails = deadDevices
+          .map((device) => {
+            const label = labelMap.get(device.deviceId);
+            return label ? `${device.deviceId} ("${label}")` : device.deviceId;
+          })
+          .join(', ');
+
         this.logger.warn(
-          `⚠️ Marked ${result.count} local devices as OFFLINE due to inactivity threshold (${offlineTimeoutSeconds}s).`,
+          `⚠️ Marked ${result.count} local devices as OFFLINE due to inactivity threshold (${offlineTimeoutSeconds}s). Devices: [${deadDeviceDetails}]`,
         );
 
         for (const device of deadDevices) {
