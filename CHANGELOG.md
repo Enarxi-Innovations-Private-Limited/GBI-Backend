@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1](https://github.com/chellakumarr/GBI-Backend/compare/v1.4.0...v1.4.1) (2026-07-02)
+
+### Bug Fixes
+
+* include thresholds in getMyDevices and invalidate cache on threshold changes ([79b4813](https://github.com/chellakumarr/GBI-Backend/commit/79b4813c4b00f35f5b596a5b72d56bf0e99cbab6))
+
 ## [1.4.0](https://github.com/chellakumarr/GBI-Backend/compare/v1.3.1...v1.4.0) (2026-07-01)
 
 ### Features
