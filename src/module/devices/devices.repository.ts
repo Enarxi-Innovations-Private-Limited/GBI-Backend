@@ -105,7 +105,11 @@ export class DevicesRepository {
         unassignedAt: null,
       },
       include: {
-        device: true,
+        device: {
+          include: {
+            deviceThreshold: true,
+          },
+        },
       },
     });
   }

@@ -53,6 +53,7 @@ export class DevicesService {
         city: meta?.city || null,
         pincode: meta?.pincode || null,
         claimedAt: a.assignedAt,
+        thresholds: (a.device as any).deviceThreshold?.thresholds || null,
       };
     });
 
@@ -125,7 +126,9 @@ export class DevicesService {
       );
     }
 
-    return this.repo.setDeviceThreshold(device.id, thresholds);
+    const result = await this.repo.setDeviceThreshold(device.id, thresholds);
+    await this.redis.del(`user:${userId}:devices`).catch(() => {});
+    return result;
   }
 
   async removeDeviceThreshold(userId: string, deviceStringId: string) {
@@ -133,6 +136,7 @@ export class DevicesService {
     if (!device) throw new NotFoundException('Device not found');
 
     await this.repo.removeDeviceThreshold(device.id);
+    await this.redis.del(`user:${userId}:devices`).catch(() => {});
     return { message: 'Device threshold removed' };
   }
 
