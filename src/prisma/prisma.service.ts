@@ -18,6 +18,18 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
         { emit: 'event', level: 'warn' },
         { emit: 'stdout', level: 'info' },
       ],
+      datasources: {
+        db: {
+          // Pool sizing for DigitalOcean managed PostgreSQL (~25 total slots):
+          //   10  → NestJS server (MQTT pipeline + HTTP API + schedulers)
+          //    3  → scripts (check-*, seed-*, delete-*)
+          //    3  → PostgreSQL superuser reserved slots
+          //    9  → headroom buffer
+          // connection_limit in the URL is used by standalone scripts;
+          // this datasources override applies to the NestJS app only.
+          url: process.env.DATABASE_URL + '&connection_limit=10&pool_timeout=15',
+        },
+      },
     });
 
     (this.prisma as any).$on('error', (e: any) => {
