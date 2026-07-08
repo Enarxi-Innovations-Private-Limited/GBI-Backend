@@ -38,7 +38,7 @@ export class TelemetryQueryService {
 
   /**
    * Industrial best practice for computing aggregation intervals.
-   * Targets approximately 20-30 data points per chart to maintain 
+   * Targets approximately 20-30 data points per chart to maintain
    * trend clarity and reduce visual noise across any time range.
    */
   static autoInterval(start: Date, end: Date): number {
@@ -48,18 +48,41 @@ export class TelemetryQueryService {
     // If range is extremely small (e.g. 15 mins), show every minute
     if (diffMinutes <= 15) return 1;
 
-    // Target ~24 points for optimal readability (2 points per 'hour' in a 12h view, etc.)
-    const rawInterval = diffMinutes / 24;
+    // Target ~50 points for optimal readability and detail density (e.g. 50-60 points in viewport)
+    const rawInterval = diffMinutes / 50;
 
     // Standard industrial buckets (in minutes)
     const buckets = [
-      1, 2, 3, 5, 10, 15, 30, // Small ranges
-      60, 120, 180, 240, 360, 720, // 1h to 12h
-      1440, 2880, 4320, 10080, 43200 // 1d to 1m
+      1,
+      2,
+      3,
+      5,
+      10,
+      15,
+      30, // Small ranges
+      60,
+      120,
+      180,
+      240,
+      360,
+      720, // 1h to 12h
+      1440,
+      2880,
+      4320,
+      10080,
+      43200, // 1d to 1m
     ];
 
-    // Find the closest bucket that is >= rawInterval
-    const snapped = buckets.find(b => b >= rawInterval) || buckets[buckets.length - 1];
+    // Find the closest bucket using nearest-neighbor rounding
+    let snapped = buckets[0];
+    let minDiff = Math.abs(buckets[0] - rawInterval);
+    for (let i = 1; i < buckets.length; i++) {
+      const diff = Math.abs(buckets[i] - rawInterval);
+      if (diff < minDiff) {
+        minDiff = diff;
+        snapped = buckets[i];
+      }
+    }
 
     return snapped;
   }

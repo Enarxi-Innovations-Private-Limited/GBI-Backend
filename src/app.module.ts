@@ -54,16 +54,18 @@ import { MailModule } from './mail/mail.module';
     SubscriptionsModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => {
+      useFactory: async (configService: ConfigService) => {
         const redisUrl = configService.get<string>('REDIS_URL');
-	if (!redisUrl) {
+        if (!redisUrl) {
           throw new Error('REDIS_URL is not defined in environment variables');
         }
         return {
           connection: {
             url: redisUrl,
             family: 0, // Crucial for IPv6 / Upstash
-            tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+            tls: redisUrl.startsWith('rediss://')
+              ? { rejectUnauthorized: false }
+              : undefined,
             maxRetriesPerRequest: null, // Required by BullMQ — it manages its own command retries
             enableReadyCheck: false,
 

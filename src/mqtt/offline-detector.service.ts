@@ -29,7 +29,8 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.intervalSeconds =
       Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) ||
-      Number(process.env.DEVICE_CHECK_INTERVAL_SECONDS) || 60;
+      Number(process.env.DEVICE_CHECK_INTERVAL_SECONDS) ||
+      60;
     this.thresholdMisses =
       Number(process.env.DEVICE_OFFLINE_THRESHOLD_MISSES) || 5;
   }
@@ -71,7 +72,12 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
           isDeleted: false,
           status: { not: DeviceStatus.OFFLINE },
         },
-        select: { id: true, deviceId: true, lastHeartbeatAt: true, status: true },
+        select: {
+          id: true,
+          deviceId: true,
+          lastHeartbeatAt: true,
+          status: true,
+        },
       });
 
       // Fetch all device metadata (labels) for logging
@@ -82,7 +88,8 @@ export class OfflineDetectorService implements OnModuleInit, OnModuleDestroy {
 
       for (const device of activeDevices) {
         if (!device.lastHeartbeatAt) continue;
-        const elapsedSeconds = (Date.now() - new Date(device.lastHeartbeatAt).getTime()) / 1000;
+        const elapsedSeconds =
+          (Date.now() - new Date(device.lastHeartbeatAt).getTime()) / 1000;
         const misses = Math.floor(elapsedSeconds / this.intervalSeconds);
         const deviceLabel = labelMap.get(device.deviceId) || device.deviceId;
 

@@ -50,7 +50,7 @@ export class ReportsService {
       type,
       { type, userId, dto },
       {
-	jobId: reportId,
+        jobId: reportId,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: true, // we track completion in Prisma
@@ -153,10 +153,7 @@ export class ReportsService {
     const userDevice = await this.prisma.userDevice.findFirst({
       where: {
         userId,
-        OR: [
-          { deviceId: device.id },
-          { deviceId: dto.deviceId },
-        ],
+        OR: [{ deviceId: device.id }, { deviceId: dto.deviceId }],
       },
       select: { name: true, location: true },
     });
@@ -186,7 +183,10 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = this.telemetryQuery.formatTelemetryRows(rawRows, orderedParams);
+    const rows = this.telemetryQuery.formatTelemetryRows(
+      rawRows,
+      orderedParams,
+    );
 
     // 4) Build Custom CSV String
     const columns = ['Date', 'Time', 'deviceId', ...orderedParams];
@@ -256,12 +256,18 @@ export class ReportsService {
     deviceHeaderRow[0] = escapeCsv(`Device ID: ${deviceId}`);
 
     if (totalCols >= 11) {
-      if (userDefinedName) deviceHeaderRow[5] = escapeCsv(`Device Name: ${userDefinedName}`);
-      if (userDefinedLocation) deviceHeaderRow[10] = escapeCsv(`Location: ${userDefinedLocation}`);
+      if (userDefinedName)
+        deviceHeaderRow[5] = escapeCsv(`Device Name: ${userDefinedName}`);
+      if (userDefinedLocation)
+        deviceHeaderRow[10] = escapeCsv(`Location: ${userDefinedLocation}`);
     } else if (totalCols >= 3) {
       const mid = Math.floor((totalCols - 1) / 2);
-      if (userDefinedName) deviceHeaderRow[mid] = escapeCsv(`Device Name: ${userDefinedName}`);
-      if (userDefinedLocation) deviceHeaderRow[totalCols - 1] = escapeCsv(`Location: ${userDefinedLocation}`);
+      if (userDefinedName)
+        deviceHeaderRow[mid] = escapeCsv(`Device Name: ${userDefinedName}`);
+      if (userDefinedLocation)
+        deviceHeaderRow[totalCols - 1] = escapeCsv(
+          `Location: ${userDefinedLocation}`,
+        );
     } else if (totalCols === 2) {
       const parts: string[] = [];
       if (userDefinedName) parts.push(`Device Name: ${userDefinedName}`);
@@ -344,7 +350,10 @@ export class ReportsService {
     );
 
     // 3) Process rows: Date/Time formatting (IST) & Rounding
-    const rows = this.telemetryQuery.formatTelemetryRows(rawRows, orderedParams);
+    const rows = this.telemetryQuery.formatTelemetryRows(
+      rawRows,
+      orderedParams,
+    );
 
     // 4) Group rows by deviceId
     const rowsByDevice: Record<string, any[]> = {};
@@ -415,6 +424,4 @@ export class ReportsService {
 
     return device;
   }
-
 }
-

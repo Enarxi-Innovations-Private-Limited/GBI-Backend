@@ -75,35 +75,67 @@ describe('Stage 2 Verification (Alerts & SSE)', () => {
 
     beforeEach(async () => {
       jest.clearAllMocks();
-      
+
       // Find existing mock user and device to avoid wiping the whole database
-      const existingUser = await prisma.user.findUnique({ where: { email: 'alert-test@example.com' } });
-      const existingDevice = await prisma.device.findUnique({ where: { deviceId: 'TEST-DEV-001' } });
+      const existingUser = await prisma.user.findUnique({
+        where: { email: 'alert-test@example.com' },
+      });
+      const existingDevice = await prisma.device.findUnique({
+        where: { deviceId: 'TEST-DEV-001' },
+      });
 
       if (existingUser) {
-        await prisma.eventLog.deleteMany({ where: { userId: existingUser.id } }).catch(() => {});
-        await prisma.notification.deleteMany({ where: { userId: existingUser.id } }).catch(() => {});
-        await prisma.alertState.deleteMany({ where: { userId: existingUser.id } }).catch(() => {});
-        await prisma.refreshToken.deleteMany({ where: { userId: existingUser.id } }).catch(() => {});
-        await prisma.deviceAssignment.deleteMany({ where: { userId: existingUser.id } }).catch(() => {});
-        
-        const groups = await prisma.deviceGroup.findMany({ where: { userId: existingUser.id } });
+        await prisma.eventLog
+          .deleteMany({ where: { userId: existingUser.id } })
+          .catch(() => {});
+        await prisma.notification
+          .deleteMany({ where: { userId: existingUser.id } })
+          .catch(() => {});
+        await prisma.alertState
+          .deleteMany({ where: { userId: existingUser.id } })
+          .catch(() => {});
+        await prisma.refreshToken
+          .deleteMany({ where: { userId: existingUser.id } })
+          .catch(() => {});
+        await prisma.deviceAssignment
+          .deleteMany({ where: { userId: existingUser.id } })
+          .catch(() => {});
+
+        const groups = await prisma.deviceGroup.findMany({
+          where: { userId: existingUser.id },
+        });
         for (const g of groups) {
-          await prisma.groupThreshold.deleteMany({ where: { groupId: g.id } }).catch(() => {});
+          await prisma.groupThreshold
+            .deleteMany({ where: { groupId: g.id } })
+            .catch(() => {});
         }
-        await prisma.deviceGroup.deleteMany({ where: { userId: existingUser.id } }).catch(() => {});
+        await prisma.deviceGroup
+          .deleteMany({ where: { userId: existingUser.id } })
+          .catch(() => {});
       }
 
       if (existingDevice) {
-        await prisma.eventLog.deleteMany({ where: { deviceId: existingDevice.id } }).catch(() => {});
-        await prisma.deviceTelemetry.deleteMany({ where: { deviceId: existingDevice.id } }).catch(() => {});
-        await prisma.deviceThreshold.deleteMany({ where: { deviceId: existingDevice.id } }).catch(() => {});
-        await prisma.deviceAssignment.deleteMany({ where: { deviceId: existingDevice.id } }).catch(() => {});
-        await prisma.device.delete({ where: { id: existingDevice.id } }).catch(() => {});
+        await prisma.eventLog
+          .deleteMany({ where: { deviceId: existingDevice.id } })
+          .catch(() => {});
+        await prisma.deviceTelemetry
+          .deleteMany({ where: { deviceId: existingDevice.id } })
+          .catch(() => {});
+        await prisma.deviceThreshold
+          .deleteMany({ where: { deviceId: existingDevice.id } })
+          .catch(() => {});
+        await prisma.deviceAssignment
+          .deleteMany({ where: { deviceId: existingDevice.id } })
+          .catch(() => {});
+        await prisma.device
+          .delete({ where: { id: existingDevice.id } })
+          .catch(() => {});
       }
 
       if (existingUser) {
-        await prisma.user.delete({ where: { id: existingUser.id } }).catch(() => {});
+        await prisma.user
+          .delete({ where: { id: existingUser.id } })
+          .catch(() => {});
       }
 
       // Setup Data

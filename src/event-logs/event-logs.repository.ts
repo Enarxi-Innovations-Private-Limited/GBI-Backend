@@ -81,7 +81,9 @@ export class EventLogsRepository {
       this.prisma.eventLog.count({ where }),
     ]);
 
-    const containsHighlighted = items.some((item) => item.id.toString() === highlightId);
+    const containsHighlighted = items.some(
+      (item) => item.id.toString() === highlightId,
+    );
     const finalItems = [...items];
     if (highlightId && highlightedEvent && !containsHighlighted) {
       finalItems.push(highlightedEvent);
@@ -200,7 +202,9 @@ export class EventLogsRepository {
       this.prisma.eventLog.count({ where }),
     ]);
 
-    const containsHighlighted = items.some((item) => item.id.toString() === highlightId);
+    const containsHighlighted = items.some(
+      (item) => item.id.toString() === highlightId,
+    );
     const finalItems = [...items];
     if (highlightId && highlightedEvent && !containsHighlighted) {
       finalItems.push(highlightedEvent);
@@ -215,8 +219,10 @@ export class EventLogsRepository {
 
     // For ALERT_TRIGGERED items, find their closest Notification to get thresholdValue
     // Match by userId + deviceId + createdAt proximity (within 5 seconds)
-    const triggeredItems = finalItems.filter((i) => i.eventType === 'ALERT_TRIGGERED');
-    let notificationMap = new Map<string, number | null>();
+    const triggeredItems = finalItems.filter(
+      (i) => i.eventType === 'ALERT_TRIGGERED',
+    );
+    const notificationMap = new Map<string, number | null>();
 
     if (triggeredItems.length > 0) {
       const minDate = new Date(
@@ -250,7 +256,8 @@ export class EventLogsRepository {
           .filter(
             (n) =>
               n.deviceId === item.device.id &&
-              Math.abs(n.createdAt.getTime() - item.createdAt.getTime()) <= 5000,
+              Math.abs(n.createdAt.getTime() - item.createdAt.getTime()) <=
+                5000,
           )
           .sort(
             (a, b) =>
@@ -290,7 +297,7 @@ export class EventLogsRepository {
       const unit = UNIT_MAP[param] ?? '';
       const thresholdValue =
         item.eventType === 'ALERT_TRIGGERED'
-          ? notificationMap.get(`${item.id}`) ?? null
+          ? (notificationMap.get(`${item.id}`) ?? null)
           : null;
 
       return {

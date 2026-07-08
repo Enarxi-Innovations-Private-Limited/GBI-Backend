@@ -24,6 +24,6 @@
     "noFallthroughCasesInSwitch": false,
     "jsx": "react"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts", "prisma/**/*", "scratch/**/*", "scripts/**/*"]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist", "prisma/**/*", "scratch/**/*", "scripts/**/*"]
 }

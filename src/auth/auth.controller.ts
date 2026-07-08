@@ -62,7 +62,7 @@ export class AuthController {
       sameSite: 'lax',
       path: '/',
       domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
-      ...(result.isPersistent && { maxAge: 15*60 }),
+      ...(result.isPersistent && { maxAge: 15 * 60 }),
     });
 
     res.setCookie('refreshToken', result.refreshToken, {
@@ -101,7 +101,7 @@ export class AuthController {
       const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000')
         .split(',')
         .map((url) => url.trim());
-      
+
       const isProduction = process.env.NODE_ENV === 'production';
       const frontendUrl = isProduction
         ? frontendUrls.find((url) => url.includes('gbiair.in')) ||
@@ -136,7 +136,7 @@ export class AuthController {
       const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000')
         .split(',')
         .map((url) => url.trim());
-      
+
       const isProduction = process.env.NODE_ENV === 'production';
       const frontendUrl = isProduction
         ? frontendUrls.find((url) => url.includes('gbiair.in')) ||

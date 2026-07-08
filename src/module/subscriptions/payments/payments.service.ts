@@ -68,7 +68,9 @@ export class PaymentsService {
     };
 
     try {
-      this.logger.log(`Creating Razorpay order: amount=${amountInPaise}, currency=${options.currency}, receipt=${receipt}`);
+      this.logger.log(
+        `Creating Razorpay order: amount=${amountInPaise}, currency=${options.currency}, receipt=${receipt}`,
+      );
       const order = await this.razorpay.orders.create(options);
       this.logger.log(`Razorpay order created: ${order.id}`);
       return {
@@ -80,9 +82,15 @@ export class PaymentsService {
       };
     } catch (error) {
       // Expose the actual Razorpay API error for debugging
-      const razorpayMsg = error?.error?.description || error?.message || JSON.stringify(error);
-      this.logger.error(`Razorpay order creation failed: ${razorpayMsg}`, error);
-      throw new BadRequestException(`Failed to create payment order: ${razorpayMsg}`);
+      const razorpayMsg =
+        error?.error?.description || error?.message || JSON.stringify(error);
+      this.logger.error(
+        `Razorpay order creation failed: ${razorpayMsg}`,
+        error,
+      );
+      throw new BadRequestException(
+        `Failed to create payment order: ${razorpayMsg}`,
+      );
     }
   }
 
@@ -100,8 +108,12 @@ export class PaymentsService {
       .digest('hex');
 
     if (expectedSignature !== razorpaySignature) {
-      this.logger.error(`Signature mismatch! Expected: ${expectedSignature}, Received: ${razorpaySignature}`);
-      this.logger.error(`Used secret: ${secret.substring(0, 4)}...${secret.substring(secret.length - 4)}`);
+      this.logger.error(
+        `Signature mismatch! Expected: ${expectedSignature}, Received: ${razorpaySignature}`,
+      );
+      this.logger.error(
+        `Used secret: ${secret.substring(0, 4)}...${secret.substring(secret.length - 4)}`,
+      );
       throw new BadRequestException('Invalid payment signature');
     }
 

@@ -74,10 +74,7 @@ export class AdminController {
   }
 
   @Post('refresh-token')
-  async refreshTokens(
-    @Req() req: any,
-    @Res({ passthrough: true }) res: any,
-  ) {
+  async refreshTokens(@Req() req: any, @Res({ passthrough: true }) res: any) {
     const refreshToken = req.cookies?.adminRefreshToken;
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token provided');
@@ -143,8 +140,6 @@ export class AdminController {
   async resetPassword(@Body() dto: AdminResetPasswordDto) {
     return this.adminService.resetPassword(dto);
   }
-
-
 
   @UseGuards(AdminGuard)
   @Get('users/:userId/impersonate')

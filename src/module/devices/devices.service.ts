@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Inject, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  ConflictException,
+} from '@nestjs/common';
 import { Redis } from 'ioredis';
 
 import { DevicesRepository } from './devices.repository';
@@ -140,7 +145,11 @@ export class DevicesService {
     return { message: 'Device threshold removed' };
   }
 
-  async getLatestTelemetry(userId: string, deviceStringId: string, lastTimestamp?: string) {
+  async getLatestTelemetry(
+    userId: string,
+    deviceStringId: string,
+    lastTimestamp?: string,
+  ) {
     const device = await this.repo.getDeviceByStringId(deviceStringId);
     if (!device) throw new NotFoundException('Device not found');
 
@@ -152,8 +161,11 @@ export class DevicesService {
       throw new ForbiddenException('You do not have access to this device');
     }
 
-    const latestDbRecord = await this.repo.getLatestTelemetrySince(deviceStringId, lastTimestamp);
-    
+    const latestDbRecord = await this.repo.getLatestTelemetrySince(
+      deviceStringId,
+      lastTimestamp,
+    );
+
     if (!latestDbRecord) {
       return null;
     }
@@ -166,11 +178,18 @@ export class DevicesService {
         pm10: latestDbRecord.pm10 !== null ? Number(latestDbRecord.pm10) : null,
         tvoc: latestDbRecord.tvoc !== null ? Number(latestDbRecord.tvoc) : null,
         co2: latestDbRecord.co2 !== null ? Number(latestDbRecord.co2) : null,
-        temperature: latestDbRecord.temperature !== null ? Number(latestDbRecord.temperature) : null,
-        humidity: latestDbRecord.humidity !== null ? Number(latestDbRecord.humidity) : null,
-        noise: latestDbRecord.noise !== null ? Number(latestDbRecord.noise) : null,
+        temperature:
+          latestDbRecord.temperature !== null
+            ? Number(latestDbRecord.temperature)
+            : null,
+        humidity:
+          latestDbRecord.humidity !== null
+            ? Number(latestDbRecord.humidity)
+            : null,
+        noise:
+          latestDbRecord.noise !== null ? Number(latestDbRecord.noise) : null,
         aqi: latestDbRecord.aqi !== null ? Number(latestDbRecord.aqi) : null,
-      }
+      },
     };
   }
 
@@ -258,7 +277,10 @@ export class DevicesService {
     );
 
     // Group by deviceId
-    const grouped = new Map<string, { timestamp: string; value: number | null }[]>();
+    const grouped = new Map<
+      string,
+      { timestamp: string; value: number | null }[]
+    >();
     for (const id of deviceIds) {
       grouped.set(id, []);
     }
@@ -269,11 +291,12 @@ export class DevicesService {
         const rawValue = row[parameter];
         bucket.push({
           timestamp: ts.toISOString(),
-          value: rawValue !== null && rawValue !== undefined
-            ? parameter === 'temperature'
-              ? Math.round(Number(rawValue) * 10) / 10
-              : Math.round(Number(rawValue))
-            : null,
+          value:
+            rawValue !== null && rawValue !== undefined
+              ? parameter === 'temperature'
+                ? Math.round(Number(rawValue) * 10) / 10
+                : Math.round(Number(rawValue))
+              : null,
         });
       }
     }

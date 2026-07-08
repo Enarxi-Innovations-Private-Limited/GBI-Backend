@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
@@ -30,7 +34,9 @@ export class PlansService {
 
     if (existing) {
       if (existing.isActive) {
-        throw new ConflictException('A plan with this name or ID already exists and is active.');
+        throw new ConflictException(
+          'A plan with this name or ID already exists and is active.',
+        );
       }
       // If it exists but was soft-deleted, we simply update and reactivate it.
       return this.prisma.subscriptionPlan.update({
@@ -55,7 +61,9 @@ export class PlansService {
       });
     } catch (error) {
       if (error.code === 'P2002') {
-        throw new ConflictException('A plan with this name or ID already exists and is active.');
+        throw new ConflictException(
+          'A plan with this name or ID already exists and is active.',
+        );
       }
       throw error;
     }

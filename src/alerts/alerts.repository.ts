@@ -81,7 +81,7 @@ export class AlertsRepository {
       data: {
         deviceId: data.deviceId,
         userId: data.userId,
-        // Default to 'Alert_Triggered' if not provided (legacy behavior), 
+        // Default to 'Alert_Triggered' if not provided (legacy behavior),
         // or use the specific type passed called 'ALERT_TRIGGERED' / 'ALERT_RESOLVED'
         eventType: data.eventType || 'Alert_Triggered',
         parameter: data.parameter,

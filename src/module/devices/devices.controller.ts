@@ -64,7 +64,10 @@ export class DevicesController {
       );
     }
 
-    const deviceIds = rawDeviceIds.split(',').map((id) => id.trim()).filter(Boolean);
+    const deviceIds = rawDeviceIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
     if (!deviceIds.length) {
       throw new BadRequestException('deviceIds must contain at least one ID');
     }
@@ -76,7 +79,9 @@ export class DevicesController {
       throw new BadRequestException('Invalid start or end timestamp');
     }
 
-    const interval = intervalMinutes ? parseInt(intervalMinutes, 10) : undefined;
+    const interval = intervalMinutes
+      ? parseInt(intervalMinutes, 10)
+      : undefined;
 
     return this.devicesService.getChartData(
       user.id,

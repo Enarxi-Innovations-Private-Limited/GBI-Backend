@@ -1,0 +1,39 @@
+version: '3.8'
+
+networks:
+  gbi-network:
+    driver: bridge
+
+volumes:
+  gbi_postgres_data:
+  gbi_redis_data:
+
+services:
+  # --- PostgreSQL Database ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: gbi-postgres-local
+    restart: always
+    environment:
+      POSTGRES_DB: gbi_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_secure_password
+    volumes:
+      - gbi_postgres_data:/var/lib/postgresql/data
+    networks:
+      - gbi-network
+    ports:
+      - "127.0.0.1:5435:5432"
+
+  # --- Redis Cache ---
+  redis:
+    image: redis:7-alpine
+    container_name: gbi-redis-local
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - gbi_redis_data:/data
+    networks:
+      - gbi-network
+    ports:
+      - "127.0.0.1:6380:6379"

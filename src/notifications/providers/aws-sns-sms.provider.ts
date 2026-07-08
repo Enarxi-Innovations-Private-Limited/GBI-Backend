@@ -5,7 +5,7 @@ import { ISmsProvider } from '../interfaces';
 /**
  * AWS SNS SMS Provider
  * Ready to use when AWS credentials are configured
- * 
+ *
  * To enable:
  * 1. Install AWS SDK: pnpm install @aws-sdk/client-sns
  * 2. Set environment variables: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY

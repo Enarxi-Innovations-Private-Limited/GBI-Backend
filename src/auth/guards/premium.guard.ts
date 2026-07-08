@@ -52,7 +52,7 @@ export class PremiumGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    // Allow Admins impersonating users to bypass premium restrictions 
+    // Allow Admins impersonating users to bypass premium restrictions
     // so they can debug/generate reports regardless of the user's subscription tier
     if (user.impersonatedBy) {
       return true;

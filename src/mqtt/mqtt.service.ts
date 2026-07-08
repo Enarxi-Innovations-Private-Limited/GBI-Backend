@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import * as os from 'os';
 import * as url from 'url';
 import * as mqtt from 'mqtt';
@@ -149,7 +154,9 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         if (incomingTopic === topic) {
           const message = payload.toString();
           if (message === expectedResponse) {
-            this.logger.log(`📥 Received expected response "${message}" on ${topic}`);
+            this.logger.log(
+              `📥 Received expected response "${message}" on ${topic}`,
+            );
             cleanup(true);
           }
         }
@@ -167,13 +174,18 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
 
       // 3. Set timeout
       timeout = setTimeout(() => {
-        this.logger.warn(`⏳ Timeout waiting for "${expectedResponse}" on ${topic}`);
+        this.logger.warn(
+          `⏳ Timeout waiting for "${expectedResponse}" on ${topic}`,
+        );
         cleanup(false);
       }, timeoutMs);
 
       // 4. Publish the command
       this.publish(topic, command).catch((err) => {
-        this.logger.error(`❌ Failed to send command "${command}" to ${topic}`, err.stack);
+        this.logger.error(
+          `❌ Failed to send command "${command}" to ${topic}`,
+          err.stack,
+        );
         cleanup(false);
       });
     });

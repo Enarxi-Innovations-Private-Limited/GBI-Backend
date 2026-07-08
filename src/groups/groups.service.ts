@@ -67,7 +67,7 @@ export class GroupsService {
         'Device is already assigned to another group',
       );
     }
-    
+
     // 2. Check Mutex: Ensure no individual threshold exists
     const individualThreshold = await this.prisma.deviceThreshold.findUnique({
       where: { deviceId: device.id },

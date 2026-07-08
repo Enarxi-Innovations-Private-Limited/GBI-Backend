@@ -92,11 +92,20 @@ describe('Stage 1 Verification (e2e)', () => {
 
   afterAll(async () => {
     // Cleanup
-    if (deviceId) await prisma.deviceAssignment.deleteMany({ where: { deviceId } }).catch(() => {});
-    if (groupId) await prisma.deviceGroup.delete({ where: { id: groupId } }).catch(() => {});
-    if (deviceId) await prisma.device.delete({ where: { id: deviceId } }).catch(() => {});
-    if (ownerId) await prisma.user.delete({ where: { id: ownerId } }).catch(() => {});
-    if (otherUserId) await prisma.user.delete({ where: { id: otherUserId } }).catch(() => {});
+    if (deviceId)
+      await prisma.deviceAssignment
+        .deleteMany({ where: { deviceId } })
+        .catch(() => {});
+    if (groupId)
+      await prisma.deviceGroup
+        .delete({ where: { id: groupId } })
+        .catch(() => {});
+    if (deviceId)
+      await prisma.device.delete({ where: { id: deviceId } }).catch(() => {});
+    if (ownerId)
+      await prisma.user.delete({ where: { id: ownerId } }).catch(() => {});
+    if (otherUserId)
+      await prisma.user.delete({ where: { id: otherUserId } }).catch(() => {});
     if (app) await app.close();
   });
 
@@ -110,15 +119,15 @@ describe('Stage 1 Verification (e2e)', () => {
 
     const device = await prisma.device.findUnique({ where: { id: deviceId } });
     if (!device) throw new Error('Device not found');
-    
+
     await request(app.getHttpServer())
       .post(`/groups/${attackerGroup.id}/devices`)
       .set('Authorization', `Bearer ${otherUserToken}`)
       .send({ deviceId: device.deviceId })
       .expect(403); // ForbiddenException
 
-     // Cleanup
-     await prisma.deviceGroup.delete({ where: { id: attackerGroup.id } });
+    // Cleanup
+    await prisma.deviceGroup.delete({ where: { id: attackerGroup.id } });
   });
 
   it('2. Mutex Test A: Cannot add device with Individual Threshold to a Group', async () => {
@@ -131,7 +140,7 @@ describe('Stage 1 Verification (e2e)', () => {
     });
 
     const device = await prisma.device.findUnique({ where: { id: deviceId } });
-     if (!device) throw new Error('Device not found');
+    if (!device) throw new Error('Device not found');
 
     await request(app.getHttpServer())
       .post(`/groups/${groupId}/devices`)
@@ -146,7 +155,7 @@ describe('Stage 1 Verification (e2e)', () => {
   it('3. Mutex Test B: Cannot set Individual Threshold if device is in a Group', async () => {
     // 1. Add device to Group (Success case first)
     const device = await prisma.device.findUnique({ where: { id: deviceId } });
-     if (!device) throw new Error('Device not found');
+    if (!device) throw new Error('Device not found');
 
     await request(app.getHttpServer())
       .post(`/groups/${groupId}/devices`)
@@ -155,22 +164,22 @@ describe('Stage 1 Verification (e2e)', () => {
       .expect(201); // Created/OK (Assuming POST returns 201)
 
     // 2. Attempt to set Individual Threshold
-    // Assuming endpoint POST /devices/:id/threshold 
+    // Assuming endpoint POST /devices/:id/threshold
     // Wait, typical NestJS POST returns 201.
-    
+
     await request(app.getHttpServer())
       .post(`/devices/${device.deviceId}/threshold`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ thresholds: { pm25: 100 } })
       .expect(409); // ConflictException
 
-     // Cleanup: Remove from group (by updating device.groupId = null ? No, device is linked via Group.devices)
-     // To remove device from group, we probably need an endpoint or direct DB manipulation.
-     // Since GroupsService.addDeviceToGroup calls connect, we can disconnect via DB.
-     await prisma.device.update({
-         where: { id: deviceId },
-         data: { groupId: null }
-     });
+    // Cleanup: Remove from group (by updating device.groupId = null ? No, device is linked via Group.devices)
+    // To remove device from group, we probably need an endpoint or direct DB manipulation.
+    // Since GroupsService.addDeviceToGroup calls connect, we can disconnect via DB.
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { groupId: null },
+    });
   });
 
   it('4. Cleanup Verification: AlertThreshold model is gone', async () => {

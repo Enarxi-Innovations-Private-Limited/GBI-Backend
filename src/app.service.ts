@@ -33,7 +33,10 @@ export class AppService {
   }
 
   async getHealthReady(): Promise<any> {
-    const dependencies: Record<string, { status: string; responseTimeMs: number; error: string | null }> = {
+    const dependencies: Record<
+      string,
+      { status: string; responseTimeMs: number; error: string | null }
+    > = {
       database: { status: 'unknown', responseTimeMs: 0, error: null },
       redis: { status: 'unknown', responseTimeMs: 0, error: null },
       mqtt: { status: 'unknown', responseTimeMs: 0, error: null },
@@ -73,10 +76,10 @@ export class AppService {
     try {
       const client = this.mqttService.getClient();
       if (client && client.connected) {
-         dependencies.mqtt.status = 'up';
+        dependencies.mqtt.status = 'up';
       } else {
-         dependencies.mqtt.status = 'down';
-         dependencies.mqtt.error = 'Client not connected';
+        dependencies.mqtt.status = 'down';
+        dependencies.mqtt.error = 'Client not connected';
       }
       dependencies.mqtt.responseTimeMs = Date.now() - mqttStart;
       if (dependencies.mqtt.status === 'up') upCount++;
@@ -90,8 +93,8 @@ export class AppService {
       upCount === totalServices
         ? 'ready'
         : upCount === 0
-        ? 'not_ready'
-        : 'degraded';
+          ? 'not_ready'
+          : 'degraded';
 
     return {
       status: overallStatus,

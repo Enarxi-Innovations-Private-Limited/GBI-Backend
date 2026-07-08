@@ -30,14 +30,18 @@ export class PremiumService {
     if (!user) throw new NotFoundException('User not found');
 
     if (user.isPremium) {
-      throw new BadRequestException('User already has an active premium subscription');
+      throw new BadRequestException(
+        'User already has an active premium subscription',
+      );
     }
 
     const activationDate = new Date(dto.activationDate);
     const expiryDate = new Date(dto.expiryDate);
 
     if (expiryDate <= activationDate) {
-      throw new BadRequestException('Expiry date must be after activation date');
+      throw new BadRequestException(
+        'Expiry date must be after activation date',
+      );
     }
 
     if (expiryDate <= new Date()) {
@@ -64,7 +68,9 @@ export class PremiumService {
     if (!user) throw new NotFoundException('User not found');
 
     if (!user.isPremium) {
-      throw new BadRequestException('User does not have an active premium subscription');
+      throw new BadRequestException(
+        'User does not have an active premium subscription',
+      );
     }
 
     const newExpiryDate = new Date(dto.newExpiryDate);
@@ -100,7 +106,9 @@ export class PremiumService {
     if (!user) throw new NotFoundException('User not found');
 
     if (!user.isPremium) {
-      throw new BadRequestException('User does not have an active premium subscription');
+      throw new BadRequestException(
+        'User does not have an active premium subscription',
+      );
     }
 
     await this.repo.revokePremium(dto.userId, adminId, dto.reason);

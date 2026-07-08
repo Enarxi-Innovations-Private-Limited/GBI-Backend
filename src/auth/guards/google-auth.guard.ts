@@ -22,11 +22,11 @@ export class GoogleAuthGuard extends AuthGuard('google') {
 
     // Polyfill res.redirect
     if (!response.redirect) {
-        // Fastify already has redirect, but we might need to mask it if Passport checks for property existence distinct from prototype?
-        // Actually Fastify has reply.redirect. Passport calls it.
-        // But to be safe, we ensure strict signature match if needed.
-        // Usually, Fastify's redirect is compatible. The main issue is setHeader.
-    } 
+      // Fastify already has redirect, but we might need to mask it if Passport checks for property existence distinct from prototype?
+      // Actually Fastify has reply.redirect. Passport calls it.
+      // But to be safe, we ensure strict signature match if needed.
+      // Usually, Fastify's redirect is compatible. The main issue is setHeader.
+    }
     // Double check redirect: Passport does res.setHeader('Location', url); res.statusCode = 302; res.end(); OR res.redirect(url)
     // The error was setHeader, so fixing setHeader is P1.
 

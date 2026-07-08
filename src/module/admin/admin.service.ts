@@ -54,7 +54,7 @@ export class AdminService {
     };
 
     const secret = this.config.get('ADMIN_JWT_SECRET');
-    
+
     const accessToken = this.jwt.sign(payload, {
       secret,
       expiresIn: '15m',
@@ -307,7 +307,7 @@ export class AdminService {
 
     // Generate 6-digit OTP
     const otp = randomInt(100000, 999999).toString();
-    
+
     // Store in Redis (10 minutes expiry)
     await this.redis.set(`admin_password_otp:${admin.email}`, otp, 'EX', 600);
 

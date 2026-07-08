@@ -27,7 +27,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
           //    9  → headroom buffer
           // connection_limit in the URL is used by standalone scripts;
           // this datasources override applies to the NestJS app only.
-          url: process.env.DATABASE_URL + '&connection_limit=10&pool_timeout=15',
+          url:
+            process.env.DATABASE_URL + '&connection_limit=10&pool_timeout=15',
         },
       },
     });

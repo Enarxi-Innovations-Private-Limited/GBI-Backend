@@ -12,7 +12,7 @@ export class DevicesRepository {
 
   // Helper to find a device by display ID (e.g. "GBI-001") → returns full Device record
   async getDeviceByStringId(deviceId: string) {
-  return this.prisma.device.findUnique({ where: { deviceId } });
+    return this.prisma.device.findUnique({ where: { deviceId } });
   }
 
   /**
@@ -244,7 +244,7 @@ export class DevicesRepository {
         orderBy: { timestamp: 'asc' },
       });
       return rows.map((row) => ({
-        timestamp: (row.timestamp as Date).toISOString(),
+        timestamp: row.timestamp.toISOString(),
         pm25: row.pm25 !== null ? Number(row.pm25) : null,
         pm10: row.pm10 !== null ? Number(row.pm10) : null,
         tvoc: row.tvoc !== null ? Number(row.tvoc) : null,
@@ -285,7 +285,10 @@ export class DevicesRepository {
     });
   }
 
-  async getLatestTelemetrySince(deviceStringId: string, lastTimestamp?: string) {
+  async getLatestTelemetrySince(
+    deviceStringId: string,
+    lastTimestamp?: string,
+  ) {
     const device = await this.prisma.device.findUnique({
       where: { deviceId: deviceStringId },
     });

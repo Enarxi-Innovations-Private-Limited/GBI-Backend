@@ -530,8 +530,8 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
       // 4) Set latest state in Redis (TTL = 2 * Offline Timeout)
       const offlineTimeoutSeconds =
         (Number(process.env.DEVICE_TELEMETRY_INTERVAL_SECONDS) ||
-          Number(process.env.DEVICE_CHECK_INTERVAL_SECONDS) || 60) *
-        (Number(process.env.DEVICE_OFFLINE_THRESHOLD_MISSES) || 5);
+          Number(process.env.DEVICE_CHECK_INTERVAL_SECONDS) ||
+          60) * (Number(process.env.DEVICE_OFFLINE_THRESHOLD_MISSES) || 5);
 
       const redisKey = `device:${device.deviceId}:latest`;
       const redisState = {

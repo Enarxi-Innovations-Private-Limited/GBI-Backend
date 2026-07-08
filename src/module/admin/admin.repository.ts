@@ -110,26 +110,26 @@ export class AdminRepository {
             where: { unassignedAt: null },
             select: {
               user: {
-                select: { name: true }
-              }
-            }
-          }
+                select: { name: true },
+              },
+            },
+          },
         },
       }),
       this.prisma.device.count({ where }),
     ]);
 
     // Fetch meta (city, pincode) from UserDevice using deviceIds
-    const deviceIds = data.map(d => d.deviceId);
+    const deviceIds = data.map((d) => d.deviceId);
     const userDevices = await this.prisma.userDevice.findMany({
-      where: { deviceId: { in: deviceIds } }
+      where: { deviceId: { in: deviceIds } },
     });
 
-    const dataWithMeta = data.map(device => {
-      const meta = userDevices.find(ud => ud.deviceId === device.deviceId);
+    const dataWithMeta = data.map((device) => {
+      const meta = userDevices.find((ud) => ud.deviceId === device.deviceId);
       return {
         ...device,
-        meta: meta ? { city: meta.city, pincode: meta.pincode } : null
+        meta: meta ? { city: meta.city, pincode: meta.pincode } : null,
       };
     });
 

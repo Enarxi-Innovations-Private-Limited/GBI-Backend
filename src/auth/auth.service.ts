@@ -211,7 +211,11 @@ export class AuthService {
     await this.redis.del(`email_otp:${email}`);
 
     // Generate tokens
-    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, isPersistent);
+    const tokens = await this.generateTokens(
+      updatedUser.id,
+      updatedUser.email,
+      isPersistent,
+    );
 
     // Omit null values for incomplete profiles
     const returnUser: any = {
@@ -502,11 +506,12 @@ export class AuthService {
     completeProfileDto: CompleteProfileDto,
     userEmail: string,
   ): Promise<AuthResponse> {
-    let { name, organization, city, phone, otp, password, rememberMe } = completeProfileDto;
+    let { name, organization, city, phone, otp, password, rememberMe } =
+      completeProfileDto;
     const isPersistent = rememberMe === true;
 
     // Normalize
-    let email = userEmail.trim().toLowerCase();
+    const email = userEmail.trim().toLowerCase();
     if (phone) phone = phone.trim().replace(/[^\d+]/g, '');
 
     const requirePhoneVerif =
@@ -571,7 +576,11 @@ export class AuthService {
     }
 
     // 5. Generate New Tokens (refresh claims)
-    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, isPersistent);
+    const tokens = await this.generateTokens(
+      updatedUser.id,
+      updatedUser.email,
+      isPersistent,
+    );
 
     // 6. Map response (Consistent with other auth methods)
     const returnUser: any = {
@@ -647,7 +656,9 @@ export class AuthService {
 
       // Enqueue Welcome Email for new Google users
       await this.mailService.enqueueWelcomeEmail(email, displayName);
-      this.logger?.log(`[AUTH] Enqueued Welcome email for new Google user ${email}`);
+      this.logger?.log(
+        `[AUTH] Enqueued Welcome email for new Google user ${email}`,
+      );
     }
 
     // Generate tokens
@@ -803,7 +814,11 @@ export class AuthService {
     userId: string,
     email: string,
     isPersistent: boolean = true,
-  ): Promise<{ accessToken: string; refreshToken: string; isPersistent: boolean }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    isPersistent: boolean;
+  }> {
     const payload: JwtPayload = { sub: userId, email };
 
     // Generate access token (short-lived)

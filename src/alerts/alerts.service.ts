@@ -68,7 +68,7 @@ export class AlertsService {
 
     const userIds = assignments.map((a) => a.userId);
     const params = Object.keys(thresholds);
-    
+
     // Fetch current alert states for continuity (Anti-Flicker)
     const states = await this.repo.getAlertStates(deviceId, userIds, params);
     const stateMap = new Map(
@@ -79,7 +79,7 @@ export class AlertsService {
       for (const param of params) {
         const threshold = thresholds[param];
         const value = telemetry[param];
-        
+
         if (value == null) continue;
 
         const key = `${assignment.userId}:${param}`;
@@ -92,22 +92,38 @@ export class AlertsService {
 
         // LOGIC: NORMAL -> ALERTING
         if (currentState === 'NORMAL' && value > threshold) {
-          this.logger.warn(`🚨 Alert: ${param} ${value} > ${threshold} (User: ${assignment.userId})`);
-          
-          await this.triggerAlert(deviceId, assignment.userId, param, value, threshold);
+          this.logger.warn(
+            `🚨 Alert: ${param} ${value} > ${threshold} (User: ${assignment.userId})`,
+          );
+
+          await this.triggerAlert(
+            deviceId,
+            assignment.userId,
+            param,
+            value,
+            threshold,
+          );
         }
 
         // LOGIC: ALERTING -> NORMAL (with Hysteresis)
         else if (currentState === 'ALERTING' && value < resolveLimit) {
-          this.logger.log(`✅ Resolve: ${param} ${value} < ${resolveLimit} (User: ${assignment.userId})`);
-          
+          this.logger.log(
+            `✅ Resolve: ${param} ${value} < ${resolveLimit} (User: ${assignment.userId})`,
+          );
+
           await this.resolveAlert(deviceId, assignment.userId, param, value);
         }
       }
     }
   }
 
-  private async triggerAlert(deviceId: string, userId: string, param: string, value: number, limit: number) {
+  private async triggerAlert(
+    deviceId: string,
+    userId: string,
+    param: string,
+    value: number,
+    limit: number,
+  ) {
     const message = `${param.toUpperCase()} exceeded limit (${value} > ${limit})`;
 
     // 1. DB: Create Event Log & Notification
@@ -149,7 +165,12 @@ export class AlertsService {
     });
   }
 
-  private async resolveAlert(deviceId: string, userId: string, param: string, value: number) {
+  private async resolveAlert(
+    deviceId: string,
+    userId: string,
+    param: string,
+    value: number,
+  ) {
     const message = `${param.toUpperCase()} returned to normal (${value})`;
 
     // 1. DB: Create Event Log & Notification

@@ -19,10 +19,16 @@ export class InAppNotificationsRepository {
 
     if (items.length === 0) return [];
 
-    const minDate = new Date(Math.min(...items.map((n) => n.createdAt.getTime())) - 5000);
-    const maxDate = new Date(Math.max(...items.map((n) => n.createdAt.getTime())) + 5000);
+    const minDate = new Date(
+      Math.min(...items.map((n) => n.createdAt.getTime())) - 5000,
+    );
+    const maxDate = new Date(
+      Math.max(...items.map((n) => n.createdAt.getTime())) + 5000,
+    );
 
-    const notificationDeviceIds = [...new Set(items.map((n) => n.deviceId).filter(Boolean))] as string[];
+    const notificationDeviceIds = [
+      ...new Set(items.map((n) => n.deviceId).filter(Boolean)),
+    ] as string[];
 
     const devices = await this.prisma.device.findMany({
       where: { id: { in: notificationDeviceIds } },
@@ -84,7 +90,11 @@ export class InAppNotificationsRepository {
 
       return {
         ...n,
-        deviceName: n.deviceId ? uuidToNameMap.get(n.deviceId) || deviceIdToCodeMap.get(n.deviceId) || n.deviceId : null,
+        deviceName: n.deviceId
+          ? uuidToNameMap.get(n.deviceId) ||
+            deviceIdToCodeMap.get(n.deviceId) ||
+            n.deviceId
+          : null,
         eventLogId: matchedEvent ? matchedEvent.id.toString() : null,
       };
     });

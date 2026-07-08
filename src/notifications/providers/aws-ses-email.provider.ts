@@ -5,7 +5,7 @@ import { IEmailProvider } from '../interfaces';
 /**
  * AWS SES Email Provider
  * Ready to use when AWS credentials are configured
- * 
+ *
  * To enable:
  * 1. Install AWS SDK: pnpm install @aws-sdk/client-ses
  * 2. Set environment variables: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SES_FROM_EMAIL
@@ -80,7 +80,9 @@ export class AwsSesEmailProvider implements IEmailProvider {
         error: 'AWS SES not configured',
       };
     } catch (error) {
-      this.logger.error(`❌ Failed to send email via AWS SES: ${error.message}`);
+      this.logger.error(
+        `❌ Failed to send email via AWS SES: ${error.message}`,
+      );
       return {
         success: false,
         error: error.message,
