@@ -279,7 +279,7 @@ export class DevicesService {
     // Group by deviceId
     const grouped = new Map<
       string,
-      { timestamp: string; value: number | null }[]
+      { timestamp: string; value: number | null; peakValue?: number | null }[]
     >();
     for (const id of deviceIds) {
       grouped.set(id, []);
@@ -289,6 +289,7 @@ export class DevicesService {
       const bucket = grouped.get(row.deviceId);
       if (bucket) {
         const rawValue = row[parameter];
+        const rawPeak = row[`peak_${parameter}`];
         bucket.push({
           timestamp: ts.toISOString(),
           value:
@@ -296,6 +297,12 @@ export class DevicesService {
               ? parameter === 'temperature'
                 ? Math.round(Number(rawValue) * 10) / 10
                 : Math.round(Number(rawValue))
+              : null,
+          peakValue:
+            rawPeak !== null && rawPeak !== undefined
+              ? parameter === 'temperature'
+                ? Math.round(Number(rawPeak) * 10) / 10
+                : Math.round(Number(rawPeak))
               : null,
         });
       }

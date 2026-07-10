@@ -127,7 +127,7 @@ export class TelemetryQueryService {
     const selectAgg = Prisma.join(
       safeParams.map(
         (param) =>
-          Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}"`,
+          Prisma.sql`AVG("${Prisma.raw(param)}") as "${Prisma.raw(param)}", MAX("${Prisma.raw(param)}") as "peak_${Prisma.raw(param)}"`,
       ),
       ', ',
     );
