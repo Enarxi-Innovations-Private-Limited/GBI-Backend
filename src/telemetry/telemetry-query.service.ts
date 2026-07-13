@@ -48,8 +48,8 @@ export class TelemetryQueryService {
     // If range is extremely small (e.g. 15 mins), show every minute
     if (diffMinutes <= 15) return 1;
 
-    // Target ~50 points for optimal readability and detail density (e.g. 50-60 points in viewport)
-    const rawInterval = diffMinutes / 50;
+    // Target ~100 points for optimal readability and detail density (e.g. 100 points in viewport)
+    const rawInterval = diffMinutes / 100;
 
     // Standard industrial buckets (in minutes)
     const buckets = [
