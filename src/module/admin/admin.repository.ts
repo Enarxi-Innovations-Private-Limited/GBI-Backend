@@ -77,17 +77,62 @@ export class AdminRepository {
   ) {
     const skip = (page - 1) * limit;
 
+    let deviceIdsByNickname: string[] = [];
+    if (search) {
+      const matchingUserDevices = await this.prisma.userDevice.findMany({
+        where: {
+          name: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        select: { deviceId: true },
+      });
+      deviceIdsByNickname = matchingUserDevices.map((ud) => ud.deviceId);
+    }
+
     const where: any = {
       isDeleted: false,
-      ...(search
-        ? {
-            deviceId: {
-              contains: search,
-              mode: 'insensitive' as const,
-            },
-          }
-        : {}),
     };
+
+    if (search) {
+      where.OR = [
+        {
+          deviceId: {
+            contains: search,
+            mode: 'insensitive' as const,
+          },
+        },
+        {
+          deviceId: {
+            in: deviceIdsByNickname,
+          },
+        },
+        {
+          assignments: {
+            some: {
+              unassignedAt: null,
+              user: {
+                OR: [
+                  {
+                    name: {
+                      contains: search,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                  {
+                    email: {
+                      contains: search,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ];
+    }
 
     if (assignmentStatus === 'assigned') {
       where.assignments = { some: { unassignedAt: null } };
@@ -110,7 +155,11 @@ export class AdminRepository {
             where: { unassignedAt: null },
             select: {
               user: {
-                select: { name: true },
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
               },
             },
           },
@@ -119,7 +168,7 @@ export class AdminRepository {
       this.prisma.device.count({ where }),
     ]);
 
-    // Fetch meta (city, pincode) from UserDevice using deviceIds
+    // Fetch meta (name, city, pincode) from UserDevice using deviceIds
     const deviceIds = data.map((d) => d.deviceId);
     const userDevices = await this.prisma.userDevice.findMany({
       where: { deviceId: { in: deviceIds } },
@@ -129,7 +178,7 @@ export class AdminRepository {
       const meta = userDevices.find((ud) => ud.deviceId === device.deviceId);
       return {
         ...device,
-        meta: meta ? { city: meta.city, pincode: meta.pincode } : null,
+        meta: meta ? { name: meta.name, city: meta.city, pincode: meta.pincode } : null,
       };
     });
 
