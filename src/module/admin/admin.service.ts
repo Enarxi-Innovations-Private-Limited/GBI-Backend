@@ -270,6 +270,7 @@ export class AdminService {
       organization: user.organization,
       phone: user.phone,
       isRestricted: user.isRestricted,
+      isProfileComplete: user.isProfileComplete,
       deviceCount: user.assignments.length,
     }));
   }

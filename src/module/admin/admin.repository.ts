@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DeviceStatus } from '@prisma/client';
 
@@ -221,21 +221,31 @@ export class AdminRepository {
     });
   }
 
-  getUsers() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        organization: true,
-        phone: true,
-        isRestricted: true,
-        assignments: {
-          where: { unassignedAt: null },
-          select: { id: true },
+  async getUsers() {
+    const [users, admins] = await Promise.all([
+      this.prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          organization: true,
+          phone: true,
+          isRestricted: true,
+          isProfileComplete: true,
+          assignments: {
+            where: { unassignedAt: null },
+            select: { id: true },
+          },
         },
-      },
-    });
+      }),
+      this.prisma.admin.findMany({
+        select: { email: true },
+      }),
+    ]);
+
+    const adminEmails = new Set(admins.map((a) => a.email.toLowerCase().trim()));
+
+    return users.filter((user) => !adminEmails.has(user.email.toLowerCase().trim()));
   }
 
   restrictUser(userId: string) {
@@ -264,31 +274,65 @@ export class AdminRepository {
     });
 
     if (!user) {
-      return { message: 'User not found' };
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.isProfileComplete) {
+      throw new BadRequestException('Cannot delete a user with a completed profile.');
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // 1. Dissociate any devices from custom device groups created by this user
+      const userGroups = await tx.deviceGroup.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      const userGroupIds = userGroups.map((g) => g.id);
+
+      if (userGroupIds.length > 0) {
+        await tx.device.updateMany({
+          where: { groupId: { in: userGroupIds } },
+          data: { groupId: null },
+        });
+
+        // 2. Delete the user's custom device groups
+        await tx.deviceGroup.deleteMany({
+          where: { id: { in: userGroupIds } },
+        });
+      }
+
+      // 3. Delete user device nickname/metadata settings (UserDevice)
+      await tx.userDevice.deleteMany({
+        where: { userId },
+      });
+
+      // 4. Delete active assignments
       await tx.deviceAssignment.deleteMany({
         where: { userId },
       });
 
+      // 5. Delete alert configs
       await tx.alertState.deleteMany({
         where: { userId },
       });
 
+      // 6. Delete notifications
       await tx.notification.deleteMany({
         where: { userId },
       });
 
+      // 7. Keep event logs for audits but disassociate them from the user
       await tx.eventLog.updateMany({
         where: { userId },
         data: { userId: null },
       });
 
+      // 8. Delete active session tokens
       await tx.refreshToken.deleteMany({
         where: { userId },
       });
 
+      // 9. Finally, delete the user
       await tx.user.delete({
         where: { id: userId },
       });

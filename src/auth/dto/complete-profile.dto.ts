@@ -5,6 +5,7 @@ import {
   IsString,
   MinLength,
   IsBoolean,
+  Matches,
 } from 'class-validator';
 
 export class CompleteProfileDto {
@@ -13,8 +14,8 @@ export class CompleteProfileDto {
   name: string;
 
   @IsString()
-  @IsNotEmpty()
-  organization: string;
+  @IsOptional()
+  organization?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -22,6 +23,9 @@ export class CompleteProfileDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+91[6-9]\d{9}$/, {
+    message: 'Please enter a valid 10-digit Indian mobile number',
+  })
   phone: string;
 
   // SMS OTP validation removed for now, but keeping the field optional in DTO
@@ -45,5 +49,8 @@ export class CompleteProfileDto {
 export class RequestPhoneOtpDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+91[6-9]\d{9}$/, {
+    message: 'Please enter a valid 10-digit Indian mobile number',
+  })
   phone: string;
 }
