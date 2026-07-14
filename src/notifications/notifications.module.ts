@@ -5,6 +5,7 @@ import { MockSmsProvider } from './providers';
 import { ISmsProvider } from './interfaces';
 import { MailModule } from '../mail/mail.module';
 import { MailService } from '../mail/mail.service';
+import { NotificationsController } from './notifications.controller';
 
 /**
  * Notifications Module
@@ -20,6 +21,7 @@ import { MailService } from '../mail/mail.service';
  */
 @Module({
   imports: [ConfigModule, MailModule],
+  controllers: [NotificationsController],
   providers: [
     NotificationService,
     {

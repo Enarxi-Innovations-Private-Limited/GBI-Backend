@@ -20,9 +20,14 @@ async function bootstrap() {
   );
   */
   // Reverting to standard to avoid "use already added" conflict
+  const adapter = new FastifyAdapter({ trustProxy: true });
+  adapter.getInstance().addContentTypeParser('text/plain', { parseAs: 'string' }, (req, body, done) => {
+    done(null, body);
+  });
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    adapter,
   );
 
   // app.setGlobalPrefix('api');

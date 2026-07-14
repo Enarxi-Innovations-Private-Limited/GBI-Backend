@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import * as aws from '@aws-sdk/client-sesv2';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MailerService implements OnModuleInit {
@@ -9,7 +10,10 @@ export class MailerService implements OnModuleInit {
   private transporter: nodemailer.Transporter;
   private readonly fromEmail: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prisma: PrismaService,
+  ) {
     this.fromEmail =
       this.configService.get<string>('AWS_SES_FROM_EMAIL') ||
       'noreply@greenbreathe.in';
@@ -66,6 +70,19 @@ export class MailerService implements OnModuleInit {
     html: string,
   ): Promise<boolean> {
     try {
+      // Check if email is restricted / suppressed due to bounce or complaint
+      const user = await this.prisma.user.findUnique({
+        where: { email: to.toLowerCase().trim() },
+        select: { isRestricted: true },
+      });
+
+      if (user && user.isRestricted) {
+        this.logger.warn(
+          `✉️ [SUPPRESSION] Email to ${to} was blocked because the user account is restricted (due to a previous bounce or complaint).`,
+        );
+        return false;
+      }
+
       const info = await this.transporter.sendMail({
         from: this.fromEmail,
         to,

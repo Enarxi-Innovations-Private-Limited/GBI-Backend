@@ -55,7 +55,8 @@ export class CsrfMiddleware implements NestMiddleware {
       url.includes('/auth/signup') ||
       url.includes('/admin/login') ||
       url.includes('/auth/verify-email-otp') ||
-      url.includes('/auth/refresh-token');
+      url.includes('/auth/refresh-token') ||
+      url.includes('/webhooks/aws-ses');
 
     if (isAuthPath) {
       return next();
