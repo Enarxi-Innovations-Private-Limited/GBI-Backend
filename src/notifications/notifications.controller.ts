@@ -1,12 +1,16 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
+import Redis from 'ioredis';
 
 @Controller('webhooks/aws-ses')
 export class NotificationsController {
   private readonly logger = new Logger(NotificationsController.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.OK)
@@ -62,12 +66,14 @@ export class NotificationsController {
             if (email) {
               this.logger.warn(`Email hard-bounced: ${email}. Restricting email verification status...`);
               try {
-                // Set emailVerified to false and restrict account to prevent future emails
+                // Set emailVerified to false so the user can no longer be sent emails
                 await this.prisma.user.updateMany({
                   where: { email: email.toLowerCase().trim() },
-                  data: { emailVerified: false, isRestricted: true },
+                  data: { emailVerified: false },
                 });
-                this.logger.log(`Successfully unregistered verification for bounced email: ${email}`);
+                // Add to Redis suppression set to block future email delivery
+                await this.redis.sadd('suppressed_emails', email.toLowerCase().trim());
+                this.logger.log(`Successfully unregistered verification and suppressed bounced email: ${email}`);
               } catch (err: any) {
                 this.logger.error(`Failed to update bounced user: ${err.message}`);
               }
@@ -82,12 +88,14 @@ export class NotificationsController {
           if (email) {
             this.logger.warn(`Email complaint received for: ${email}. Restricting email verification status...`);
             try {
-              // Set emailVerified to false and restrict account to stop emails to this user
+              // Set emailVerified to false to stop emails to this user
               await this.prisma.user.updateMany({
                 where: { email: email.toLowerCase().trim() },
-                data: { emailVerified: false, isRestricted: true },
+                data: { emailVerified: false },
               });
-              this.logger.log(`Successfully unregistered verification for complained email: ${email}`);
+              // Add to Redis suppression set to block future email delivery
+              await this.redis.sadd('suppressed_emails', email.toLowerCase().trim());
+              this.logger.log(`Successfully unregistered verification and suppressed complained email: ${email}`);
             } catch (err: any) {
               this.logger.error(`Failed to update complained user: ${err.message}`);
             }

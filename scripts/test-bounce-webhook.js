@@ -1,9 +1,17 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const axios = require('axios');
+const Redis = require('ioredis');
 
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 const TEST_EMAIL = 'test-bounce@example.com';
+
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  tls: (process.env.REDIS_URL || '').startsWith('rediss://')
+    ? { rejectUnauthorized: false }
+    : undefined,
+});
 
 async function runTest() {
   console.log('🚀 Starting Local SES Bounce Webhook Test...');
@@ -13,6 +21,7 @@ async function runTest() {
   await prisma.user.deleteMany({
     where: { email: TEST_EMAIL }
   });
+  await redis.srem('suppressed_emails', TEST_EMAIL);
 
   const user = await prisma.user.create({
     data: {
@@ -77,9 +86,9 @@ async function runTest() {
     process.exit(1);
   }
 
-  // 4. Query the database to verify changes
-  console.log('\n3. Verifying user updates in local database...');
-  // Wait a split second for async DB transaction to complete
+  // 4. Query the database and Redis to verify changes
+  console.log('\n3. Verifying user updates and Redis suppression...');
+  // Wait a split second for async transactions to complete
   await new Promise((resolve) => setTimeout(resolve, 500));
 
   const updatedUser = await prisma.user.findUnique({
@@ -91,25 +100,31 @@ async function runTest() {
     process.exit(1);
   }
 
-  console.log('📊 Resulting User State:');
-  console.log('- emailVerified:', updatedUser.emailVerified, updatedUser.emailVerified === false ? '✅ (Changed to false)' : '❌ (Expected false)');
-  console.log('- isRestricted:', updatedUser.isRestricted, updatedUser.isRestricted === true ? '✅ (Changed to true)' : '❌ (Expected true)');
+  const isSuppressed = await redis.sismember('suppressed_emails', TEST_EMAIL);
 
-  if (updatedUser.emailVerified === false && updatedUser.isRestricted === true) {
-    console.log('\n🎉 SUCCESS: The webhook parsed the bounce, updated the database, and restricted the user correctly!');
+  console.log('📊 Resulting State:');
+  console.log('- emailVerified:', updatedUser.emailVerified, updatedUser.emailVerified === false ? '✅ (Changed to false)' : '❌ (Expected false)');
+  console.log('- isRestricted:', updatedUser.isRestricted, updatedUser.isRestricted === false ? '✅ (Remained false - user not banned)' : '❌ (Expected false)');
+  console.log('- suppressed in Redis:', !!isSuppressed, isSuppressed === 1 ? '✅ (Successfully Suppressed)' : '❌ (Expected suppressed)');
+
+  if (updatedUser.emailVerified === false && updatedUser.isRestricted === false && isSuppressed === 1) {
+    console.log('\n🎉 SUCCESS: Webhook processed bounce, unregistered email, suppressed it in Redis, and kept the account active!');
   } else {
-    console.error('\n❌ FAILURE: User status was not updated correctly.');
+    console.error('\n❌ FAILURE: Bounced state or suppression was not updated correctly.');
   }
 
   // Clean up
   await prisma.user.deleteMany({
     where: { email: TEST_EMAIL }
   });
+  await redis.srem('suppressed_emails', TEST_EMAIL);
   await prisma.$disconnect();
+  redis.disconnect();
 }
 
 runTest().catch(async (e) => {
   console.error(e);
   await prisma.$disconnect();
+  redis.disconnect();
   process.exit(1);
 });

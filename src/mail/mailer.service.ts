@@ -1,8 +1,8 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import * as aws from '@aws-sdk/client-sesv2';
-import { PrismaService } from '../prisma/prisma.service';
+import Redis from 'ioredis';
 
 @Injectable()
 export class MailerService implements OnModuleInit {
@@ -12,7 +12,7 @@ export class MailerService implements OnModuleInit {
 
   constructor(
     private configService: ConfigService,
-    private prisma: PrismaService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {
     this.fromEmail =
       this.configService.get<string>('AWS_SES_FROM_EMAIL') ||
@@ -70,15 +70,15 @@ export class MailerService implements OnModuleInit {
     html: string,
   ): Promise<boolean> {
     try {
-      // Check if email is restricted / suppressed due to bounce or complaint
-      const user = await this.prisma.user.findUnique({
-        where: { email: to.toLowerCase().trim() },
-        select: { isRestricted: true },
-      });
+      // Check if email is suppressed in Redis due to a bounce or complaint
+      const isSuppressed = await this.redis.sismember(
+        'suppressed_emails',
+        to.toLowerCase().trim(),
+      );
 
-      if (user && user.isRestricted) {
+      if (isSuppressed) {
         this.logger.warn(
-          `✉️ [SUPPRESSION] Email to ${to} was blocked because the user account is restricted (due to a previous bounce or complaint).`,
+          `✉️ [SUPPRESSION] Email to ${to} was blocked because this address has previously bounced or filed a complaint.`,
         );
         return false;
       }
