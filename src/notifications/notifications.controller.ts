@@ -62,10 +62,10 @@ export class NotificationsController {
             if (email) {
               this.logger.warn(`Email hard-bounced: ${email}. Restricting email verification status...`);
               try {
-                // Set emailVerified to false so the user can no longer be sent emails
+                // Set emailVerified to false and restrict account to prevent future emails
                 await this.prisma.user.updateMany({
                   where: { email: email.toLowerCase().trim() },
-                  data: { emailVerified: false },
+                  data: { emailVerified: false, isRestricted: true },
                 });
                 this.logger.log(`Successfully unregistered verification for bounced email: ${email}`);
               } catch (err: any) {
@@ -82,10 +82,10 @@ export class NotificationsController {
           if (email) {
             this.logger.warn(`Email complaint received for: ${email}. Restricting email verification status...`);
             try {
-              // Set emailVerified to false to stop emails to this user
+              // Set emailVerified to false and restrict account to stop emails to this user
               await this.prisma.user.updateMany({
                 where: { email: email.toLowerCase().trim() },
-                data: { emailVerified: false },
+                data: { emailVerified: false, isRestricted: true },
               });
               this.logger.log(`Successfully unregistered verification for complained email: ${email}`);
             } catch (err: any) {
