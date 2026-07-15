@@ -1,23 +1,31 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
-const SIMULATOR_USERS = [
-  {
-    email: 'bounce@simulator.amazonses.com',
-    name: 'AWS SES Bounce Simulator',
-    emailVerified: true,
-    isRestricted: false,
-  },
-  {
-    email: 'complaint@simulator.amazonses.com',
-    name: 'AWS SES Complaint Simulator',
-    emailVerified: true,
-    isRestricted: false,
-  }
-];
+const PASSWORD_PLAIN = 'Test@123';
 
 async function seed() {
-  console.log('🚀 Seeding AWS SES Mailbox Simulator users into database...');
+  console.log('🚀 Seeding/Updating AWS SES Mailbox Simulator users...');
+
+  // Hash the password with 12 rounds (matching backend settings)
+  const passwordHash = await bcrypt.hash(PASSWORD_PLAIN, 12);
+
+  const SIMULATOR_USERS = [
+    {
+      email: 'bounce@simulator.amazonses.com',
+      name: 'AWS SES Bounce Simulator',
+      emailVerified: true,
+      isRestricted: false,
+      passwordHash,
+    },
+    {
+      email: 'complaint@simulator.amazonses.com',
+      name: 'AWS SES Complaint Simulator',
+      emailVerified: true,
+      isRestricted: false,
+      passwordHash,
+    }
+  ];
 
   for (const userData of SIMULATOR_USERS) {
     // Clean up existing records first to ensure a clean state
@@ -32,13 +40,7 @@ async function seed() {
     console.log(`✅ Seeded user: ${user.email} (emailVerified: ${user.emailVerified}, isRestricted: ${user.isRestricted})`);
   }
 
-  console.log('\n🎉 Simulator users seeded successfully!');
-  console.log('\nHow to test in production/staging:');
-  console.log('1. Trigger an email send to: bounce@simulator.amazonses.com');
-  console.log('   -> Verifies that the webhook un-verifies the user and suppresses the email in Redis.');
-  console.log('2. Trigger an email send to: complaint@simulator.amazonses.com');
-  console.log('   -> Verifies that spam complaints also un-verify the user and suppress the email.');
-
+  console.log('\n🎉 Simulator users seeded successfully with password "Test@123"!');
   await prisma.$disconnect();
 }
 
