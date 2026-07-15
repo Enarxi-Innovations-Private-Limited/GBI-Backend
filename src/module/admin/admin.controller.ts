@@ -237,4 +237,16 @@ export class AdminController {
   getStats() {
     return this.adminService.getStats();
   }
+
+  @UseGuards(AdminGuard)
+  @Get('suppression-list')
+  getSuppressedEmails() {
+    return this.adminService.getSuppressedEmails();
+  }
+
+  @UseGuards(AdminGuard)
+  @Delete('suppression-list/:email')
+  removeSuppressedEmail(@Param('email') email: string) {
+    return this.adminService.removeSuppressedEmail(email);
+  }
 }

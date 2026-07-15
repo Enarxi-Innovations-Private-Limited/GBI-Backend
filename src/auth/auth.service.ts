@@ -137,6 +137,14 @@ export class AuthService {
     // Normalize
     email = email.trim().toLowerCase();
 
+    // Check if email is suppressed in Redis
+    const isSuppressed = await this.redis.sismember('suppressed_emails', email);
+    if (isSuppressed) {
+      throw new BadRequestException(
+        'This email address is currently flagged as unreachable due to a previous delivery failure. Please contact support at master@gbiair.in to unblock it.',
+      );
+    }
+
     // 1. Fail-fast lock check
     await this.checkLockout(email);
 
@@ -361,6 +369,14 @@ export class AuthService {
 
     // Normalize
     email = email.trim().toLowerCase();
+
+    // Check if email is suppressed in Redis
+    const isSuppressed = await this.redis.sismember('suppressed_emails', email);
+    if (isSuppressed) {
+      throw new BadRequestException(
+        'This email address is currently flagged as unreachable due to a previous delivery failure. Please contact support at master@gbiair.in to unblock it.',
+      );
+    }
 
     // 1. Fail-fast lock check
     await this.checkLockout(email);

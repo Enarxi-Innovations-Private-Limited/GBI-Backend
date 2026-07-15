@@ -352,4 +352,14 @@ export class AdminService {
 
     return { message: 'Password reset successfully' };
   }
+
+  async getSuppressedEmails() {
+    const emails = await this.redis.smembers('suppressed_emails');
+    return { emails };
+  }
+
+  async removeSuppressedEmail(email: string) {
+    const result = await this.redis.srem('suppressed_emails', email.toLowerCase().trim());
+    return { success: result > 0 };
+  }
 }
