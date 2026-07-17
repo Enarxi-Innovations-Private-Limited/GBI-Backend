@@ -426,7 +426,7 @@ export class MqttConsumer implements OnModuleInit, OnModuleDestroy {
         type: 'SUCCESS',
         message: 'Telemetry saved to database',
         deviceId,
-        telemetryId: savedTelemetry.id.toString(),
+        telemetryId: savedTelemetry.messageId,
       });
 
       // Log telemetry receipt to device-specific file
