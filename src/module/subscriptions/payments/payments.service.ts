@@ -117,52 +117,110 @@ export class PaymentsService {
       throw new BadRequestException('Invalid payment signature');
     }
 
-    // Payment is authentic, process subscription
-    // 1. Get the order details to find the plan
     try {
       const order = await this.razorpay.orders.fetch(razorpayOrderId);
       const planId = order.notes.planId;
 
-      const plan = await this.prisma.subscriptionPlan.findUnique({
-        where: { id: planId },
-      });
-
-      if (!plan) throw new BadRequestException('Plan not found for this order');
-
-      const activationDate = new Date();
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
-
-      // Using the existing PremiumRepository logic to activate premium
-      // We'll pass 'SYSTEM' as the adminId or a specific ID if preferred.
-      // Since this is an automated payment, we might want a system user.
-      await this.premiumRepo.activatePremium(
+      return await this.activateUserSubscription(
         userId,
-        'SYSTEM_PAYMENT', // Admin ID for audit logs
-        activationDate,
-        expiryDate,
-        `Purchased ${plan.name} via Razorpay`,
+        planId,
+        razorpayOrderId,
+        razorpayPaymentId,
       );
-
-      // Also create a record in the Subscription table for detailed billing
-      await this.prisma.subscription.create({
-        data: {
-          id: `sub_${razorpayOrderId}`,
-          userId,
-          planId: plan.id,
-          orderId: razorpayOrderId,
-          paymentId: razorpayPaymentId,
-          amountPaid: plan.amount,
-          expiresAt: expiryDate,
-          status: 'ACTIVE',
-          updatedAt: new Date(),
-        },
-      });
-
-      return { success: true, expiryDate };
     } catch (error) {
       this.logger.error('Error verifying Razorpay payment', error);
       throw new BadRequestException('Payment verification failed');
     }
+  }
+
+  async activateUserSubscription(
+    userId: string,
+    planId: string,
+    orderId: string,
+    paymentId: string,
+  ) {
+    const existingSub = await this.prisma.subscription.findUnique({
+      where: { id: `sub_${orderId}` },
+    });
+
+    if (existingSub) {
+      this.logger.log(`Subscription for order ${orderId} already active.`);
+      return { success: true, alreadyActivated: true };
+    }
+
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: planId },
+    });
+
+    if (!plan) throw new BadRequestException('Plan not found');
+
+    const activationDate = new Date();
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
+
+    await this.premiumRepo.activatePremium(
+      userId,
+      'SYSTEM_PAYMENT',
+      activationDate,
+      expiryDate,
+      `Purchased ${plan.name} via Razorpay`,
+    );
+
+    await this.prisma.subscription.create({
+      data: {
+        id: `sub_${orderId}`,
+        userId,
+        planId: plan.id,
+        orderId,
+        paymentId,
+        amountPaid: plan.amount,
+        expiresAt: expiryDate,
+        status: 'ACTIVE',
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ Subscription activated for user ${userId} (Plan: ${plan.id})`);
+    return { success: true, expiryDate };
+  }
+
+  async handleWebhook(rawBody: Buffer, signature: string) {
+    const secret = this.configService.get<string>('RAZORPAY_WEBHOOK_SECRET');
+    if (!secret) {
+      this.logger.error('RAZORPAY_WEBHOOK_SECRET is not configured in .env');
+      throw new BadRequestException('Webhook configuration error');
+    }
+
+    const shasum = crypto.createHmac('sha256', secret);
+    shasum.update(rawBody);
+    const expectedSignature = shasum.digest('hex');
+
+    if (expectedSignature !== signature) {
+      this.logger.error('Invalid Razorpay webhook signature');
+      throw new BadRequestException('Signature mismatch');
+    }
+
+    const payload = JSON.parse(rawBody.toString());
+    const event = payload.event;
+
+    this.logger.log(`Received Razorpay webhook event: ${event}`);
+
+    if (event === 'order.paid') {
+      const order = payload.payload.order.entity;
+      const payment = payload.payload.payment.entity;
+
+      const userId = order.notes?.userId;
+      const planId = order.notes?.planId;
+      const orderId = order.id;
+      const paymentId = payment.id;
+
+      if (userId && planId) {
+        await this.activateUserSubscription(userId, planId, orderId, paymentId);
+      } else {
+        this.logger.warn(`Webhook order.paid missing notes: userId=${userId}, planId=${planId}`);
+      }
+    }
+
+    return { received: true };
   }
 }

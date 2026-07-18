@@ -1,15 +1,15 @@
-import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, BadRequestException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreateOrderDto, VerifyPaymentDto } from './dto/payment.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { FastifyRequest } from 'fastify';
 
 @Controller('subscriptions')
-@UseGuards(JwtAuthGuard)
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('create-order')
+  @UseGuards(JwtAuthGuard)
   createOrder(
     @Body() dto: CreateOrderDto,
     @Req() req: FastifyRequest & { user: any },
@@ -18,6 +18,7 @@ export class PaymentsController {
   }
 
   @Post('verify')
+  @UseGuards(JwtAuthGuard)
   verifyPayment(
     @Body() dto: VerifyPaymentDto,
     @Req() req: FastifyRequest & { user: any },
@@ -28,5 +29,19 @@ export class PaymentsController {
       dto.razorpaySignature,
       req.user.id,
     );
+  }
+
+  @Post('webhook')
+  async handleWebhook(
+    @Req() req: FastifyRequest & { rawBody?: Buffer },
+  ) {
+    const signature = req.headers['x-razorpay-signature'] as string;
+    const rawBody = req.rawBody;
+
+    if (!signature || !rawBody) {
+      throw new BadRequestException('Missing signature or body payload');
+    }
+
+    return this.paymentsService.handleWebhook(rawBody, signature);
   }
 }
