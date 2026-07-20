@@ -139,49 +139,52 @@ export class PaymentsService {
     orderId: string,
     paymentId: string,
   ) {
-    const existingSub = await this.prisma.subscription.findUnique({
-      where: { id: `sub_${orderId}` },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const existingSub = await tx.subscription.findUnique({
+        where: { id: `sub_${orderId}` },
+      });
 
-    if (existingSub) {
-      this.logger.log(`Subscription for order ${orderId} already active.`);
-      return { success: true, alreadyActivated: true };
-    }
+      if (existingSub) {
+        this.logger.log(`Subscription for order ${orderId} already active.`);
+        return { success: true, alreadyActivated: true };
+      }
 
-    const plan = await this.prisma.subscriptionPlan.findUnique({
-      where: { id: planId },
-    });
+      const plan = await tx.subscriptionPlan.findUnique({
+        where: { id: planId },
+      });
 
-    if (!plan) throw new BadRequestException('Plan not found');
+      if (!plan) throw new BadRequestException('Plan not found');
 
-    const activationDate = new Date();
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
+      const activationDate = new Date();
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
 
-    await this.premiumRepo.activatePremium(
-      userId,
-      'SYSTEM_PAYMENT',
-      activationDate,
-      expiryDate,
-      `Purchased ${plan.name} via Razorpay`,
-    );
-
-    await this.prisma.subscription.create({
-      data: {
-        id: `sub_${orderId}`,
+      await this.premiumRepo.activatePremium(
         userId,
-        planId: plan.id,
-        orderId,
-        paymentId,
-        amountPaid: plan.amount,
-        expiresAt: expiryDate,
-        status: 'ACTIVE',
-        updatedAt: new Date(),
-      },
-    });
+        'SYSTEM_PAYMENT',
+        activationDate,
+        expiryDate,
+        `Purchased ${plan.name} via Razorpay`,
+        tx,
+      );
 
-    this.logger.log(`✅ Subscription activated for user ${userId} (Plan: ${plan.id})`);
-    return { success: true, expiryDate };
+      await tx.subscription.create({
+        data: {
+          id: `sub_${orderId}`,
+          userId,
+          planId: plan.id,
+          orderId,
+          paymentId,
+          amountPaid: plan.amount,
+          expiresAt: expiryDate,
+          status: 'ACTIVE',
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`✅ Subscription activated for user ${userId} (Plan: ${plan.id})`);
+      return { success: true, expiryDate };
+    });
   }
 
   async handleWebhook(rawBody: Buffer, signature: string) {

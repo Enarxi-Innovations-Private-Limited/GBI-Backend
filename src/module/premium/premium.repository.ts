@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { PremiumActionType, PremiumStatus, SubStatus } from '@prisma/client';
+import { PremiumActionType, PremiumStatus, SubStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PremiumRepository {
@@ -75,10 +75,11 @@ export class PremiumRepository {
     activationDate: Date,
     expiryDate: Date,
     notes?: string,
+    tx?: Prisma.TransactionClient,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const execute = async (client: Prisma.TransactionClient) => {
       // Create subscription record
-      const subscription = await tx.premiumSubscription.create({
+      const subscription = await client.premiumSubscription.create({
         data: {
           userId,
           activatedByAdminId: adminId,
@@ -89,7 +90,7 @@ export class PremiumRepository {
       });
 
       // Update user premium status
-      await tx.user.update({
+      await client.user.update({
         where: { id: userId },
         data: {
           isPremium: true,
@@ -99,7 +100,7 @@ export class PremiumRepository {
       });
 
       // Log the action
-      await tx.premiumHistory.create({
+      await client.premiumHistory.create({
         data: {
           userId,
           actionType: PremiumActionType.ACTIVATE,
@@ -111,7 +112,12 @@ export class PremiumRepository {
       });
 
       return subscription;
-    });
+    };
+
+    if (tx) {
+      return execute(tx);
+    }
+    return this.prisma.$transaction(async (transactionClient) => execute(transactionClient));
   }
 
   async renewPremium(
