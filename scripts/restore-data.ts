@@ -5,7 +5,9 @@ async function main() {
   const devUrl = process.env.DATABASE_URL;
 
   if (!prodUrl) {
-    throw new Error('CRITICAL: PROD_DATABASE_URL environment variable is required!');
+    throw new Error(
+      'CRITICAL: PROD_DATABASE_URL environment variable is required!',
+    );
   }
   if (!devUrl) {
     throw new Error('CRITICAL: DATABASE_URL environment variable is required!');
@@ -13,7 +15,9 @@ async function main() {
 
   // SAFETY CHECKS: Ensure we never perform writes on the prod database URL
   if (devUrl.toLowerCase().includes('defaultdb')) {
-    throw new Error('CRITICAL SAFETY BLOCK: Target database URL contains "defaultdb" (Production)! Aborting.');
+    throw new Error(
+      'CRITICAL SAFETY BLOCK: Target database URL contains "defaultdb" (Production)! Aborting.',
+    );
   }
 
   console.log('🔗 Connecting to databases...');
@@ -26,7 +30,9 @@ async function main() {
   });
 
   try {
-    console.log('🔄 Cleaning up any existing records in dev database (gbi_dev) to prevent unique key violations...');
+    console.log(
+      '🔄 Cleaning up any existing records in dev database (gbi_dev) to prevent unique key violations...',
+    );
     // Delete in correct dependency order
     await devPrisma.premiumHistory.deleteMany();
     await devPrisma.premiumSubscription.deleteMany();
@@ -48,14 +54,15 @@ async function main() {
     console.log('✅ Dev database (gbi_dev) cleaned.');
 
     console.log('📡 Fetching data from prod database (defaultdb)...');
-    
+
     const users = await prodPrisma.user.findMany();
     const userDevices = await prodPrisma.userDevice.findMany();
     const subscriptionPlans = await prodPrisma.subscriptionPlan.findMany();
     const deviceGroups = await prodPrisma.deviceGroup.findMany();
     const devices = await prodPrisma.device.findMany();
     const subscriptions = await prodPrisma.subscription.findMany();
-    const premiumSubscriptions = await prodPrisma.premiumSubscription.findMany();
+    const premiumSubscriptions =
+      await prodPrisma.premiumSubscription.findMany();
     const premiumHistories = await prodPrisma.premiumHistory.findMany();
     const generatedReports = await prodPrisma.generatedReport.findMany();
     const refreshTokens = await prodPrisma.refreshToken.findMany();
@@ -72,7 +79,9 @@ async function main() {
       Devices: ${devices.length}
     `);
 
-    console.log('🚀 Cloning data into dev database (gbi_dev) in correct relational order...');
+    console.log(
+      '🚀 Cloning data into dev database (gbi_dev) in correct relational order...',
+    );
 
     // 1. User & UserDevice
     if (users.length > 0) {
@@ -84,7 +93,7 @@ async function main() {
 
     // 2. SubscriptionPlan
     if (subscriptionPlans.length > 0) {
-      const subPlansData = subscriptionPlans.map(sp => ({
+      const subPlansData = subscriptionPlans.map((sp) => ({
         ...sp,
         features: sp.features as any,
       }));
@@ -99,7 +108,7 @@ async function main() {
     // 4. Device
     if (devices.length > 0) {
       // Omit relations if they are fetched implicitly, map data exactly
-      const deviceData = devices.map(d => ({
+      const deviceData = devices.map((d) => ({
         id: d.id,
         deviceId: d.deviceId,
         status: d.status,
@@ -118,7 +127,9 @@ async function main() {
       await devPrisma.subscription.createMany({ data: subscriptions });
     }
     if (premiumSubscriptions.length > 0) {
-      await devPrisma.premiumSubscription.createMany({ data: premiumSubscriptions });
+      await devPrisma.premiumSubscription.createMany({
+        data: premiumSubscriptions,
+      });
     }
     if (premiumHistories.length > 0) {
       await devPrisma.premiumHistory.createMany({ data: premiumHistories });
@@ -136,7 +147,7 @@ async function main() {
     }
     if (eventLogs.length > 0) {
       // Map BigInt specifically
-      const eventLogData = eventLogs.map(e => ({
+      const eventLogData = eventLogs.map((e) => ({
         id: e.id,
         deviceId: e.deviceId,
         userId: e.userId,
@@ -153,14 +164,14 @@ async function main() {
 
     // 7. Thresholds & Assignments
     if (deviceThresholds.length > 0) {
-      const deviceThresholdData = deviceThresholds.map(dt => ({
+      const deviceThresholdData = deviceThresholds.map((dt) => ({
         ...dt,
         thresholds: dt.thresholds as any,
       }));
       await devPrisma.deviceThreshold.createMany({ data: deviceThresholdData });
     }
     if (groupThresholds.length > 0) {
-      const groupThresholdData = groupThresholds.map(gt => ({
+      const groupThresholdData = groupThresholds.map((gt) => ({
         ...gt,
         thresholds: gt.thresholds as any,
       }));
@@ -172,7 +183,9 @@ async function main() {
 
     // 8. Telemetry Data (Skipped for performance — 780k+ records)
 
-    console.log('🔄 Resetting sequence counters in PostgreSQL for dev autoincrementing columns...');
+    console.log(
+      '🔄 Resetting sequence counters in PostgreSQL for dev autoincrementing columns...',
+    );
     // Reset sequences so new writes do not conflict with cloned IDs
     await devPrisma.$executeRawUnsafe(`
       SELECT setval(pg_get_serial_sequence('"EventLog"', 'id'), coalesce(max(id), 1)) FROM "EventLog";
@@ -181,7 +194,9 @@ async function main() {
       SELECT setval(pg_get_serial_sequence('"DeviceTelemetry"', 'id'), coalesce(max(id), 1)) FROM "DeviceTelemetry";
     `);
 
-    console.log('🎉 Data successfully copied and sequences reset! gbi_dev is now restored.');
+    console.log(
+      '🎉 Data successfully copied and sequences reset! gbi_dev is now restored.',
+    );
   } finally {
     await prodPrisma.$disconnect();
     await devPrisma.$disconnect();

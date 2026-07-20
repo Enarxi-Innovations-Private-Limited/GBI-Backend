@@ -25,7 +25,7 @@ sequenceDiagram
     User->>RP: Enter details & Authorize payment
     RP-->>User: Charge successful
     RP-->>FE: Return callback (paymentId, orderId, signature)
-    
+  
     rect rgb(230, 245, 255)
         Note over FE,BE: Phase 1: Client-Side Redirect (Fast Activation)
         FE->>BE: POST /subscriptions/verify { orderId, paymentId, signature }
@@ -53,16 +53,18 @@ sequenceDiagram
 ## 🛡️ 2. Webhook Security and rawBody Verification
 
 ### Why rawBody is Required
+
 Razorpay signs webhook payloads using an **HMAC-SHA256 signature** based on the exact raw request body payload. If the body is modified or parsed into a JSON object by Fastify before signing verification, the resulting HMAC signature will fail.
 
-*   **Setup**: We enabled `{ rawBody: true }` in `src/main.ts` so Fastify attaches the raw request `Buffer` to `request.rawBody`.
-*   **Verification**: The signature received in the `x-razorpay-signature` header is compared cryptographically against the signature calculated on the server using `RAZORPAY_WEBHOOK_SECRET`.
+* **Setup**: We enabled `{ rawBody: true }` in `src/main.ts` so Fastify attaches the raw request `Buffer` to `request.rawBody`.
+* **Verification**: The signature received in the `x-razorpay-signature` header is compared cryptographically against the signature calculated on the server using `RAZORPAY_WEBHOOK_SECRET`.
 
 ---
 
 ## ⚙️ 3. Production Configuration Steps
 
 ### Step 1: Environment Variables
+
 Ensure the following variables are configured in the production `/root/GBI-Backend/.env` file:
 
 ```env
@@ -75,13 +77,14 @@ RAZORPAY_WEBHOOK_SECRET="7a6a9f049cb90eca0298b8c2049da2ba2b25b0f7dc6fdf0969bcd87
 ```
 
 ### Step 2: Register the Webhook in Razorpay Dashboard
+
 1. Log in to the **[Razorpay Dashboard](https://dashboard.razorpay.com/)**.
 2. Navigate to **Payments** -> **Settings** -> **Webhooks** tab.
 3. Click **Add New Webhook**.
 4. Configure the settings:
-   *   **Webhook URL**: `https://api.gbiair.in/subscriptions/webhook`
-   *   **Secret**: `7a6a9f049cb90eca0298b8c2049da2ba2b25b0f7dc6fdf0969bcd87b5ceef914`
-   *   **Active Events**: Select **`order.paid`**.
+   * **Webhook URL**: `https://api.gbiair.in/subscriptions/webhook`
+   * **Secret**: `7a6a9f049cb90eca0298b8c2049da2ba2b25b0f7dc6fdf0969bcd87b5ceef914`
+   * **Active Events**: Select **`order.paid`**.
 5. Click **Create Webhook**.
 
 ---
@@ -91,6 +94,7 @@ RAZORPAY_WEBHOOK_SECRET="7a6a9f049cb90eca0298b8c2049da2ba2b25b0f7dc6fdf0969bcd87
 You can simulate a Razorpay webhook event locally to test the signing and verification logic:
 
 ### Using a Test Script
+
 Create a node script `scripts/test-webhook.js`:
 
 ```javascript

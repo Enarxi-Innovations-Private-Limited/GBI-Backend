@@ -75,6 +75,30 @@ async function bootstrap() {
     }),
   );
   app.useGlobalInterceptors(new BigIntInterceptor());
+
+  // --- Swagger UI setup for dev/staging environments ---
+  if (process.env.NODE_ENV !== 'production') {
+    const { DocumentBuilder, SwaggerModule } = require('@nestjs/swagger');
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('GBI Air Quality Monitor API')
+      .setDescription('Interactive OpenAPI specification for GBI E2E integration endpoints.')
+      .setVersion('1.4.1')
+      .addCookieAuth('access_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'access_token',
+      })
+      .addCookieAuth('refresh_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'refresh_token',
+      })
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document);
+    Logger.log('Swagger UI initialized at /docs');
+  }
+
   const port = process.env.PORT ?? 4000;
   await app.listen({ port: Number(process.env.PORT) || 4000, host: '0.0.0.0' });
   Logger.log(`Server running on http://localhost:${port}`);

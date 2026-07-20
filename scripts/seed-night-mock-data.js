@@ -174,10 +174,10 @@ async function main() {
     where: { deviceId: DEVICE_ID },
     _min: { timestamp: true },
     _max: { timestamp: true },
-    _count: { id: true }
+    _count: { timestamp: true }
   });
   console.log('\n📈 Updated DB stats:');
-  console.log(`   Total records : ${stats._count.id}`);
+  console.log(`   Total records : ${stats._count.timestamp}`);
   console.log(`   Oldest (IST)  : ${new Date(stats._min.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
   console.log(`   Newest (IST)  : ${new Date(stats._max.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
 }
