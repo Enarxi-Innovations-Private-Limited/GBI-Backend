@@ -3,19 +3,30 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async findAll() {
-    return this.prisma.subscriptionPlan.findMany({
+    const plans = await this.prisma.subscriptionPlan.findMany({
       where: { isActive: true },
       orderBy: { amount: 'asc' },
     });
+    const enabled = this.configService.get<string>('ENABLE_PAYMENTS');
+    const isPaymentsEnabled = enabled !== 'false';
+
+    return {
+      plans,
+      isPaymentsEnabled,
+    };
   }
 
   async findOne(id: string) {

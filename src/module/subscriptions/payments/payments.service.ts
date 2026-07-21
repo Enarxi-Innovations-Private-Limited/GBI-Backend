@@ -37,7 +37,16 @@ export class PaymentsService {
     }
   }
 
+  private isPaymentsEnabled(): boolean {
+    const enabled = this.configService.get<string>('ENABLE_PAYMENTS');
+    return enabled !== 'false';
+  }
+
   async createOrder(planId: string, userId: string) {
+    if (!this.isPaymentsEnabled()) {
+      throw new BadRequestException('Payment gateway is currently disabled');
+    }
+
     if (!this.razorpay) {
       this.logger.error('Razorpay SDK not initialized. Check your API keys.');
       throw new BadRequestException('Payment gateway is currently unavailable');
@@ -100,6 +109,10 @@ export class PaymentsService {
     razorpaySignature: string,
     userId: string,
   ) {
+    if (!this.isPaymentsEnabled()) {
+      throw new BadRequestException('Payment gateway is currently disabled');
+    }
+
     const body = razorpayOrderId + '|' + razorpayPaymentId;
     const secret = this.configService.get<string>('RAZORPAY_KEY_SECRET') || '';
     const expectedSignature = crypto
@@ -188,6 +201,10 @@ export class PaymentsService {
   }
 
   async handleWebhook(rawBody: Buffer, signature: string) {
+    if (!this.isPaymentsEnabled()) {
+      throw new BadRequestException('Payment gateway is currently disabled');
+    }
+
     const secret = this.configService.get<string>('RAZORPAY_WEBHOOK_SECRET');
     if (!secret) {
       this.logger.error('RAZORPAY_WEBHOOK_SECRET is not configured in .env');
