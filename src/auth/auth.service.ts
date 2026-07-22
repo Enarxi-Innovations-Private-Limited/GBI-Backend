@@ -912,15 +912,28 @@ export class AuthService {
    * Record a failed authentication or OTP attempt
    */
   private async recordFailure(identifier: string) {
+    const maxAttempts = parseInt(
+      this.configService.get('MAX_FAILED_OTP_ATTEMPTS') || '5',
+      10,
+    );
+    const lockoutTtl = parseInt(
+      this.configService.get('OTP_LOCKOUT_TTL_SECONDS') || '900',
+      10,
+    );
+
     const key = `otp_failures:${identifier}`;
     const failures = await this.redis.incr(key);
     if (failures === 1) {
-      await this.redis.expire(key, 900); // 15 mins
+      await this.redis.expire(key, lockoutTtl);
     }
-    if (failures >= 5) {
+    if (failures >= maxAttempts) {
       // Set lockout first to prevent race conditions during concurrent hits
-      await this.redis.set(`lockout:${identifier}`, 'true', 'EX', 900);
+      await this.redis.set(`lockout:${identifier}`, 'true', 'EX', lockoutTtl);
       await this.redis.del(key);
+      throw new HttpException(
+        'Account temporarily locked due to multiple failed attempts.',
+        423,
+      );
     }
   }
 

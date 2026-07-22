@@ -294,7 +294,46 @@ export class AdminService {
   }
 
   async getStats() {
-    return this.repo.getStats();
+    const stats = await this.repo.getStats();
+    const suppressedEmailsCount = await this.redis.scard('suppressed_emails');
+    const lockedKeys = await this.redis.keys('lockout:*');
+    return {
+      ...stats,
+      suppressedEmailsCount: suppressedEmailsCount || 0,
+      lockedUsersCount: lockedKeys.length || 0,
+    };
+  }
+
+  async getLockedUsers() {
+    const keys = await this.redis.keys('lockout:*');
+    const identifiers = keys.map((key) => key.replace('lockout:', ''));
+    if (identifiers.length === 0) {
+      return { users: [] };
+    }
+
+    const matchedUsers = await this.repo.findUsersByEmails(identifiers);
+    const userMap = new Map(matchedUsers.map((u) => [u.email.toLowerCase(), u]));
+
+    const users = identifiers.map((id) => {
+      const dbUser = userMap.get(id.toLowerCase());
+      return {
+        identifier: id,
+        id: dbUser?.id || null,
+        name: dbUser?.name || 'Unregistered / Unknown',
+        email: dbUser?.email || id,
+        phone: dbUser?.phone || null,
+        organization: dbUser?.organization || null,
+      };
+    });
+
+    return { users };
+  }
+
+  async unlockUser(identifier: string) {
+    const norm = identifier.toLowerCase().trim();
+    await this.redis.del(`lockout:${norm}`);
+    await this.redis.del(`otp_failures:${norm}`);
+    return { success: true };
   }
 
   async forgotPassword(dto: AdminForgotPasswordDto) {
@@ -355,7 +394,25 @@ export class AdminService {
 
   async getSuppressedEmails() {
     const emails = await this.redis.smembers('suppressed_emails');
-    return { emails };
+    if (emails.length === 0) {
+      return { emails: [], users: [] };
+    }
+
+    const matchedUsers = await this.repo.findUsersByEmails(emails);
+    const userMap = new Map(matchedUsers.map((u) => [u.email.toLowerCase(), u]));
+
+    const users = emails.map((email) => {
+      const dbUser = userMap.get(email.toLowerCase());
+      return {
+        email,
+        id: dbUser?.id || null,
+        name: dbUser?.name || 'Unregistered / Unknown',
+        phone: dbUser?.phone || null,
+        organization: dbUser?.organization || null,
+      };
+    });
+
+    return { emails, users };
   }
 
   async removeSuppressedEmail(email: string) {

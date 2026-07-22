@@ -55,6 +55,23 @@ export class AdminRepository {
     });
   }
 
+  findUsersByEmails(emails: string[]) {
+    return this.prisma.user.findMany({
+      where: {
+        email: {
+          in: emails.map((e) => e.toLowerCase().trim()),
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        organization: true,
+        phone: true,
+      },
+    });
+  }
+
   findDevice(deviceId: string) {
     return this.prisma.device.findUnique({ where: { deviceId } });
   }
@@ -361,9 +378,10 @@ export class AdminRepository {
   }
 
   async getStats() {
-    const [totalUsers, totalDevices, onlineDevices, warningDevices] =
+    const [allUsers, admins, totalDevices, onlineDevices, warningDevices] =
       await Promise.all([
-        this.prisma.user.count(),
+        this.prisma.user.findMany({ select: { email: true } }),
+        this.prisma.admin.findMany({ select: { email: true } }),
         this.prisma.device.count({ where: { isDeleted: false } }),
         this.prisma.device.count({
           where: { isDeleted: false, status: DeviceStatus.ONLINE },
@@ -372,6 +390,12 @@ export class AdminRepository {
           where: { isDeleted: false, status: DeviceStatus.WARNING },
         }),
       ]);
+
+    const adminEmails = new Set(admins.map((a) => a.email.toLowerCase().trim()));
+    const customerUsers = allUsers.filter(
+      (u) => !adminEmails.has(u.email.toLowerCase().trim()),
+    );
+    const totalUsers = customerUsers.length;
 
     const offlineDevices = await this.prisma.device.count({
       where: { isDeleted: false, status: DeviceStatus.OFFLINE },

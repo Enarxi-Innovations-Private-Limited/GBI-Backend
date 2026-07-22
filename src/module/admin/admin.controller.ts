@@ -249,4 +249,16 @@ export class AdminController {
   removeSuppressedEmail(@Param('email') email: string) {
     return this.adminService.removeSuppressedEmail(email);
   }
+
+  @UseGuards(AdminGuard)
+  @Get('locked-users')
+  getLockedUsers() {
+    return this.adminService.getLockedUsers();
+  }
+
+  @UseGuards(AdminGuard)
+  @Delete('locked-users/:identifier')
+  unlockUser(@Param('identifier') identifier: string) {
+    return this.adminService.unlockUser(identifier);
+  }
 }
